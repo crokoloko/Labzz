@@ -502,83 +502,13 @@ with tab2:
         )
 
 # ------------------------------------------
-# TAB 3: RIFORNIMENTI & GESTIONE LOTTI
+# TAB 3: RIFORNIMENTI & LOTTI
 # ------------------------------------------
 with tab3:
-    st.subheader("🚚 Registro Rifornimenti e Gestione Lotti")
+    st.subheader("🚚 Registro Rifornimenti e Lotti")
     
     storico_lotti_df = get_storico_lotti_df()
     prodotti_tutti_df = get_prodotti_df()
-    
-    # SEZIONE DI GESTIONE (AGGIUNTA O RIMOZIONE MANUALE LOTTO)
-    st.markdown("### 🛠️ Gestore Lotti (Aggiungi o Rimuovi)")
-    
-    col_l1, col_l2 = st.columns(2)
-    
-    with col_l1:
-        with st.expander("➕ **Aggiungi un Lotto Manualmente**", expanded=False):
-            if prodotti_tutti_df.empty:
-                st.warning("Crea prima un prodotto in anagrafica.")
-            else:
-                with st.form("form_lotto_manuale"):
-                    p_nome_lotto = st.selectbox("Prodotto Lotto", prodotti_tutti_df['nome'].tolist())
-                    cod_lotto_m = st.text_input("Codice Lotto", value=f"LOTTO-MAN-{datetime.now().strftime('%Y%m%d-%H%M')}")
-                    qta_lotto_m = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
-                    costo_u_lotto_m = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
-                    data_scad_m = st.date_input("Data di Scadenza Lotto", value=date.today())
-                    
-                    if st.form_submit_button("Aggiungi Lotto"):
-                        p_row_m = prodotti_tutti_df[prodotti_tutti_df['nome'] == p_nome_lotto].iloc[0]
-                        p_id_m = int(p_row_m['id'])
-                        
-                        with get_connection() as conn:
-                            cursor = conn.cursor()
-                            cursor.execute("""
-                                INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_carico, data_scadenza)
-                                VALUES (?, ?, ?, ?, ?, ?, ?)
-                            """, (p_id_m, cod_lotto_m, qta_lotto_m, qta_lotto_m, costo_u_lotto_m, date.today(), data_scad_m))
-                        
-                        st.success(f"Lotto {cod_lotto_m} aggiunto con successo!")
-                        st.rerun()
-
-    with col_b:
-        with st.expander("🗑️ **Modifica o Rimuovi un Lotto Esistente**", expanded=False):
-            if storico_lotti_df.empty:
-                st.info("Nessun lotto presente da rimuovere o modificare.")
-            else:
-                opzioni_lotti_gest = {
-                    f"ID {r['lotto_id']} | {r['prodotto']} - Lotto: {r['codice_lotto']} (Disp: {r['quantita_attuale']:,.1f} g)": r['lotto_id']
-                    for _, r in storico_lotti_df.iterrows()
-                }
-                
-                label_lotto_scelto = st.selectbox("Seleziona Lotto da Gestire", list(opzioni_lotti_gest.keys()))
-                id_lotto_scelto = opzioni_lotti_gest[label_lotto_scelto]
-                
-                lotto_info = storico_lotti_df[storico_lotti_df['lotto_id'] == id_lotto_scelto].iloc[0]
-                
-                with st.form("form_modifica_lotto"):
-                    st.write(f"Modifica quantità residua per il lotto **{lotto_info['codice_lotto']}**")
-                    nuova_qta_lotto_res = st.number_input("Nuova Quantità Residua (g)", min_value=0.0, value=float(lotto_info['quantita_attuale']), step=0.5, format="%.1f")
-                    
-                    col_b1, col_b2 = st.columns(2)
-                    with col_b1:
-                        btn_salva_lotto = st.form_submit_button("💾 Salva Quantità")
-                    with col_b2:
-                        btn_elimina_lotto = st.form_submit_button("❌ Rimuovi Lotto")
-
-                    if btn_salva_lotto:
-                        with get_connection() as conn:
-                            cursor = conn.cursor()
-                            cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto_res, id_lotto_scelto))
-                        st.success("Quantità del lotto aggiornata!")
-                        st.rerun()
-                        
-                    if btn_elimina_lotto:
-                        elimina_lotto_db(id_lotto_scelto)
-                        st.warning(f"Lotto {lotto_info['codice_lotto']} eliminato dal database!")
-                        st.rerun()
-
-    st.markdown("---")
     
     if storico_lotti_df.empty:
         st.info("Nessun lotto di rifornimento registrato.")
@@ -617,6 +547,61 @@ with tab3:
             use_container_width=True,
             hide_index=True
         )
+
+    st.markdown("---")
+    
+    # SEZIONE DI GESTIONE IN FONDO ALLA PAGINA
+    st.subheader("⚙️ Gestore Lotti (Aggiungi o Rimuovi)")
+    
+    col_l1, col_l2 = st.columns(2)
+    
+    with col_l1:
+        with st.expander("➕ **Aggiungi un Nuovo Lotto**", expanded=True):
+            if prodotti_tutti_df.empty:
+                st.warning("Crea prima un prodotto in anagrafica.")
+            else:
+                with st.form("form_lotto_manuale"):
+                    p_nome_lotto = st.selectbox("Seleziona Prodotto", prodotti_tutti_df['nome'].tolist())
+                    cod_lotto_m = st.text_input("Codice Lotto", value=f"LOTTO-MAN-{datetime.now().strftime('%Y%m%d-%H%M')}")
+                    qta_lotto_m = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
+                    costo_u_lotto_m = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
+                    data_scad_m = st.date_input("Data di Scadenza Lotto", value=date.today())
+                    
+                    if st.form_submit_button("➕ Aggiungi Lotto"):
+                        p_row_m = prodotti_tutti_df[prodotti_tutti_df['nome'] == p_nome_lotto].iloc[0]
+                        p_id_m = int(p_row_m['id'])
+                        
+                        with get_connection() as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("""
+                                INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_carico, data_scadenza)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                            """, (p_id_m, cod_lotto_m, qta_lotto_m, qta_lotto_m, costo_u_lotto_m, date.today(), data_scad_m))
+                        
+                        st.success(f"✅ Lotto '{cod_lotto_m}' aggiunto con successo!")
+                        st.rerun()
+
+    with col_l2:
+        with st.expander("🗑️ **Elimina un Lotto Esistente**", expanded=True):
+            if storico_lotti_df.empty:
+                st.info("Nessun lotto presente da rimuovere.")
+            else:
+                opzioni_lotti_elim = {
+                    f"ID {r['lotto_id']} | {r['prodotto']} - Lotto: {r['codice_lotto']} (Disp: {r['quantita_attuale']:,.1f} g)": r['lotto_id']
+                    for _, r in storico_lotti_df.iterrows()
+                }
+                
+                label_lotto_scelto = st.selectbox("Seleziona Lotto da Rimuovere", list(opzioni_lotti_elim.keys()))
+                id_lotto_scelto = opzioni_lotti_elim[label_lotto_scelto]
+                
+                lotto_info = storico_lotti_df[storico_lotti_df['lotto_id'] == id_lotto_scelto].iloc[0]
+                
+                st.warning(f"Sei sicuro di voler eliminare il lotto **{lotto_info['codice_lotto']}**? L'operazione non può essere annullata.")
+                
+                if st.button("🗑️ Rimuovi Definitivamente Lotto"):
+                    elimina_lotto_db(id_lotto_scelto)
+                    st.success(f"✅ Lotto '{lotto_info['codice_lotto']}' rimosso con successo!")
+                    st.rerun()
 
 # ------------------------------------------
 # TAB 4: DASHBOARD & KPI
