@@ -21,11 +21,11 @@ def get_connection():
     return sqlite3.connect(DB_NAME, timeout=10)
 
 def init_db():
-    """Inizializza il database SQLite verificando e creando tabelle/colonne."""
+    """Inizializza il database SQLite senza prodotti preimpostati."""
     with get_connection() as conn:
         cursor = conn.cursor()
         
-        # 1. Anagrafica prodotti con colonna scorta_minima_g
+        # 1. Anagrafica prodotti
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS prodotti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -36,7 +36,7 @@ def init_db():
         )
         """)
         
-        # Migrazione schema: Aggiunge scorta_minima_g se il DB esisteva già senza
+        # Migrazione schema
         cursor.execute("PRAGMA table_info(prodotti)")
         colonne = [column[1] for column in cursor.fetchall()]
         if 'scorta_minima_g' not in colonne:
@@ -75,20 +75,6 @@ def init_db():
             FOREIGN KEY (lotto_id) REFERENCES lotti (id)
         )
         """)
-        
-        # Inserisci prodotti base se la tabella è vuota
-        cursor.execute("SELECT COUNT(*) FROM prodotti")
-        if cursor.fetchone()[0] == 0:
-            prodotti_iniziali = [
-                ("Farina", "g", 1.0, 500.0),
-                ("Zucchero", "g", 1.0, 500.0),
-                ("Cioccolata", "g", 2.5, 200.0),
-                ("Fieno", "g", 0.5, 1000.0)
-            ]
-            cursor.executemany("""
-                INSERT INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g)
-                VALUES (?, ?, ?, ?)
-            """, prodotti_iniziali)
 
 # Inizializzazione iniziale
 init_db()
@@ -97,8 +83,21 @@ init_db()
 # FUNZIONI UTILITY DATI
 # ==========================================
 def get_prodotti_df():
+    """Recupera tutti i prodotti censiti in anagrafica."""
     with get_connection() as conn:
-        return pd.read_sql_query("SELECT * FROM prodotti", conn)
+        return pd.read_sql_query("SELECT * FROM prodotti ORDER BY nome ASC", conn)
+
+def get_prodotti_disponibili_df():
+    """Recupera SOLO i prodotti che hanno giacenza reale in magazzino (> 0 g)."""
+    query = """
+        SELECT DISTINCT p.* 
+        FROM prodotti p
+        JOIN lotti l ON p.id = l.prodotto_id
+        WHERE l.quantita_attuale > 0
+        ORDER BY p.nome ASC
+    """
+    with get_connection() as conn:
+        return pd.read_sql_query(query, conn)
 
 def get_lotti_df():
     query = """
@@ -123,7 +122,8 @@ def get_movimenti_df():
     with get_connection() as conn:
         return pd.read_sql_query(query, conn)
 
-def calcola_stato_magazzino():
+def calcola_stato_magazzino(solo_disponibili=False):
+    """Calcola le metriche per prodotto."""
     with get_connection() as conn:
         prodotti_df = pd.read_sql_query("SELECT * FROM prodotti", conn)
         lotti_df = pd.read_sql_query("SELECT * FROM lotti WHERE quantita_attuale > 0", conn)
@@ -136,6 +136,11 @@ def calcola_stato_magazzino():
         lotti_prod = lotti_df[lotti_df['prodotto_id'] == p_id]
         
         qta_totale = float(lotti_prod['quantita_attuale'].sum())
+        
+        # Se richiesto, salta i prodotti esauriti
+        if solo_disponibili and qta_totale <= 0:
+            continue
+
         valore_costo_totale = float((lotti_prod['quantita_attuale'] * lotti_prod['costo_acquisto_unitario']).sum())
         costo_medio = valore_costo_totale / qta_totale if qta_totale > 0 else 0.0
         valore_mercato_totale = qta_totale * prod['valore_mercato_unitario']
@@ -172,11 +177,9 @@ def storna_movimento(movimento_id):
         if not mov:
             return False, "Movimento non trovato."
         
-        # Struttura tuple movimenti: 0:id, 1:prodotto_id, 2:lotto_id, 3:tipo, 4:quantita, 5:prezzo_unitario, ...
         p_id, lotto_id, tipo, qta = mov[1], mov[2], mov[3], float(mov[4])
         
         if tipo in ['VENDITA', 'XME']:
-            # Ripristina la quantità nel lotto originale o in quello più recente
             if lotto_id:
                 cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale + ? WHERE id = ?", (qta, lotto_id))
             else:
@@ -185,11 +188,9 @@ def storna_movimento(movimento_id):
                     WHERE id = (SELECT id FROM lotti WHERE prodotto_id = ? ORDER BY id DESC LIMIT 1)
                 """, (qta, p_id))
         elif tipo == 'CARICO':
-            # Se è un acquisto, riduci la quantità del lotto creato
             if lotto_id:
                 cursor.execute("UPDATE lotti SET quantita_attuale = MAX(0, quantita_attuale - ?) WHERE id = ?", (qta, lotto_id))
         
-        # Rimuovi il movimento dal registro
         cursor.execute("DELETE FROM movimenti WHERE id = ?", (movimento_id,))
         return True, "Movimento stornato con successo!"
 
@@ -198,7 +199,6 @@ def storna_movimento(movimento_id):
 # ==========================================
 st.title("📦 Labzz")
 
-# Tabs principali
 tab1, tab2, tab3, tab4 = st.tabs([
     "💸 Cassa & Movimenti", 
     "📋 Gestione Stock", 
@@ -213,86 +213,90 @@ with tab1:
     st.subheader("Cassa Operativa")
     
     tipo_operazione = st.radio("Seleziona Operazione", ["Vendita", "Acquisto", "XME"], horizontal=True)
-    prodotti_df = get_prodotti_df()
     
-    if prodotti_df.empty:
-        st.warning("Nessun prodotto presente in anagrafica. Aggiungi un prodotto dalla scheda 'Gestione Stock'.")
-    else:
-        if tipo_operazione == "Vendita":
-            prod_nome = st.selectbox("Seleziona Prodotto da Vendere", prodotti_df['nome'].tolist())
-            prod_row = prodotti_df[prodotti_df['nome'] == prod_nome].iloc[0]
+    if tipo_operazione == "Vendita":
+        # MOSTRA SOLO PRODOTTI CHE HANNO QUANTITÀ > 0 IN MAGAZZINO
+        prodotti_disp_df = get_prodotti_disponibili_df()
+        
+        if prodotti_disp_df.empty:
+            st.warning("⚠️ Nessun prodotto disponibile in magazzino da vendere. Aggiungi uno stock nella scheda 'Gestione Stock'.")
+        else:
+            prod_nome = st.selectbox("Seleziona Prodotto da Vendere", prodotti_disp_df['nome'].tolist())
+            prod_row = prodotti_disp_df[prodotti_disp_df['nome'] == prod_nome].iloc[0]
             p_id = int(prod_row['id'])
             
             with get_connection() as conn:
                 query_lotti = "SELECT * FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_scadenza ASC"
                 lotti_disponibili = pd.read_sql_query(query_lotti, conn, params=(p_id,))
 
-            if lotti_disponibili.empty:
-                st.error(f"⚠️ Nessuna disponibilità in magazzino per **{prod_nome}**.")
-            else:
-                qta_tot_disp = float(lotti_disponibili['quantita_attuale'].sum())
-                st.info(f"Disponibilità attuale per **{prod_nome}**: **{qta_tot_disp:,.1f} g**")
+            qta_tot_disp = float(lotti_disponibili['quantita_attuale'].sum())
+            st.info(f"Disponibilità attuale per **{prod_nome}**: **{qta_tot_disp:,.1f} g**")
+            
+            with st.form("form_vendita"):
+                st.markdown("##### Registra Vendita")
+                col1, col2 = st.columns(2)
                 
-                with st.form("form_vendita"):
-                    st.markdown("##### Registra Vendita")
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        quantita_vendita = st.number_input("Quantità da Vendere (g)", min_value=0.5, value=100.0, step=0.5, format="%.1f")
-                        prezzo_vendita_unitario = st.number_input("Prezzo al grammo (€/g)", min_value=0.1, value=float(prod_row['valore_mercato_unitario']), step=0.5, format="%.2f")
-                    
-                    with col2:
-                        totale_vendita = quantita_vendita * prezzo_vendita_unitario
-                        st.metric("Totale Incasso Previsto", f"€ {totale_vendita:,.2f}")
-                        note = st.text_input("Note (Opzionale)")
+                with col1:
+                    quantita_vendita = st.number_input("Quantità da Vendere (g)", min_value=0.5, value=min(100.0, qta_tot_disp), step=0.5, format="%.1f")
+                    prezzo_vendita_unitario = st.number_input("Prezzo al grammo (€/g)", min_value=0.1, value=float(prod_row['valore_mercato_unitario']), step=0.5, format="%.2f")
+                
+                with col2:
+                    totale_vendita = quantita_vendita * prezzo_vendita_unitario
+                    st.metric("Totale Incasso Previsto", f"€ {totale_vendita:,.2f}")
+                    note = st.text_input("Note (Opzionale)")
 
-                    if st.form_submit_button("Vendita"):
-                        if quantita_vendita > qta_tot_disp:
-                            st.error(f"Quantità inserita ({quantita_vendita:,.1f} g) superiore alla disponibilità ({qta_tot_disp:,.1f} g).")
-                        else:
-                            with get_connection() as conn:
-                                cursor = conn.cursor()
-                                qta_rimanente = float(quantita_vendita)
-                                costo_totale_acquisto = 0.0
-                                
-                                for _, lotto in lotti_disponibili.iterrows():
-                                    if qta_rimanente <= 0:
-                                        break
-                                    
-                                    l_id = int(lotto['id'])
-                                    qta_lotto = float(lotto['quantita_attuale'])
-                                    costo_u = float(lotto['costo_acquisto_unitario'])
-                                    
-                                    if qta_lotto <= qta_rimanente:
-                                        prelievo = qta_lotto
-                                        qta_rimanente -= qta_lotto
-                                        nuova_qta = 0.0
-                                    else:
-                                        prelievo = qta_rimanente
-                                        nuova_qta = qta_lotto - qta_rimanente
-                                        qta_rimanente = 0.0
-                                    
-                                    costo_totale_acquisto += prelievo * costo_u
-                                    cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, l_id))
-                                
-                                ricavo_totale = quantita_vendita * prezzo_vendita_unitario
-                                margine = ricavo_totale - costo_totale_acquisto
-                                
-                                cursor.execute("""
-                                    INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, note)
-                                    VALUES (?, 'VENDITA', ?, ?, ?, ?, ?, ?)
-                                """, (p_id, quantita_vendita, prezzo_vendita_unitario, ricavo_totale, costo_totale_acquisto, margine, note))
+                if st.form_submit_button("Vendita"):
+                    if quantita_vendita > qta_tot_disp:
+                        st.error(f"Quantità inserita ({quantita_vendita:,.1f} g) superiore alla disponibilità ({qta_tot_disp:,.1f} g).")
+                    else:
+                        with get_connection() as conn:
+                            cursor = conn.cursor()
+                            qta_rimanente = float(quantita_vendita)
+                            costo_totale_acquisto = 0.0
                             
-                            st.success(f"✅ Vendita registrata! Incasso: € {ricavo_totale:,.2f} | Margine: € {margine:,.2f}")
-                            st.rerun()
+                            for _, lotto in lotti_disponibili.iterrows():
+                                if qta_rimanente <= 0:
+                                    break
+                                
+                                l_id = int(lotto['id'])
+                                qta_lotto = float(lotto['quantita_attuale'])
+                                costo_u = float(lotto['costo_acquisto_unitario'])
+                                
+                                if qta_lotto <= qta_rimanente:
+                                    prelievo = qta_lotto
+                                    qta_rimanente -= qta_lotto
+                                    nuova_qta = 0.0
+                                else:
+                                    prelievo = qta_rimanente
+                                    nuova_qta = qta_lotto - qta_rimanente
+                                    qta_rimanente = 0.0
+                                
+                                costo_totale_acquisto += prelievo * costo_u
+                                cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, l_id))
+                            
+                            ricavo_totale = quantita_vendita * prezzo_vendita_unitario
+                            margine = ricavo_totale - costo_totale_acquisto
+                            
+                            cursor.execute("""
+                                INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, note)
+                                VALUES (?, 'VENDITA', ?, ?, ?, ?, ?, ?)
+                            """, (p_id, quantita_vendita, prezzo_vendita_unitario, ricavo_totale, costo_totale_acquisto, margine, note))
+                        
+                        st.success(f"✅ Vendita registrata! Incasso: € {ricavo_totale:,.2f} | Margine: € {margine:,.2f}")
+                        st.rerun()
 
-        elif tipo_operazione == "Acquisto":
+    elif tipo_operazione == "Acquisto":
+        prodotti_tutti_df = get_prodotti_df()
+        
+        if prodotti_tutti_df.empty:
+            st.warning("⚠️ Nessun prodotto censito in anagrafica. Crea prima un prodotto nella scheda 'Gestione Stock'.")
+        else:
             with st.form("form_carico"):
                 st.markdown("##### Registra Acquisto Stock")
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    prod_nome = st.selectbox("Prodotto", prodotti_df['nome'].tolist())
+                    prod_nome = st.selectbox("Prodotto", prodotti_tutti_df['nome'].tolist())
                     quantita = st.number_input("Quantità Acquistata (g)", min_value=0.5, value=1000.0, step=0.5, format="%.1f")
                     costo_unitario = st.number_input("Costo d'Acquisto al grammo (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
                     
@@ -302,7 +306,7 @@ with tab1:
                     note = st.text_input("Note Aggiuntive")
 
                 if st.form_submit_button("Acquisto"):
-                    prod_row = prodotti_df[prodotti_df['nome'] == prod_nome].iloc[0]
+                    prod_row = prodotti_tutti_df[prodotti_tutti_df['nome'] == prod_nome].iloc[0]
                     p_id = int(prod_row['id'])
                     
                     with get_connection() as conn:
@@ -323,40 +327,41 @@ with tab1:
                     st.success(f"✅ Acquisto registrato col lotto {codice_lotto}!")
                     st.rerun()
 
-        elif tipo_operazione == "XME":
-            lotti_df = get_lotti_df()
-            
-            if lotti_df.empty:
-                st.error("Nessun lotto disponibile per l'operazione XME.")
-            else:
-                with st.form("form_xme"):
-                    st.markdown("##### Registra XME")
-                    
-                    opzioni_lotto = {f"{r['prodotto']} - Lotto: {r['codice_lotto']} (Disp: {r['quantita_attuale']:,.1f} g)": r['id'] for _, r in lotti_df.iterrows()}
-                    lotto_selezionato_label = st.selectbox("Seleziona Lotto", list(opzioni_lotto.keys()))
-                    lotto_id_scelto = opzioni_lotto[lotto_selezionato_label]
-                    
-                    lotto_row = lotti_df[lotti_df['id'] == lotto_id_scelto].iloc[0]
-                    
-                    qta_xme = st.number_input("Quantità (g)", min_value=0.5, max_value=float(lotto_row['quantita_attuale']), value=10.0, step=0.5, format="%.1f")
-                    motivo = st.text_input("Note XME", placeholder="Es. Utilizzo personale, Note varie")
+    elif tipo_operazione == "XME":
+        lotti_df = get_lotti_df()
+        
+        if lotti_df.empty:
+            st.error("Nessun lotto con giacenza disponibile per l'operazione XME.")
+        else:
+            with st.form("form_xme"):
+                st.markdown("##### Registra XME")
+                
+                opzioni_lotto = {f"{r['prodotto']} - Lotto: {r['codice_lotto']} (Disp: {r['quantita_attuale']:,.1f} g)": r['id'] for _, r in lotti_df.iterrows()}
+                lotto_selezionato_label = st.selectbox("Seleziona Lotto", list(opzioni_lotto.keys()))
+                lotto_id_scelto = opzioni_lotto[lotto_selezionato_label]
+                
+                lotto_row = lotti_df[lotti_df['id'] == lotto_id_scelto].iloc[0]
+                
+                qta_xme = st.number_input("Quantità (g)", min_value=0.5, max_value=float(lotto_row['quantita_attuale']), value=10.0, step=0.5, format="%.1f")
+                motivo = st.text_input("Note XME", placeholder="Es. Utilizzo personale, Note varie")
 
-                    if st.form_submit_button("Conferma XME"):
-                        with get_connection() as conn:
-                            cursor = conn.cursor()
-                            nuova_qta = float(lotto_row['quantita_attuale']) - qta_xme
-                            costo_perdita = qta_xme * float(lotto_row['costo_acquisto_unitario'])
-                            
-                            p_id = int(prodotti_df[prodotti_df['nome'] == lotto_row['prodotto']].iloc[0]['id'])
-                            
-                            cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, lotto_id_scelto))
-                            cursor.execute("""
-                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, note)
-                                VALUES (?, ?, 'XME', ?, 0, ?, ?, ?)
-                            """, (p_id, lotto_id_scelto, qta_xme, costo_perdita, -costo_perdita, f"XME: {motivo}"))
+                if st.form_submit_button("Conferma XME"):
+                    with get_connection() as conn:
+                        cursor = conn.cursor()
+                        nuova_qta = float(lotto_row['quantita_attuale']) - qta_xme
+                        costo_perdita = qta_xme * float(lotto_row['costo_acquisto_unitario'])
                         
-                        st.warning(f"Operazione XME registrata! Valore associato: € {costo_perdita:,.2f}")
-                        st.rerun()
+                        prodotti_df = get_prodotti_df()
+                        p_id = int(prodotti_df[prodotti_df['nome'] == lotto_row['prodotto']].iloc[0]['id'])
+                        
+                        cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, lotto_id_scelto))
+                        cursor.execute("""
+                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, note)
+                            VALUES (?, ?, 'XME', ?, 0, ?, ?, ?)
+                        """, (p_id, lotto_id_scelto, qta_xme, costo_perdita, -costo_perdita, f"XME: {motivo}"))
+                    
+                    st.warning(f"Operazione XME registrata! Valore associato: € {costo_perdita:,.2f}")
+                    st.rerun()
 
 # ------------------------------------------
 # TAB 2: GESTIONE STOCK & AGGIUNTA RAPIDA
@@ -364,20 +369,21 @@ with tab1:
 with tab2:
     st.subheader("📋 Gestione dello Stock (Unità: Grammi - g)")
     
-    # AVVISI SCORTA MINIMA
-    df_stato = calcola_stato_magazzino()
-    sotto_scorta = df_stato[df_stato['qta_disponibile'] < df_stato['scorta_minima_g']]
-    if not sotto_scorta.empty:
-        for _, r in sotto_scorta.iterrows():
-            st.warning(f"⚠️ **Sotto scorta minima!** {r['prodotto']}: attuale {r['qta_disponibile']:,.1f} g (Soglia minima: {r['scorta_minima_g']:,.1f} g)")
+    # AVVISI SCORTA MINIMA (Solo per prodotti presenti in stock)
+    df_stato_disponibile = calcola_stato_magazzino(solo_disponibili=True)
+    if not df_stato_disponibile.empty:
+        sotto_scorta = df_stato_disponibile[df_stato_disponibile['qta_disponibile'] < df_stato_disponibile['scorta_minima_g']]
+        if not sotto_scorta.empty:
+            for _, r in sotto_scorta.iterrows():
+                st.warning(f"⚠️ **Sotto scorta minima!** {r['prodotto']}: attuale {r['qta_disponibile']:,.1f} g (Soglia minima: {r['scorta_minima_g']:,.1f} g)")
 
     col_a, col_b = st.columns(2)
     
     with col_a:
-        with st.expander("➕ **Aggiungi Nuovo Prodotto**", expanded=False):
+        with st.expander("➕ **Aggiungi Nuovo Prodotto in Anagrafica**", expanded=False):
             with st.form("form_nuovo_prodotto"):
                 nome_nuovo = st.text_input("Nome Prodotto", placeholder="Es. Zafferano, Spezia")
-                qta_iniziale = st.number_input("Quantità Iniziale (g)", min_value=0.0, value=1000.0, step=0.5, format="%.1f")
+                qta_iniziale = st.number_input("Quantità Iniziale (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
                 costo_u_init = st.number_input("Costo d'Acquisto al grammo (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
                 prezzo_v_init = st.number_input("Prezzo di Vendita al grammo (€/g)", min_value=0.1, value=2.0, step=0.5, format="%.2f")
                 scorta_min_init = st.number_input("Scorta Minima Alert (g)", min_value=0.0, value=100.0, step=10.0, format="%.1f")
@@ -414,9 +420,11 @@ with tab2:
                             st.error("Un prodotto con questo nome esiste già.")
 
     with col_b:
-        with st.expander("⚡ **Aggiorna Prodotto Esistente / Scorta Minima**", expanded=True):
+        with st.expander("⚡ **Modifica / Aggiorna Prodotto Esistente**", expanded=True):
             prodotti_df = get_prodotti_df()
-            if not prodotti_df.empty:
+            if prodotti_df.empty:
+                st.info("Nessun prodotto censito in anagrafica.")
+            else:
                 prod_mod_nome = st.selectbox("Seleziona Prodotto da Modificare", prodotti_df['nome'].tolist())
                 p_row = prodotti_df[prodotti_df['nome'] == prod_mod_nome].iloc[0]
                 p_id = int(p_row['id'])
@@ -456,74 +464,80 @@ with tab2:
 
     st.markdown("---")
     
-    st.subheader("Giacenza Attuale")
-    st.dataframe(
-        df_stato[[
-            'prodotto', 'qta_disponibile', 'scorta_minima_g', 'unita_misura',
-            'costo_medio_ponderato', 'valore_mercato_unitario',
-            'valore_totale_costo', 'valore_totale_mercato'
-        ]],
-        column_config={
-            "prodotto": "Prodotto",
-            "qta_disponibile": st.column_config.NumberColumn("Quantità Disponibile", format="%.1f g"),
-            "scorta_minima_g": st.column_config.NumberColumn("Scorta Minima", format="%.1f g"),
-            "unita_misura": "U.M.",
-            "costo_medio_ponderato": st.column_config.NumberColumn("Costo Medio", format="€ %.2f"),
-            "valore_mercato_unitario": st.column_config.NumberColumn("Prezzo Vendita", format="€ %.2f"),
-            "valore_totale_costo": st.column_config.NumberColumn("Valore Costo Totale", format="€ %.2f"),
-            "valore_totale_mercato": st.column_config.NumberColumn("Valore Vendita Totale", format="€ %.2f")
-        },
-        use_container_width=True,
-        hide_index=True
-    )
+    st.subheader("Giacenza Attuale in Magazzino")
+    if df_stato_disponibile.empty:
+        st.info("Nessun prodotto con giacenza attualmente disponibile in magazzino.")
+    else:
+        st.dataframe(
+            df_stato_disponibile[[
+                'prodotto', 'qta_disponibile', 'scorta_minima_g', 'unita_misura',
+                'costo_medio_ponderato', 'valore_mercato_unitario',
+                'valore_totale_costo', 'valore_totale_mercato'
+            ]],
+            column_config={
+                "prodotto": "Prodotto",
+                "qta_disponibile": st.column_config.NumberColumn("Quantità Disponibile", format="%.1f g"),
+                "scorta_minima_g": st.column_config.NumberColumn("Scorta Minima", format="%.1f g"),
+                "unita_misura": "U.M.",
+                "costo_medio_ponderato": st.column_config.NumberColumn("Costo Medio", format="€ %.2f"),
+                "valore_mercato_unitario": st.column_config.NumberColumn("Prezzo Vendita", format="€ %.2f"),
+                "valore_totale_costo": st.column_config.NumberColumn("Valore Costo Totale", format="€ %.2f"),
+                "valore_totale_mercato": st.column_config.NumberColumn("Valore Vendita Totale", format="€ %.2f")
+            },
+            use_container_width=True,
+            hide_index=True
+        )
 
 # ------------------------------------------
 # TAB 3: DASHBOARD & KPI
 # ------------------------------------------
 with tab3:
     st.subheader("Dashboard & Analytics")
-    df_stato = calcola_stato_magazzino()
+    df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
     lotti_df = get_lotti_df()
 
-    # Avviso Scorta Minima
-    sotto_scorta_dash = df_stato[df_stato['qta_disponibile'] < df_stato['scorta_minima_g']]
-    if not sotto_scorta_dash.empty:
-        for _, r in sotto_scorta_dash.iterrows():
-            st.warning(f"⚠️ **Sotto scorta minima!** {r['prodotto']}: attuale {r['qta_disponibile']:,.1f} g (Scorta Minima: {r['scorta_minima_g']:,.1f} g)")
+    if df_stato_disp.empty:
+        st.info("Nessun dato di magazzino da mostrare.")
+    else:
+        # Avviso Scorta Minima
+        sotto_scorta_dash = df_stato_disp[df_stato_disp['qta_disponibile'] < df_stato_disp['scorta_minima_g']]
+        if not sotto_scorta_dash.empty:
+            for _, r in sotto_scorta_dash.iterrows():
+                st.warning(f"⚠️ **Sotto scorta minima!** {r['prodotto']}: attuale {r['qta_disponibile']:,.1f} g (Scorta Minima: {r['scorta_minima_g']:,.1f} g)")
 
-    # Avviso Scadenze
-    if not lotti_df.empty:
-        lotti_df['data_scadenza'] = pd.to_datetime(lotti_df['data_scadenza'])
-        oggi = pd.to_datetime(date.today())
-        lotti_in_scadenza = lotti_df[(lotti_df['data_scadenza'] - oggi).dt.days <= 15]
+        # Avviso Scadenze
+        if not lotti_df.empty:
+            lotti_df['data_scadenza'] = pd.to_datetime(lotti_df['data_scadenza'])
+            oggi = pd.to_datetime(date.today())
+            lotti_in_scadenza = lotti_df[(lotti_df['data_scadenza'] - oggi).dt.days <= 15]
+            
+            if not lotti_in_scadenza.empty:
+                for _, row in lotti_in_scadenza.iterrows():
+                    giorni = (row['data_scadenza'] - oggi).days
+                    msg = f"In scadenza tra {giorni} giorni!" if giorni >= 0 else "SCADUTO!"
+                    st.error(f"🚨 **Lotto {row['codice_lotto']} ({row['prodotto']})**: {msg} (Data: {row['data_scadenza'].strftime('%Y-%m-%d')})")
+
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Valore Magazzino (Costo)", f"€ {df_stato_disp['valore_totale_costo'].sum():,.2f}")
+        col2.metric("Valore Magazzino (Vendita)", f"€ {df_stato_disp['valore_totale_mercato'].sum():,.2f}")
+        col3.metric("Incasso Totale Vendite", f"€ {df_stato_disp['incasso_totale'].sum():,.2f}")
+        col4.metric("Margine Netto Effettivo", f"€ {df_stato_disp['margine_totale'].sum():,.2f}")
+
+        st.markdown("---")
+
+        col_g1, col_g2 = st.columns(2)
         
-        if not lotti_in_scadenza.empty:
-            for _, row in lotti_in_scadenza.iterrows():
-                giorni = (row['data_scadenza'] - oggi).days
-                msg = f"In scadenza tra {giorni} giorni!" if giorni >= 0 else "SCADUTO!"
-                st.error(f"🚨 **Lotto {row['codice_lotto']} ({row['prodotto']})**: {msg} (Data: {row['data_scadenza'].strftime('%Y-%m-%d')})")
+        with col_g1:
+            st.subheader("Valore Stock per Prodotto (€)")
+            chart_data_valore = df_stato_disp.set_index('prodotto')[['valore_totale_costo', 'valore_totale_mercato']]
+            chart_data_valore.columns = ['Costo Totale', 'Mercato Totale']
+            st.bar_chart(chart_data_valore)
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Valore Magazzino (Costo)", f"€ {df_stato['valore_totale_costo'].sum():,.2f}")
-    col2.metric("Valore Magazzino (Vendita)", f"€ {df_stato['valore_totale_mercato'].sum():,.2f}")
-    col3.metric("Incasso Totale Vendite", f"€ {df_stato['incasso_totale'].sum():,.2f}")
-    col4.metric("Margine Netto Effettivo", f"€ {df_stato['margine_totale'].sum():,.2f}")
-
-    st.markdown("---")
-
-    col_g1, col_g2 = st.columns(2)
-    
-    with col_g1:
-        st.subheader("Valore Stock per Prodotto (€)")
-        chart_data_valore = df_stato.set_index('prodotto')[['valore_totale_costo', 'valore_totale_mercato']]
-        chart_data_valore.columns = ['Costo Totale', 'Mercato Totale']
-        st.bar_chart(chart_data_valore)
-
-    with col_g2:
-        st.subheader("Vendite e Margini (€)")
-        chart_data_vendite = df_stato.set_index('prodotto')[['incasso_totale', 'margine_totale']]
-        chart_data_vendite.columns = ['Incasso', 'Margine']
-        st.bar_chart(chart_data_vendite)
+        with col_g2:
+            st.subheader("Vendite e Margini (€)")
+            chart_data_vendite = df_stato_disp.set_index('prodotto')[['incasso_totale', 'margine_totale']]
+            chart_data_vendite.columns = ['Incasso', 'Margine']
+            st.bar_chart(chart_data_vendite)
 
 # ------------------------------------------
 # TAB 4: REPORT & STORICO
@@ -584,7 +598,6 @@ with tab4:
         with st.expander("🛠️ **Annulla una transazione specifica per errore**"):
             st.write("Seleziona l'ID della transazione da stornare. La quantità verrà ripristinata nel relativo lotto.")
             
-            # Mappatura per il selectbox
             opzioni_movimenti = {
                 f"ID {r['id']} | {r['data']} | {r['prodotto']} | {r['tipo']} ({r['quantita']} g)": r['id']
                 for _, r in df_filtrato.iterrows()
