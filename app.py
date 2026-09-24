@@ -105,11 +105,11 @@ def get_prodotti_disponibili_df():
 def get_lotti_attivi_df():
     query = """
         SELECT l.id, p.nome AS prodotto, l.codice_lotto, l.quantita_iniziale, l.quantita_attuale, 
-               'g' AS unita_misura, l.costo_acquisto_unitario, l.data_acquisto, l.data_carico, l.data_scadenza
+               'g' AS unita_misura, l.costo_acquisto_unitario, l.data_acquisto, l.data_carico
         FROM lotti l
         JOIN prodotti p ON l.prodotto_id = p.id
         WHERE l.quantita_attuale > 0
-        ORDER BY l.data_scadenza ASC, l.id ASC
+        ORDER BY l.data_carico ASC, l.id ASC
     """
     with get_connection() as conn:
         return pd.read_sql_query(query, conn)
@@ -137,7 +137,6 @@ def get_report_lotti_integrato_df(soglia_esaurimento_g=50.0):
             COALESCE(SUM(CASE WHEN m.tipo = 'XME' THEN m.costo_totale ELSE 0 END), 0) AS guadagno_netto_lotto,
             l.data_acquisto,
             l.data_carico,
-            l.data_scadenza,
             l.data_completamento
         FROM lotti l
         JOIN prodotti p ON l.prodotto_id = p.id
@@ -243,7 +242,6 @@ def storna_movimento(movimento_id):
         
         if tipo in ['VENDITA', 'XME']:
             if lotto_id:
-                # Ripristina quantità e rimuove eventuale data completamento
                 cursor.execute("""
                     UPDATE lotti 
                     SET quantita_attuale = quantita_attuale + ?, data_completamento = NULL 
@@ -294,7 +292,7 @@ with tab1:
             p_id = int(prod_row['id'])
             
             with get_connection() as conn:
-                query_lotti = "SELECT * FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_scadenza ASC, id ASC"
+                query_lotti = "SELECT * FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC, id ASC"
                 lotti_disponibili = pd.read_sql_query(query_lotti, conn, params=(p_id,))
 
             qta_tot_disp = float(lotti_disponibili['quantita_attuale'].sum())
@@ -338,7 +336,6 @@ with tab1:
                                 ricavo_quota = prelievo * prezzo_vendita_unitario
                                 margine_quota = ricavo_quota - costo_quota
                                 
-                                # AUTOMATISMO: Se si azzera la scorta, imposta la data di completamento automatica
                                 if nuova_qta_lotto == 0:
                                     cursor.execute("""
                                         UPDATE lotti 
@@ -370,11 +367,10 @@ with tab1:
                     prod_nome = st.selectbox("Prodotto", prodotti_tutti_df['nome'].tolist())
                     quantita = st.number_input("Quantità Acquistata (g)", min_value=0.5, value=1000.0, step=0.5, format="%.1f")
                     costo_unitario = st.number_input("Costo d'Acquisto al grammo (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
-                    data_acquisto = st.date_input("Data di Acquisto", value=date.today())
                     
                 with col2:
+                    data_acquisto = st.date_input("Data di Acquisto", value=date.today())
                     codice_lotto = st.text_input("Codice Lotto", value=f"LOTTO-{datetime.now().strftime('%Y%m%d-%H%M')}")
-                    data_scadenza = st.date_input("Data di Scadenza", value=date.today())
                     note = st.text_input("Note Aggiuntive")
 
                 if st.form_submit_button("Registra Rifornimento"):
@@ -384,9 +380,9 @@ with tab1:
                     with get_connection() as conn:
                         cursor = conn.cursor()
                         cursor.execute("""
-                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico, data_scadenza)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (p_id, codice_lotto, quantita, quantita, costo_unitario, data_acquisto, date.today(), data_scadenza))
+                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (p_id, codice_lotto, quantita, quantita, costo_unitario, data_acquisto, date.today()))
                         
                         lotto_id = cursor.lastrowid
                         costo_totale = quantita * costo_unitario
@@ -479,9 +475,9 @@ with tab2:
                                 if qta_iniziale > 0:
                                     codice_lotto = f"LOTTO-INIT-{datetime.now().strftime('%Y%m%d')}"
                                     cursor.execute("""
-                                        INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico, data_scadenza)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                                    """, (p_id, codice_lotto, qta_iniziale, qta_iniziale, costo_u_init, date.today(), date.today(), date.today()))
+                                        INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                                    """, (p_id, codice_lotto, qta_iniziale, qta_iniziale, costo_u_init, date.today(), date.today()))
                                     
                                     lotto_id = cursor.lastrowid
                                     cursor.execute("""
@@ -579,7 +575,6 @@ with tab3:
     if report_lotti_df.empty:
         st.info("Nessun lotto di rifornimento salvato.")
     else:
-        # Avvisi visivi per lotti in esaurimento o completati
         lotti_warning = report_lotti_df[report_lotti_df['stato_lotto'].str.contains("⚠️")]
         if not lotti_warning.empty:
             for _, w_row in lotti_warning.iterrows():
@@ -600,7 +595,7 @@ with tab3:
             report_lotti_df[[
                 'lotto_id', 'prodotto', 'codice_lotto', 'stato_lotto', 'quantita_iniziale', 'qta_venduta_lotto', 'quantita_attuale',
                 'unita_misura', 'costo_acquisto_unitario', 'costo_totale_lotto',
-                'incasso_totale_lotto', 'guadagno_netto_lotto', 'data_acquisto', 'data_carico', 'data_scadenza'
+                'incasso_totale_lotto', 'guadagno_netto_lotto', 'data_acquisto', 'data_carico'
             ]],
             column_config={
                 "lotto_id": "ID Lotto",
@@ -616,8 +611,7 @@ with tab3:
                 "incasso_totale_lotto": st.column_config.NumberColumn("Incasso Generato", format="€ %.2f"),
                 "guadagno_netto_lotto": st.column_config.NumberColumn("Guadagno Netto", format="€ %.2f"),
                 "data_acquisto": "Data Acquisto",
-                "data_carico": "Data Carico",
-                "data_scadenza": "Data Scadenza"
+                "data_carico": "Data Carico"
             },
             use_container_width=True,
             hide_index=True
@@ -641,7 +635,6 @@ with tab3:
                     qta_lotto_m = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
                     costo_u_lotto_m = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
                     data_acq_m = st.date_input("Data di Acquisto Lotto", value=date.today())
-                    data_scad_m = st.date_input("Data di Scadenza Lotto", value=date.today())
                     
                     if st.form_submit_button("➕ Aggiungi Lotto"):
                         p_row_m = prodotti_tutti_df[prodotti_tutti_df['nome'] == p_nome_lotto].iloc[0]
@@ -650,9 +643,9 @@ with tab3:
                         with get_connection() as conn:
                             cursor = conn.cursor()
                             cursor.execute("""
-                                INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico, data_scadenza)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                            """, (p_id_m, cod_lotto_m, qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today(), data_scad_m))
+                                INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                            """, (p_id_m, cod_lotto_m, qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today()))
                         
                         st.success(f"✅ Lotto '{cod_lotto_m}' aggiunto con successo!")
                         st.rerun()
