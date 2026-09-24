@@ -487,13 +487,13 @@ with tab2:
 
     st.markdown("---")
     
-    # SEZIONE DI GESTIONE LOTTI E PRODOTTI IN FONDO ALLA PAGINA
+    # SEZIONE DI GESTIONE LOTTI E PRODOTTI IN FONDO ALLA PAGINA (TUTTE CHIUSE DI DEFAULT)
     st.subheader("⚙️ Gestione Lotti e Anagrafica Prodotti")
     
     col_l1, col_l2 = st.columns(2)
     
     with col_l1:
-        with st.expander("➕ **Aggiungi un Nuovo Lotto**", expanded=True):
+        with st.expander("➕ **Aggiungi un Nuovo Lotto**", expanded=False):
             if prodotti_tutti_df.empty:
                 st.warning("Crea prima un prodotto in anagrafica nel pannello qui accanto.")
             else:
@@ -539,7 +539,7 @@ with tab2:
                     st.rerun()
 
     with col_l2:
-        with st.expander("➕ **Crea Nuovo Prodotto in Anagrafica**", expanded=True):
+        with st.expander("➕ **Crea Nuovo Prodotto in Anagrafica**", expanded=False):
             with st.form("form_nuovo_prodotto"):
                 nome_nuovo = st.text_input("Nome Prodotto", placeholder="Es. Zafferano, Spezia")
                 qta_iniziale = st.number_input("Quantità Iniziale (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
@@ -708,9 +708,9 @@ with tab4:
 
         st.markdown("---")
         
-        # ANNULLAMENTO / STORNO SINGOLO MOVIMENTO
+        # ANNULLAMENTO / STORNO SINGOLO MOVIMENTO (CHIUSO DI DEFAULT)
         st.subheader("🔄 Storno Movimento (Ripristino Scorta Lotto)")
-        with st.expander("🛠️ **Annulla una transazione specifica**"):
+        with st.expander("🛠️ **Annulla una transazione specifica**", expanded=False):
             st.write("Selezionando una transazione, l'operazione verrà stornata e la quantità verrà restituita al lotto di origine.")
             
             opzioni_movimenti = {
@@ -731,9 +731,9 @@ with tab4:
 
     st.markdown("---")
     
-    # RESET GLOBALE REPORT
+    # RESET GLOBALE REPORT (CHIUSO DI DEFAULT)
     st.subheader("⚙️ Reset Globale Database")
-    with st.expander("🚨 **Pulsante di Reset Totale Storico Transazioni**"):
+    with st.expander("🚨 **Pulsante di Reset Totale Storico Transazioni**", expanded=False):
         st.warning("Attenzione: l'operazione cancellerà definitivamente tutte le transazioni registrate nello storico.")
         
         if "conferma_reset" not in st.session_state:
