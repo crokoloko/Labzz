@@ -7,7 +7,7 @@ import streamlit as st
 # CONFIGURAZIONE PAGINA STREAMLIT
 # ==========================================
 st.set_page_config(
-    page_title="Gestionale Magazzino & Cassa",
+    page_title="Labzz",
     page_icon="📦",
     layout="wide"
 )
@@ -25,7 +25,7 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Anagrafica prodotti (senza scorta_minima)
+    # Anagrafica prodotti
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS prodotti (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -166,7 +166,7 @@ def calcola_stato_magazzino():
 # ==========================================
 # INTERFACCIA UTENTE (STREAMLIT)
 # ==========================================
-st.title("🛒 Cassa & Gestionale Magazzino")
+st.title("📦 Labzz")
 
 # Sidebar - Configurazione Prezzi di Mercato
 with st.sidebar:
@@ -178,7 +178,7 @@ with st.sidebar:
     
     with st.form("form_config_prodotto"):
         st.subheader(f"Modifica Prezzo {prod_scelto}")
-        nuovo_val_mercato = st.number_input("Prezzo di Vendita / Valore Unitario (€)", value=float(prod_row['valore_mercato_unitario']), step=0.1)
+        nuovo_val_mercato = st.number_input("Prezzo / Valore Unitario (€)", value=float(prod_row['valore_mercato_unitario']), step=0.1)
         
         if st.form_submit_button("Aggiorna Prezzo"):
             conn = get_connection()
@@ -193,7 +193,7 @@ with st.sidebar:
             st.success("Prezzo aggiornato!")
             st.rerun()
 
-# Tabs principali: Cassa per prima!
+# Tabs principali
 tab1, tab2, tab3, tab4 = st.tabs([
     "💸 Cassa & Movimenti", 
     "📊 Dashboard & KPI", 
@@ -205,13 +205,13 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # TAB 1: CASSA & REGISTRA MOVIMENTI (PRIMA PAGINA)
 # ------------------------------------------
 with tab1:
-    st.subheader("Cassa Operativa: Carico, Vendita e Scarto")
+    st.subheader("Cassa Operativa")
     
-    tipo_operazione = st.radio("Seleziona Operazione", ["Scarico / Vendita", "Carico (Acquisto)", "Registra Scarto"], horizontal=True)
+    tipo_operazione = st.radio("Seleziona Operazione", ["Vendita", "Acquisto", "Registra Scarto"], horizontal=True)
     prodotti_df = get_prodotti_df()
     
-    # 1. VENDITA / SCARICO
-    if tipo_operazione == "Scarico / Vendita":
+    # 1. VENDITA
+    if tipo_operazione == "Vendita":
         prod_nome = st.selectbox("Seleziona Prodotto da Vendere", prodotti_df['nome'].tolist())
         prod_row = prodotti_df[prodotti_df['nome'] == prod_nome].iloc[0]
         p_id = int(prod_row['id'])
@@ -228,17 +228,17 @@ with tab1:
             st.info(f"Disponibilità in magazzino per **{prod_nome}**: **{qta_tot_disp:.2f} {prod_row['unita_misura']}**")
             
             with st.form("form_vendita"):
-                st.markdown("##### Registra Vendita (Cassa)")
+                st.markdown("##### Registra Vendita")
                 col1, col2 = st.columns(2)
                 
                 with col1:
                     quantita_vendita = st.number_input("Quantità da Vendere", min_value=0.01, value=1.0, step=1.0)
-                    prezzo_vendita_unitario = st.number_input("Prezzo di Vendita Unitario (€)", min_value=0.01, value=float(prod_row['valore_mercato_unitario']), step=0.1)
+                    prezzo_vendita_unitario = st.number_input("Prezzo Unitario (€)", min_value=0.01, value=float(prod_row['valore_mercato_unitario']), step=0.1)
                 
                 with col2:
-                    note = st.text_input("Note o Cliente (Opzionale)")
+                    note = st.text_input("Note (Opzionale)")
 
-                if st.form_submit_button("💳 REGISTRA VENDITA"):
+                if st.form_submit_button("Vendita"):
                     if quantita_vendita > qta_tot_disp:
                         st.error(f"Quantità inserita ({quantita_vendita}) superiore alla disponibilità ({qta_tot_disp}).")
                     else:
@@ -278,26 +278,26 @@ with tab1:
                         
                         conn.commit()
                         conn.close()
-                        st.success(f"✅ Vendita registrata con successo! Incasso: €{ricavo_totale:,.2f} | Margine: €{margine:,.2f}")
+                        st.success(f"✅ Vendita registrata! Incasso: €{ricavo_totale:,.2f} | Margine: €{margine:,.2f}")
                         st.rerun()
 
-    # 2. CARICO / ACQUISTO
-    elif tipo_operazione == "Carico (Acquisto)":
+    # 2. ACQUISTO
+    elif tipo_operazione == "Acquisto":
         with st.form("form_carico"):
-            st.markdown("##### Registra Nuovo Carico / Acquisto")
+            st.markdown("##### Registra Acquisto")
             col1, col2 = st.columns(2)
             
             with col1:
                 prod_nome = st.selectbox("Prodotto", prodotti_df['nome'].tolist())
                 quantita = st.number_input("Quantità Acquistata", min_value=0.01, value=10.0, step=1.0)
-                costo_unitario = st.number_input("Costo d'Acquisto Unitario (€)", min_value=0.01, value=1.0, step=0.1)
+                costo_unitario = st.number_input("Costo Unitario (€)", min_value=0.01, value=1.0, step=0.1)
                 
             with col2:
                 codice_lotto = st.text_input("Codice Lotto", value=f"LOTTO-{datetime.now().strftime('%Y%m%d-%H%M')}")
                 data_scadenza = st.date_input("Data di Scadenza", value=date.today())
                 note = st.text_input("Note Aggiuntive")
 
-            if st.form_submit_button("📦 REGISTRA CARICO"):
+            if st.form_submit_button("Acquisto"):
                 prod_row = prodotti_df[prodotti_df['nome'] == prod_nome].iloc[0]
                 p_id = int(prod_row['id'])
                 
@@ -319,7 +319,7 @@ with tab1:
                 
                 conn.commit()
                 conn.close()
-                st.success(f"✅ Caricato con successo il lotto {codice_lotto} per {prod_nome}!")
+                st.success(f"✅ Acquisto registrato col lotto {codice_lotto}!")
                 st.rerun()
 
     # 3. REGISTRA SCARTO
@@ -341,7 +341,7 @@ with tab1:
                 qta_scarto = st.number_input("Quantità da Scartare", min_value=0.01, max_value=float(lotto_row['quantita_attuale']), value=1.0, step=0.5)
                 motivo = st.text_input("Motivazione Scarto", placeholder="Es. Calo peso fieno, Umidità, Sacchetto rotto")
 
-                if st.form_submit_button("⚠️ CONFERMA SCARTO"):
+                if st.form_submit_button("Conferma Scarto"):
                     conn = get_connection()
                     cursor = conn.cursor()
                     
@@ -406,7 +406,7 @@ with tab2:
         st.bar_chart(chart_data_vendite)
 
 # ------------------------------------------
-# TAB 3: GESTIONE STOCK
+# TAB 3: GESTIONE STOCK & MODIFICA VELOCE
 # ------------------------------------------
 with tab3:
     st.subheader("Stato del Magazzino per Prodotto")
@@ -429,6 +429,44 @@ with tab3:
         use_container_width=True,
         hide_index=True
     )
+
+    st.markdown("---")
+    
+    # MODIFICA VELOCE STOCK
+    with st.expander("⚡ **Modifica Veloce Stock / Rettifica Rapida**", expanded=True):
+        st.write("Modifica direttamente le quantità presenti in magazzino per ciascun lotto:")
+        lotti_attivi = get_lotti_df()
+        
+        if not lotti_attivi.empty:
+            lotto_sel_id = st.selectbox(
+                "Seleziona Lotto da Rettificare", 
+                options=lotti_attivi['id'].tolist(),
+                format_func=lambda x: f"{lotti_attivi[lotti_attivi['id']==x]['prodotto'].values[0]} | Lotto: {lotti_attivi[lotti_attivi['id']==x]['codice_lotto'].values[0]} | Q.tà Attuale: {lotti_attivi[lotti_attivi['id']==x]['quantita_attuale'].values[0]}"
+            )
+            
+            row_lotto = lotti_attivi[lotti_attivi['id'] == lotto_sel_id].iloc[0]
+            
+            with st.form("form_rettifica_rapida"):
+                col_r1, col_r2 = st.columns(2)
+                with col_r1:
+                    nuova_qta = st.number_input("Nuova Quantità Rettificata", value=float(row_lotto['quantita_attuale']), min_value=0.0, step=1.0)
+                with col_r2:
+                    nuovo_costo_u = st.number_input("Nuovo Costo Unitario (€)", value=float(row_lotto['costo_acquisto_unitario']), min_value=0.01, step=0.1)
+                
+                if st.form_submit_button("⚡ Salva Modifica Rapida"):
+                    conn = get_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE lotti 
+                        SET quantita_attuale = ?, costo_acquisto_unitario = ?
+                        WHERE id = ?
+                    """, (nuova_qta, nuovo_costo_u, lotto_sel_id))
+                    conn.commit()
+                    conn.close()
+                    st.success("Giacenza del lotto aggiornata velocemente!")
+                    st.rerun()
+        else:
+            st.info("Nessun lotto attivo presente da rettificare.")
 
     st.markdown("---")
     st.subheader("Dettaglio Lotti Attivi in Giacenza")
