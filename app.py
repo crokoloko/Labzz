@@ -8,7 +8,7 @@ import altair as alt
 # CONFIGURAZIONE PAGINA STREAMLIT
 # ==========================================
 st.set_page_config(
-    page_title="Labzz - Magazzino FIFO Automatico",
+    page_title="LaBzz - Gestione Magazzino",
     page_icon="📦",
     layout="wide"
 )
@@ -269,7 +269,7 @@ def elimina_lotto_db(lotto_id):
 # ==========================================
 # INTERFACCIA UTENTE (STREAMLIT)
 # ==========================================
-st.title("📦 Labzz - Magazzino FIFO Automatico")
+st.title("LaBzz")
 
 tab1, tab2, tab3, tab4 = st.tabs([
     "💸 Cassa", 
@@ -308,7 +308,7 @@ with tab1:
                 st.info(f"Disponibilità totale: **{qta_tot_disp:,.1f} g**")
                 
                 with st.form("form_vendita"):
-                    st.markdown("##### Registra Vendita (Scarico FIFO Tracciato)")
+                    st.markdown("##### Registra Vendita")
                     col1, col2 = st.columns(2)
                     
                     with col1:
@@ -320,7 +320,7 @@ with tab1:
                         st.metric("Totale Incasso Previsto", f"€ {totale_vendita:,.2f}")
                         note = st.text_input("Note (Opzionale)")
 
-                    if st.form_submit_button("Conferma Vendita FIFO"):
+                    if st.form_submit_button("Conferma Vendita"):
                         if quantita_vendita > qta_tot_disp:
                             st.error(f"Quantità inserita ({quantita_vendita:,.1f} g) superiore alla disponibilità ({qta_tot_disp:,.1f} g).")
                         else:
@@ -437,7 +437,6 @@ with tab2:
                 mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
                 mov_df = mov_df.sort_values('Data_Ora')
                 
-                # Calcolo spesi solo dai carichi
                 mov_df['Spesi Totali'] = mov_df.apply(lambda r: r['costo_totale'] if r['tipo'] == 'CARICO' else 0, axis=1).cumsum()
                 mov_df['Incasso Totale'] = mov_df['ricavo_totale'].cumsum()
                 mov_df['Margine Netto'] = mov_df['margine'].cumsum()
