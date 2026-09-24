@@ -8,7 +8,7 @@ import altair as alt
 # CONFIGURAZIONE PAGINA STREAMLIT
 # ==========================================
 st.set_page_config(
-    page_title="Labzz - Gestione Magazzino FIFO",
+    page_title="Labzz - Magazzino Integrato",
     page_icon="📦",
     layout="wide"
 )
@@ -16,15 +16,16 @@ st.set_page_config(
 DB_NAME = "magazzino.db"
 
 # ==========================================
-# GESTIONE DATABASE SQLITE (CONTEXT MANAGER)
+# GESTIONE DATABASE SQLITE
 # ==========================================
 def get_connection():
     return sqlite3.connect(DB_NAME, timeout=10)
 
 def init_db():
-    """Inizializza il database SQLite verificando e creando tabelle/colonne."""
+    """Inizializza il database e garantisce la presenza di chiavi esterne per la sincronizzazione lotti-movimenti."""
     with get_connection() as conn:
         cursor = conn.cursor()
+        cursor.execute("PRAGMA foreign_keys = ON;")
         
         # 1. Anagrafica prodotti
         cursor.execute("""
@@ -37,13 +38,7 @@ def init_db():
         )
         """)
         
-        # Migrazione schema per scorta_minima_g
-        cursor.execute("PRAGMA table_info(prodotti)")
-        colonne = [column[1] for column in cursor.fetchall()]
-        if 'scorta_minima_g' not in colonne:
-            cursor.execute("ALTER TABLE prodotti ADD COLUMN scorta_minima_g REAL DEFAULT 0")
-
-        # 2. Registro lotti di carico
+        # 2. Registro lotti
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS lotti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,11 +49,11 @@ def init_db():
             costo_acquisto_unitario REAL NOT NULL,
             data_carico DATE NOT NULL,
             data_scadenza DATE,
-            FOREIGN KEY (prodotto_id) REFERENCES prodotti (id)
+            FOREIGN KEY (prodotto_id) REFERENCES prodotti (id) ON DELETE CASCADE
         )
         """)
         
-        # 3. Registro movimenti (carico, vendita, XME)
+        # 3. Registro movimenti (coordinato direttamente con lotto_id)
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS movimenti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,15 +67,15 @@ def init_db():
             margine REAL DEFAULT 0,
             note TEXT,
             data TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (prodotto_id) REFERENCES prodotti (id),
-            FOREIGN KEY (lotto_id) REFERENCES lotti (id)
+            FOREIGN KEY (prodotto_id) REFERENCES prodotti (id) ON DELETE CASCADE,
+            FOREIGN KEY (lotto_id) REFERENCES lotti (id) ON DELETE SET NULL
         )
         """)
 
 init_db()
 
 # ==========================================
-# FUNZIONI UTILITY DATI
+# FUNZIONI DI LETTURA E QUERY INTEGRATE
 # ==========================================
 def get_prodotti_df():
     with get_connection() as conn:
@@ -109,14 +104,24 @@ def get_lotti_attivi_df():
     with get_connection() as conn:
         return pd.read_sql_query(query, conn)
 
-def get_storico_lotti_df():
+def get_report_lotti_integrato_df():
+    """Recupera ogni lotto incrociando direttamente lo storico dei movimenti collegati."""
     query = """
-        SELECT l.id AS lotto_id, p.nome AS prodotto, l.codice_lotto, l.quantita_iniziale, l.quantita_attuale,
-               'g' AS unita_misura, l.costo_acquisto_unitario, l.data_carico, l.data_scadenza,
-               (l.quantita_iniziale * l.costo_acquisto_unitario) AS costo_totale_sostenuto,
-               COALESCE(SUM(CASE WHEN m.tipo = 'VENDITA' THEN m.ricavo_totale ELSE 0 END), 0) AS incasso_generato,
-               COALESCE(SUM(CASE WHEN m.tipo = 'VENDITA' THEN m.margine ELSE 0 END), 0) - 
-               COALESCE(SUM(CASE WHEN m.tipo = 'XME' THEN m.costo_totale ELSE 0 END), 0) AS guadagno_netto_lotto
+        SELECT 
+            l.id AS lotto_id,
+            p.nome AS prodotto,
+            l.codice_lotto,
+            l.quantita_iniziale,
+            l.quantita_attuale,
+            'g' AS unita_misura,
+            l.costo_acquisto_unitario,
+            (l.quantita_iniziale * l.costo_acquisto_unitario) AS costo_totale_lotto,
+            COALESCE(SUM(CASE WHEN m.tipo = 'VENDITA' THEN m.quantita ELSE 0 END), 0) AS qta_venduta_lotto,
+            COALESCE(SUM(CASE WHEN m.tipo = 'VENDITA' THEN m.ricavo_totale ELSE 0 END), 0) AS incasso_totale_lotto,
+            COALESCE(SUM(CASE WHEN m.tipo = 'VENDITA' THEN m.margine ELSE 0 END), 0) -
+            COALESCE(SUM(CASE WHEN m.tipo = 'XME' THEN m.costo_totale ELSE 0 END), 0) AS guadagno_netto_lotto,
+            l.data_carico,
+            l.data_scadenza
         FROM lotti l
         JOIN prodotti p ON l.prodotto_id = p.id
         LEFT JOIN movimenti m ON l.id = m.lotto_id
@@ -126,14 +131,27 @@ def get_storico_lotti_df():
     with get_connection() as conn:
         return pd.read_sql_query(query, conn)
 
-def get_movimenti_df():
+def get_movimenti_dettagliati_df():
+    """Recupera lo storico dei movimenti mostrando esplicitamente il codice del lotto di origine."""
     query = """
-        SELECT m.id, m.data, p.nome AS prodotto, m.tipo, m.quantita, 'g' AS unita_misura,
-               m.prezzo_unitario, m.ricavo_totale, m.costo_totale, m.margine, m.note, m.lotto_id, l.codice_lotto
+        SELECT 
+            m.id, 
+            m.data, 
+            p.nome AS prodotto, 
+            COALESCE(l.codice_lotto, 'N/D - Lotto Rimosso') AS codice_lotto,
+            m.tipo, 
+            m.quantita, 
+            'g' AS unita_misura,
+            m.prezzo_unitario, 
+            m.ricavo_totale, 
+            m.costo_totale, 
+            m.margine, 
+            m.note, 
+            m.lotto_id
         FROM movimenti m
         JOIN prodotti p ON m.prodotto_id = p.id
         LEFT JOIN lotti l ON m.lotto_id = l.id
-        ORDER BY m.data ASC
+        ORDER BY m.data DESC
     """
     with get_connection() as conn:
         return pd.read_sql_query(query, conn)
@@ -182,6 +200,7 @@ def calcola_stato_magazzino(solo_disponibili=False):
     return pd.DataFrame(risultati)
 
 def storna_movimento(movimento_id):
+    """Annulla un movimento e ripristina la quantità esatta nel lotto corrispondente."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM movimenti WHERE id = ?", (movimento_id,))
@@ -195,20 +214,15 @@ def storna_movimento(movimento_id):
         if tipo in ['VENDITA', 'XME']:
             if lotto_id:
                 cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale + ? WHERE id = ?", (qta, lotto_id))
-            else:
-                cursor.execute("""
-                    UPDATE lotti SET quantita_attuale = quantita_attuale + ? 
-                    WHERE id = (SELECT id FROM lotti WHERE prodotto_id = ? ORDER BY id DESC LIMIT 1)
-                """, (qta, p_id))
         elif tipo == 'CARICO':
             if lotto_id:
                 cursor.execute("UPDATE lotti SET quantita_attuale = MAX(0, quantita_attuale - ?) WHERE id = ?", (qta, lotto_id))
         
         cursor.execute("DELETE FROM movimenti WHERE id = ?", (movimento_id,))
-        return True, "Movimento stornato con successo!"
+        return True, "Movimento stornato e scorta del lotto ripristinata con successo!"
 
 def elimina_lotto_db(lotto_id):
-    """Elimina definitivamente un lotto e scollega eventuali movimenti associati."""
+    """Rimuove un lotto e mantiene il riferimento nello storico dei movimenti."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE movimenti SET lotto_id = NULL WHERE lotto_id = ?", (lotto_id,))
@@ -217,7 +231,7 @@ def elimina_lotto_db(lotto_id):
 # ==========================================
 # INTERFACCIA UTENTE (STREAMLIT)
 # ==========================================
-st.title("📦 Labzz - Gestione Magazzino FIFO")
+st.title("📦 Labzz - Magazzino Coordinato FIFO")
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "💸 Cassa & Movimenti", 
@@ -239,7 +253,7 @@ with tab1:
         prodotti_disp_df = get_prodotti_disponibili_df()
         
         if prodotti_disp_df.empty:
-            st.warning("⚠️ Nessun prodotto disponibile in magazzino da vendere. Aggiungi uno stock nella scheda 'Gestione Stock' o 'Acquisto'.")
+            st.warning("⚠️ Nessun prodotto disponibile in magazzino.")
         else:
             prod_nome = st.selectbox("Seleziona Prodotto da Vendere", prodotti_disp_df['nome'].tolist())
             prod_row = prodotti_disp_df[prodotti_disp_df['nome'] == prod_nome].iloc[0]
@@ -253,7 +267,7 @@ with tab1:
             st.info(f"Disponibilità totale per **{prod_nome}**: **{qta_tot_disp:,.1f} g** su {len(lotti_disponibili)} lotti attivi.")
             
             with st.form("form_vendita"):
-                st.markdown("##### Registra Vendita (FIFO Automatico)")
+                st.markdown("##### Registra Vendita (Scarico FIFO Tracciato)")
                 col1, col2 = st.columns(2)
                 
                 with col1:
@@ -286,27 +300,27 @@ with tab1:
                                 nuova_qta_lotto = qta_lotto_disp - prelievo
                                 qta_da_scaricare -= prelievo
                                 
-                                costo_quota_parte = prelievo * costo_u_lotto
-                                ricavo_quota_parte = prelievo * prezzo_vendita_unitario
-                                margine_quota_parte = ricavo_quota_parte - costo_quota_parte
+                                costo_quota = prelievo * costo_u_lotto
+                                ricavo_quota = prelievo * prezzo_vendita_unitario
+                                margine_quota = ricavo_quota - costo_quota
                                 
                                 cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto, l_id))
                                 cursor.execute("""
                                     INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, note)
                                     VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?)
-                                """, (p_id, l_id, prelievo, prezzo_vendita_unitario, ricavo_totale, costo_quota_parte, margine_quota_parte, f"Lotto {cod_lotto} | {note}".strip(" |")))
+                                """, (p_id, l_id, prelievo, prezzo_vendita_unitario, ricavo_quota, costo_quota, margine_quota, f"Lotto {cod_lotto} | {note}".strip(" |")))
                         
-                        st.success(f"✅ Vendita registrata con successo applicando logica FIFO!")
+                        st.success(f"✅ Vendita registrata e sincronizzata col report dei lotti!")
                         st.rerun()
 
     elif tipo_operazione == "Acquisto":
         prodotti_tutti_df = get_prodotti_df()
         
         if prodotti_tutti_df.empty:
-            st.warning("⚠️ Nessun prodotto censito in anagrafica. Crea prima un prodotto nella scheda 'Gestione Stock'.")
+            st.warning("⚠️ Nessun prodotto censito in anagrafica.")
         else:
             with st.form("form_carico"):
-                st.markdown("##### Registra Acquisto Stock / Nuovo Lotto")
+                st.markdown("##### Registra Acquisto / Nuovo Lotto")
                 col1, col2 = st.columns(2)
                 
                 with col1:
@@ -374,11 +388,11 @@ with tab1:
                             VALUES (?, ?, 'XME', ?, 0, ?, ?, ?)
                         """, (p_id, lotto_id_scelto, qta_xme, costo_perdita, -costo_perdita, f"XME: {motivo}"))
                     
-                    st.warning(f"Operazione XME registrata! Valore associato: € {costo_perdita:,.2f}")
+                    st.warning(f"Operazione XME registrata!")
                     st.rerun()
 
 # ------------------------------------------
-# TAB 2: GESTIONE STOCK & AGGIUNTA RAPIDA
+# TAB 2: GESTIONE STOCK
 # ------------------------------------------
 with tab2:
     st.subheader("📋 Gestione dello Stock (Unità: Grammi - g)")
@@ -505,41 +519,42 @@ with tab2:
 # TAB 3: RIFORNIMENTI & LOTTI
 # ------------------------------------------
 with tab3:
-    st.subheader("🚚 Registro Rifornimenti e Lotti")
+    st.subheader("🚚 Rifornimenti e Report Dettagliato Lotti")
     
-    storico_lotti_df = get_storico_lotti_df()
+    report_lotti_df = get_report_lotti_integrato_df()
     prodotti_tutti_df = get_prodotti_df()
     
-    if storico_lotti_df.empty:
-        st.info("Nessun lotto di rifornimento registrato.")
+    if report_lotti_df.empty:
+        st.info("Nessun lotto di rifornimento salvato.")
     else:
         col_m1, col_m2, col_m3 = st.columns(3)
-        costo_tot_lotti = storico_lotti_df['costo_totale_sostenuto'].sum()
-        incasso_tot_lotti = storico_lotti_df['incasso_generato'].sum()
-        guadagno_netto_tot_lotti = storico_lotti_df['guadagno_netto_lotto'].sum()
+        costo_tot_lotti = report_lotti_df['costo_totale_lotto'].sum()
+        incasso_tot_lotti = report_lotti_df['incasso_totale_lotto'].sum()
+        guadagno_netto_tot_lotti = report_lotti_df['guadagno_netto_lotto'].sum()
         
-        col_m1.metric("Costo Totale Rifornimenti", f"€ {costo_tot_lotti:,.2f}")
-        col_m2.metric("Incassi Generati dai Lotti", f"€ {incasso_tot_lotti:,.2f}")
-        col_m3.metric("Guadagno Netto Rifornimenti", f"€ {guadagno_netto_tot_lotti:,.2f}")
+        col_m1.metric("Costo Totale Acquisizione Lotti", f"€ {costo_tot_lotti:,.2f}")
+        col_m2.metric("Incasso Totale Generato dai Lotti", f"€ {incasso_tot_lotti:,.2f}")
+        col_m3.metric("Guadagno Netto Reale Lotti", f"€ {guadagno_netto_tot_lotti:,.2f}")
         
         st.markdown("---")
         
         st.dataframe(
-            storico_lotti_df[[
-                'lotto_id', 'prodotto', 'codice_lotto', 'quantita_iniziale', 'quantita_attuale',
-                'unita_misura', 'costo_acquisto_unitario', 'costo_totale_sostenuto',
-                'incasso_generato', 'guadagno_netto_lotto', 'data_carico', 'data_scadenza'
+            report_lotti_df[[
+                'lotto_id', 'prodotto', 'codice_lotto', 'quantita_iniziale', 'qta_venduta_lotto', 'quantita_attuale',
+                'unita_misura', 'costo_acquisto_unitario', 'costo_totale_lotto',
+                'incasso_totale_lotto', 'guadagno_netto_lotto', 'data_carico', 'data_scadenza'
             ]],
             column_config={
                 "lotto_id": "ID Lotto",
                 "prodotto": "Prodotto",
                 "codice_lotto": "Codice Lotto",
                 "quantita_iniziale": st.column_config.NumberColumn("Q.tà Iniziale", format="%.1f g"),
+                "qta_venduta_lotto": st.column_config.NumberColumn("Q.tà Venduta", format="%.1f g"),
                 "quantita_attuale": st.column_config.NumberColumn("Q.tà Residua", format="%.1f g"),
                 "unita_misura": "U.M.",
                 "costo_acquisto_unitario": st.column_config.NumberColumn("Costo Unit.", format="€ %.2f"),
-                "costo_totale_sostenuto": st.column_config.NumberColumn("Costo Totale", format="€ %.2f"),
-                "incasso_generato": st.column_config.NumberColumn("Incasso Generato", format="€ %.2f"),
+                "costo_totale_lotto": st.column_config.NumberColumn("Costo Totale Lotto", format="€ %.2f"),
+                "incasso_totale_lotto": st.column_config.NumberColumn("Incasso Generato", format="€ %.2f"),
                 "guadagno_netto_lotto": st.column_config.NumberColumn("Guadagno Netto", format="€ %.2f"),
                 "data_carico": "Data Carico",
                 "data_scadenza": "Data Scadenza"
@@ -583,55 +598,38 @@ with tab3:
 
     with col_l2:
         with st.expander("🗑️ **Elimina un Lotto Esistente**", expanded=True):
-            if storico_lotti_df.empty:
+            if report_lotti_df.empty:
                 st.info("Nessun lotto presente da rimuovere.")
             else:
                 opzioni_lotti_elim = {
-                    f"ID {r['lotto_id']} | {r['prodotto']} - Lotto: {r['codice_lotto']} (Disp: {r['quantita_attuale']:,.1f} g)": r['lotto_id']
-                    for _, r in storico_lotti_df.iterrows()
+                    f"ID {r['lotto_id']} | {r['prodotto']} - Lotto: {r['codice_lotto']} (Residuo: {r['quantita_attuale']:,.1f} g)": r['lotto_id']
+                    for _, r in report_lotti_df.iterrows()
                 }
                 
                 label_lotto_scelto = st.selectbox("Seleziona Lotto da Rimuovere", list(opzioni_lotti_elim.keys()))
                 id_lotto_scelto = opzioni_lotti_elim[label_lotto_scelto]
                 
-                lotto_info = storico_lotti_df[storico_lotti_df['lotto_id'] == id_lotto_scelto].iloc[0]
+                lotto_info = report_lotti_df[report_lotti_df['lotto_id'] == id_lotto_scelto].iloc[0]
                 
-                st.warning(f"Sei sicuro di voler eliminare il lotto **{lotto_info['codice_lotto']}**? L'operazione non può essere annullata.")
+                st.warning(f"Sei sicuro di voler eliminare il lotto **{lotto_info['codice_lotto']}**? I dati storici delle vendite rimarranno archiviati.")
                 
                 if st.button("🗑️ Rimuovi Definitivamente Lotto"):
                     elimina_lotto_db(id_lotto_scelto)
-                    st.success(f"✅ Lotto '{lotto_info['codice_lotto']}' rimosso con successo!")
+                    st.success(f"✅ Lotto '{lotto_info['codice_lotto']}' rimosso!")
                     st.rerun()
 
 # ------------------------------------------
 # TAB 4: DASHBOARD & KPI
 # ------------------------------------------
 with tab4:
-    st.subheader("Dashboard & Analytics")
+    st.subheader("Dashboard & Analytics Integrata")
     df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
     lotti_attivi_df = get_lotti_attivi_df()
-    movimenti_df = get_movimenti_df()
+    movimenti_df = get_movimenti_dettagliati_df()
 
     if df_stato_disp.empty and movimenti_df.empty:
         st.info("Nessun dato di magazzino o movimento disponibile.")
     else:
-        if not df_stato_disp.empty:
-            sotto_scorta_dash = df_stato_disp[df_stato_disp['qta_disponibile'] < df_stato_disp['scorta_minima_g']]
-            if not sotto_scorta_dash.empty:
-                for _, r in sotto_scorta_dash.iterrows():
-                    st.warning(f"⚠️ **Sotto scorta minima!** {r['prodotto']}: attuale {r['qta_disponibile']:,.1f} g (Scorta Minima: {r['scorta_minima_g']:,.1f} g)")
-
-        if not lotti_attivi_df.empty:
-            lotti_attivi_df['data_scadenza'] = pd.to_datetime(lotti_attivi_df['data_scadenza'])
-            oggi = pd.to_datetime(date.today())
-            lotti_in_scadenza = lotti_attivi_df[(lotti_attivi_df['data_scadenza'] - oggi).dt.days <= 15]
-            
-            if not lotti_in_scadenza.empty:
-                for _, row in lotti_in_scadenza.iterrows():
-                    giorni = (row['data_scadenza'] - oggi).days
-                    msg = f"In scadenza tra {giorni} giorni!" if giorni >= 0 else "SCADUTO!"
-                    st.error(f"🚨 **Lotto {row['codice_lotto']} ({row['prodotto']})**: {msg} (Data: {row['data_scadenza'].strftime('%Y-%m-%d')})")
-
         col1, col2, col3, col4 = st.columns(4)
         val_costo = df_stato_disp['valore_totale_costo'].sum() if not df_stato_disp.empty else 0
         val_mercato = df_stato_disp['valore_totale_mercato'].sum() if not df_stato_disp.empty else 0
@@ -650,7 +648,7 @@ with tab4:
         with col_g1:
             st.subheader("📈 Storico Progressivo Operazioni")
             if movimenti_df.empty:
-                st.info("Registra almeno una transazione per generare il grafico.")
+                st.info("Registra transazioni per generare il grafico.")
             else:
                 mov_df = movimenti_df.copy()
                 mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
@@ -677,20 +675,20 @@ with tab4:
                 st.altair_chart(chart, use_container_width=True)
 
         with col_g2:
-            st.subheader("📊 Guadagno Netto per Singolo Lotto")
-            storico_lotti = get_storico_lotti_df()
-            if storico_lotti.empty:
+            st.subheader("📊 Guadagno Netto Reale per Lotto")
+            report_lotti = get_report_lotti_integrato_df()
+            if report_lotti.empty:
                 st.info("Nessun lotto disponibile per il grafico.")
             else:
-                chart_lotti = alt.Chart(storico_lotti).mark_bar().encode(
+                chart_lotti = alt.Chart(report_lotti).mark_bar().encode(
                     x=alt.X('codice_lotto:N', title='Codice Lotto', sort=None),
-                    y=alt.Y('guadagno_netto_lotto:Q', title='Guadagno Netto (€)'),
+                    y=alt.Y('guadagno_netto_lotto:Q', title='Guadagno Netto Realizzato (€)'),
                     color=alt.condition(
                         alt.datum.guadagno_netto_lotto >= 0,
                         alt.value("#2ed573"),
                         alt.value("#ff4757")
                     ),
-                    tooltip=['codice_lotto:N', 'prodotto:N', 'costo_totale_sostenuto:Q', 'incasso_generato:Q', 'guadagno_netto_lotto:Q']
+                    tooltip=['codice_lotto:N', 'prodotto:N', 'costo_totale_lotto:Q', 'incasso_totale_lotto:Q', 'guadagno_netto_lotto:Q']
                 ).properties(height=380)
 
                 st.altair_chart(chart_lotti, use_container_width=True)
@@ -699,9 +697,9 @@ with tab4:
 # TAB 5: REPORT & STORICO
 # ------------------------------------------
 with tab5:
-    st.subheader("Registro Storico Transazioni")
+    st.subheader("📜 Registro Storico Transazioni e Dettaglio Lotti")
     
-    movimenti_df = get_movimenti_df()
+    movimenti_df = get_movimenti_dettagliati_df()
     
     if movimenti_df.empty:
         st.info("Nessuna transazione registrata nel database.")
@@ -726,7 +724,7 @@ with tab5:
                 "id": "ID",
                 "data": "Data/Ora",
                 "prodotto": "Prodotto",
-                "codice_lotto": "Lotto",
+                "codice_lotto": "Codice Lotto Origine",
                 "tipo": "Tipo Operazione",
                 "quantita": st.column_config.NumberColumn("Quantità", format="%.1f g"),
                 "unita_misura": "U.M.",
@@ -742,21 +740,21 @@ with tab5:
 
         csv_data = df_filtrato.to_csv(index=False).encode('utf-8')
         st.download_button(
-            label="📥 Scarica Storico in CSV",
+            label="📥 Scarica Report Storico in CSV",
             data=csv_data,
-            file_name=f"storico_magazzino_{datetime.now().strftime('%Y%m%d')}.csv",
+            file_name=f"report_magazzino_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv"
         )
 
         st.markdown("---")
         
         # ANNULLAMENTO / STORNO SINGOLO MOVIMENTO
-        st.subheader("🔄 Storno e Annullamento Singolo Movimento")
-        with st.expander("🛠️ **Annulla una transazione specifica per errore**"):
-            st.write("Seleziona l'ID della transazione da stornare. La quantità verrà ripristinata nel relativo lotto.")
+        st.subheader("🔄 Storno Movimento (Ripristino Scorta Lotto)")
+        with st.expander("🛠️ **Annulla una transazione specifica**"):
+            st.write("Selezionando una transazione, l'operazione verrà stornata e la quantità verrà restituita al lotto di origine.")
             
             opzioni_movimenti = {
-                f"ID {r['id']} | {r['data']} | {r['prodotto']} | {r['tipo']} ({r['quantita']} g)": r['id']
+                f"ID {r['id']} | {r['data']} | {r['prodotto']} (Lotto: {r['codice_lotto']}) | {r['tipo']} ({r['quantita']} g)": r['id']
                 for _, r in df_filtrato.iterrows()
             }
             
@@ -773,10 +771,10 @@ with tab5:
 
     st.markdown("---")
     
-    # SEZIONE DI RESET TOTALE DEI REPORT
-    st.subheader("⚙️ Reset Globale Report")
-    with st.expander("🚨 **Pulsante di Reset Totale Storico**"):
-        st.warning("Attenzione: l'operazione cancellerà definitivamente TUTTE le transazioni storiche registrate.")
+    # RESET GLOBALE REPORT
+    st.subheader("⚙️ Reset Globale Database")
+    with st.expander("🚨 **Pulsante di Reset Totale Storico Transazioni**"):
+        st.warning("Attenzione: l'operazione cancellerà definitivamente tutte le transazioni registrate nello storico.")
         
         if "conferma_reset" not in st.session_state:
             st.session_state["conferma_reset"] = False
