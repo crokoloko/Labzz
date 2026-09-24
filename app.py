@@ -15,17 +15,17 @@ st.set_page_config(
 DB_NAME = "magazzino.db"
 
 # ==========================================
-# GESTIONE DATABASE SQLITE
+# GESTIONE DATABASE SQLITE PERSISTENTE
 # ==========================================
 def get_connection():
     return sqlite3.connect(DB_NAME)
 
 def init_db():
-    """Inizializza le tabelle del database se non esistono."""
+    """Inizializza e aggiorna le tabelle nel database magazzino.db."""
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Anagrafica prodotti (Unità di misura forzata a 'g')
+    # 1. Anagrafica prodotti
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS prodotti (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,10 +35,10 @@ def init_db():
     )
     """)
     
-    # Allinea prodotti esistenti all'unità di misura 'g'
+    # Normalizza l'unità di misura a grammi ('g') per tutti i prodotti esistenti
     cursor.execute("UPDATE prodotti SET unita_misura = 'g'")
     
-    # Registro lotti di carico
+    # 2. Registro lotti di carico
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS lotti (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +53,7 @@ def init_db():
     )
     """)
     
-    # Registro movimenti (carico, vendita, scarto)
+    # 3. Registro movimenti (carico, vendita, scarto)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS movimenti (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,7 +72,7 @@ def init_db():
     )
     """)
     
-    # Popola prodotti base se tabella vuota (Prezzi calcolati al grammo)
+    # Inserisce i prodotti base solo se il database è completamente nuovo
     cursor.execute("SELECT COUNT(*) FROM prodotti")
     if cursor.fetchone()[0] == 0:
         prodotti_iniziali = [
