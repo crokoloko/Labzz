@@ -22,7 +22,7 @@ def get_connection():
     return sqlite3.connect(DB_NAME, timeout=10)
 
 def init_db():
-    """Inizializza il database e applica le migrazioni per data_acquisto e data_completamento."""
+    """Inizializza il database e applica le migrazioni dello schema."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;")
@@ -49,7 +49,6 @@ def init_db():
             costo_acquisto_unitario REAL NOT NULL,
             data_acquisto DATE,
             data_carico DATE NOT NULL,
-            data_scadenza DATE,
             data_completamento DATE,
             FOREIGN KEY (prodotto_id) REFERENCES prodotti (id) ON DELETE CASCADE
         )
@@ -115,12 +114,6 @@ def get_lotti_attivi_df():
         return pd.read_sql_query(query, conn)
 
 def get_report_lotti_integrato_df(soglia_esaurimento_g=50.0):
-    """
-    Recupera tutti i lotti calcolando automaticamente lo stato:
-    - '✅ Esaurito' se quantita_attuale == 0
-    - '⚠️ In Esaurimento' se 0 < quantita_attuale <= soglia_esaurimento_g
-    - '🔵 Attivo' se quantita_attuale > soglia_esaurimento_g
-    """
     query = """
         SELECT 
             l.id AS lotto_id,
@@ -265,10 +258,9 @@ def elimina_lotto_db(lotto_id):
 # ==========================================
 st.title("📦 Labzz - Magazzino FIFO Automatico")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4 = st.tabs([
     "💸 Cassa & Movimenti", 
-    "📋 Gestione Stock", 
-    "🚚 Rifornimenti & Lotti",
+    "🚚 Rifornimenti",
     "📊 Dashboard & KPI", 
     "📜 Report & Storico"
 ])
@@ -357,7 +349,7 @@ with tab1:
         prodotti_tutti_df = get_prodotti_df()
         
         if prodotti_tutti_df.empty:
-            st.warning("⚠️ Nessun prodotto censito in anagrafica.")
+            st.warning("⚠️ Nessun prodotto censito in anagrafica. Crea prima un prodotto dal gestore sotto la scheda 'Rifornimenti'.")
         else:
             with st.form("form_carico"):
                 st.markdown("##### Registra Acquisto / Nuovo Lotto")
@@ -436,134 +428,10 @@ with tab1:
                     st.rerun()
 
 # ------------------------------------------
-# TAB 2: GESTIONE STOCK
+# TAB 2: RIFORNIMENTI
 # ------------------------------------------
 with tab2:
-    st.subheader("📋 Gestione dello Stock (Unità: Grammi - g)")
-    
-    df_stato_disponibile = calcola_stato_magazzino(solo_disponibili=True)
-    if not df_stato_disponibile.empty:
-        sotto_scorta = df_stato_disponibile[df_stato_disponibile['qta_disponibile'] < df_stato_disponibile['scorta_minima_g']]
-        if not sotto_scorta.empty:
-            for _, r in sotto_scorta.iterrows():
-                st.warning(f"⚠️ **Sotto scorta minima!** {r['prodotto']}: attuale {r['qta_disponibile']:,.1f} g (Soglia minima: {r['scorta_minima_g']:,.1f} g)")
-
-    col_a, col_b = st.columns(2)
-    
-    with col_a:
-        with st.expander("➕ **Aggiungi Nuovo Prodotto in Anagrafica**", expanded=False):
-            with st.form("form_nuovo_prodotto"):
-                nome_nuovo = st.text_input("Nome Prodotto", placeholder="Es. Zafferano, Spezia")
-                qta_iniziale = st.number_input("Quantità Iniziale (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
-                costo_u_init = st.number_input("Costo d'Acquisto al grammo (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
-                prezzo_v_init = st.number_input("Prezzo di Vendita al grammo (€/g)", min_value=0.1, value=2.0, step=0.5, format="%.2f")
-                scorta_min_init = st.number_input("Scorta Minima Alert (g)", min_value=0.0, value=100.0, step=10.0, format="%.1f")
-
-                if st.form_submit_button("Crea Prodotto"):
-                    if nome_nuovo.strip() == "":
-                        st.error("Inserisci un nome valido.")
-                    else:
-                        try:
-                            with get_connection() as conn:
-                                cursor = conn.cursor()
-                                cursor.execute("""
-                                    INSERT INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) 
-                                    VALUES (?, 'g', ?, ?)
-                                """, (nome_nuovo.strip(), prezzo_v_init, scorta_min_init))
-                                p_id = cursor.lastrowid
-                                
-                                if qta_iniziale > 0:
-                                    codice_lotto = f"LOTTO-INIT-{datetime.now().strftime('%Y%m%d')}"
-                                    cursor.execute("""
-                                        INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                                    """, (p_id, codice_lotto, qta_iniziale, qta_iniziale, costo_u_init, date.today(), date.today()))
-                                    
-                                    lotto_id = cursor.lastrowid
-                                    cursor.execute("""
-                                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, note)
-                                        VALUES (?, ?, 'CARICO', ?, ?, ?, 'Inizializzazione Prodotto')
-                                    """, (p_id, lotto_id, qta_iniziale, costo_u_init, qta_iniziale * costo_u_init))
-                                    
-                            st.success(f"Prodotto '{nome_nuovo}' salvato con successo!")
-                            st.rerun()
-                        except sqlite3.IntegrityError:
-                            st.error("Un prodotto con questo nome esiste già.")
-
-    with col_b:
-        with st.expander("⚡ **Modifica / Aggiorna Prodotto Esistente**", expanded=True):
-            prodotti_df = get_prodotti_df()
-            if prodotti_df.empty:
-                st.info("Nessun prodotto censito in anagrafica.")
-            else:
-                prod_mod_nome = st.selectbox("Seleziona Prodotto da Modificare", prodotti_df['nome'].tolist())
-                p_row = prodotti_df[prodotti_df['nome'] == prod_mod_nome].iloc[0]
-                p_id = int(p_row['id'])
-                
-                with get_connection() as conn:
-                    lotti_p = pd.read_sql_query("SELECT * FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0", conn, params=(p_id,))
-                
-                qta_attuale_tot = float(lotti_p['quantita_attuale'].sum()) if not lotti_p.empty else 0.0
-                costo_u_att = float((lotti_p['quantita_attuale'] * lotti_p['costo_acquisto_unitario']).sum() / qta_attuale_tot) if qta_attuale_tot > 0 else 1.0
-
-                with st.form("form_rettifica_diretta"):
-                    nuova_qta_tot = st.number_input("Nuova Quantità Totale (g)", min_value=0.0, value=qta_attuale_tot, step=0.5, format="%.1f")
-                    nuovo_costo_grammo = st.number_input("Costo d'Acquisto Unitario (€/g)", min_value=0.1, value=float(costo_u_att if costo_u_att > 0 else 1.0), step=0.5, format="%.2f")
-                    nuovo_prezzo_grammo = st.number_input("Prezzo di Vendita Unitario (€/g)", min_value=0.1, value=float(p_row['valore_mercato_unitario']), step=0.5, format="%.2f")
-                    nuova_scorta_min_g = st.number_input("Soglia Scorta Minima (g)", min_value=0.0, value=float(p_row['scorta_minima_g']), step=10.0, format="%.1f")
-
-                    if st.form_submit_button("Salva Modifiche"):
-                        with get_connection() as conn:
-                            cursor = conn.cursor()
-                            cursor.execute("""
-                                UPDATE prodotti 
-                                SET valore_mercato_unitario = ?, scorta_minima_g = ? 
-                                WHERE id = ?
-                            """, (nuovo_prezzo_grammo, nuova_scorta_min_g, p_id))
-                            
-                            cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE prodotto_id = ? AND quantita_attuale > 0", (date.today(), p_id))
-                            
-                            if nuova_qta_tot > 0:
-                                cod_lotto_rett = f"RETT-{datetime.now().strftime('%Y%m%d-%H%M')}"
-                                cursor.execute("""
-                                    INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                                """, (p_id, cod_lotto_rett, nuova_qta_tot, nuova_qta_tot, nuovo_costo_grammo, date.today(), date.today()))
-                        
-                        st.success(f"Stock e parametri di '{prod_mod_nome}' aggiornati!")
-                        st.rerun()
-
-    st.markdown("---")
-    
-    st.subheader("Giacenza Attuale in Magazzino")
-    if df_stato_disponibile.empty:
-        st.info("Nessun prodotto con giacenza attualmente disponibile in magazzino.")
-    else:
-        st.dataframe(
-            df_stato_disponibile[[
-                'prodotto', 'qta_disponibile', 'scorta_minima_g', 'unita_misura',
-                'costo_medio_ponderato', 'valore_mercato_unitario',
-                'valore_totale_costo', 'valore_totale_mercato'
-            ]],
-            column_config={
-                "prodotto": "Prodotto",
-                "qta_disponibile": st.column_config.NumberColumn("Quantità Disponibile", format="%.1f g"),
-                "scorta_minima_g": st.column_config.NumberColumn("Scorta Minima", format="%.1f g"),
-                "unita_misura": "U.M.",
-                "costo_medio_ponderato": st.column_config.NumberColumn("Costo Medio", format="€ %.2f"),
-                "valore_mercato_unitario": st.column_config.NumberColumn("Prezzo Vendita", format="€ %.2f"),
-                "valore_totale_costo": st.column_config.NumberColumn("Valore Costo Totale", format="€ %.2f"),
-                "valore_totale_mercato": st.column_config.NumberColumn("Valore Vendita Totale", format="€ %.2f")
-            },
-            use_container_width=True,
-            hide_index=True
-        )
-
-# ------------------------------------------
-# TAB 3: RIFORNIMENTI & LOTTI
-# ------------------------------------------
-with tab3:
-    st.subheader("🚚 Rifornimenti e Report Dettagliato Lotti")
+    st.subheader("🚚 Registro Rifornimenti e Lotti")
     
     col_cfg1, col_cfg2 = st.columns([1, 3])
     with col_cfg1:
@@ -619,15 +487,15 @@ with tab3:
 
     st.markdown("---")
     
-    # SEZIONE DI GESTIONE IN FONDO ALLA PAGINA
-    st.subheader("⚙️ Gestore Lotti (Aggiungi o Rimuovi)")
+    # SEZIONE DI GESTIONE LOTTI E PRODOTTI IN FONDO ALLA PAGINA
+    st.subheader("⚙️ Gestione Lotti e Anagrafica Prodotti")
     
     col_l1, col_l2 = st.columns(2)
     
     with col_l1:
         with st.expander("➕ **Aggiungi un Nuovo Lotto**", expanded=True):
             if prodotti_tutti_df.empty:
-                st.warning("Crea prima un prodotto in anagrafica.")
+                st.warning("Crea prima un prodotto in anagrafica nel pannello qui accanto.")
             else:
                 with st.form("form_lotto_manuale"):
                     p_nome_lotto = st.selectbox("Seleziona Prodotto", prodotti_tutti_df['nome'].tolist())
@@ -650,8 +518,7 @@ with tab3:
                         st.success(f"✅ Lotto '{cod_lotto_m}' aggiunto con successo!")
                         st.rerun()
 
-    with col_l2:
-        with st.expander("🗑️ **Rimuovi un Lotto Esistente**", expanded=True):
+        with st.expander("🗑️ **Rimuovi un Lotto Esistente**", expanded=False):
             if report_lotti_df.empty:
                 st.info("Nessun lotto presente da rimuovere.")
             else:
@@ -671,10 +538,50 @@ with tab3:
                     st.success(f"Lotto '{lotto_info['codice_lotto']}' rimosso!")
                     st.rerun()
 
+    with col_l2:
+        with st.expander("➕ **Crea Nuovo Prodotto in Anagrafica**", expanded=True):
+            with st.form("form_nuovo_prodotto"):
+                nome_nuovo = st.text_input("Nome Prodotto", placeholder="Es. Zafferano, Spezia")
+                qta_iniziale = st.number_input("Quantità Iniziale (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
+                costo_u_init = st.number_input("Costo d'Acquisto al grammo (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
+                prezzo_v_init = st.number_input("Prezzo di Vendita al grammo (€/g)", min_value=0.1, value=2.0, step=0.5, format="%.2f")
+                scorta_min_init = st.number_input("Scorta Minima Alert (g)", min_value=0.0, value=100.0, step=10.0, format="%.1f")
+
+                if st.form_submit_button("Crea Prodotto"):
+                    if nome_nuovo.strip() == "":
+                        st.error("Inserisci un nome valido.")
+                    else:
+                        try:
+                            with get_connection() as conn:
+                                cursor = conn.cursor()
+                                cursor.execute("""
+                                    INSERT INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) 
+                                    VALUES (?, 'g', ?, ?)
+                                """, (nome_nuovo.strip(), prezzo_v_init, scorta_min_init))
+                                p_id = cursor.lastrowid
+                                
+                                if qta_iniziale > 0:
+                                    codice_lotto = f"LOTTO-INIT-{datetime.now().strftime('%Y%m%d')}"
+                                    cursor.execute("""
+                                        INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                                    """, (p_id, codice_lotto, qta_iniziale, qta_iniziale, costo_u_init, date.today(), date.today()))
+                                    
+                                    lotto_id = cursor.lastrowid
+                                    cursor.execute("""
+                                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, note)
+                                        VALUES (?, ?, 'CARICO', ?, ?, ?, 'Inizializzazione Prodotto')
+                                    """, (p_id, lotto_id, qta_iniziale, costo_u_init, qta_iniziale * costo_u_init))
+                                    
+                            st.success(f"Prodotto '{nome_nuovo}' salvato con successo!")
+                            st.rerun()
+                        except sqlite3.IntegrityError:
+                            st.error("Un prodotto con questo nome esiste già.")
+
 # ------------------------------------------
-# TAB 4: DASHBOARD & KPI
+# TAB 3: DASHBOARD & KPI
 # ------------------------------------------
-with tab4:
+with tab3:
     st.subheader("Dashboard & Analytics Integrata")
     df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
     lotti_attivi_df = get_lotti_attivi_df()
@@ -747,9 +654,9 @@ with tab4:
                 st.altair_chart(chart_lotti, use_container_width=True)
 
 # ------------------------------------------
-# TAB 5: REPORT & STORICO
+# TAB 4: REPORT & STORICO
 # ------------------------------------------
-with tab5:
+with tab4:
     st.subheader("📜 Registro Storico Transazioni e Dettaglio Lotti")
     
     movimenti_df = get_movimenti_dettagliati_df()
