@@ -76,19 +76,17 @@ def init_db():
         )
         """)
 
-# Inizializzazione iniziale
+# Inizializzazione DB
 init_db()
 
 # ==========================================
 # FUNZIONI UTILITY DATI
 # ==========================================
 def get_prodotti_df():
-    """Recupera tutti i prodotti censiti in anagrafica."""
     with get_connection() as conn:
         return pd.read_sql_query("SELECT * FROM prodotti ORDER BY nome ASC", conn)
 
 def get_prodotti_disponibili_df():
-    """Recupera SOLO i prodotti che hanno giacenza reale in magazzino (> 0 g)."""
     query = """
         SELECT DISTINCT p.* 
         FROM prodotti p
@@ -117,13 +115,12 @@ def get_movimenti_df():
                m.prezzo_unitario, m.ricavo_totale, m.costo_totale, m.margine, m.note, m.lotto_id
         FROM movimenti m
         JOIN prodotti p ON m.prodotto_id = p.id
-        ORDER BY m.data DESC
+        ORDER BY m.data ASC
     """
     with get_connection() as conn:
         return pd.read_sql_query(query, conn)
 
 def calcola_stato_magazzino(solo_disponibili=False):
-    """Calcola le metriche per prodotto."""
     with get_connection() as conn:
         prodotti_df = pd.read_sql_query("SELECT * FROM prodotti", conn)
         lotti_df = pd.read_sql_query("SELECT * FROM lotti WHERE quantita_attuale > 0", conn)
@@ -167,7 +164,6 @@ def calcola_stato_magazzino(solo_disponibili=False):
     return pd.DataFrame(risultati)
 
 def storna_movimento(movimento_id):
-    """Gestisce l'annullamento/storno sicuro di un singolo movimento."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM movimenti WHERE id = ?", (movimento_id,))
@@ -527,35 +523,32 @@ with tab3:
 
         st.markdown("---")
 
-        # GRAFICO TEMPORALE: STORICO GIORNO DOPO GIORNO
-        st.subheader("📈 Andamento Economico Storico (Giorno per Giorno)")
+        # GRAFICO A LINEE CON PUNTI SULLO STORICO DELLE VENDITE E OPERAZIONI
+        st.subheader("📈 Storico Progressivo Operazioni (Punti e Linee)")
         if movimenti_df.empty:
-            st.info("Registra almeno una transazione per vedere lo storico temporale.")
+            st.info("Registra almeno una transazione per generare il grafico.")
         else:
             mov_df = movimenti_df.copy()
-            mov_df['Data_Giorno'] = pd.to_datetime(mov_df['data']).dt.date
             
-            # Raggruppamento giornaliero per spese, incassi e margine
-            giornaliero = mov_df.groupby('Data_Giorno').agg(
-                Spesi_Totali=('costo_totale', 'sum'),
-                Guadagnati_Totali=('ricavo_totale', 'sum'),
-                Margine_Totale=('margine', 'sum')
-            ).reset_index()
+            # Formattazione e ordinamento per data/ora
+            mov_df['Data/Ora'] = pd.to_datetime(mov_df['data'])
+            mov_df = mov_df.sort_values('Data/Ora')
             
-            giornaliero = giornaliero.sort_values('Data_Giorno')
+            # Traccia cumulativa movimento per movimento
+            mov_df['Spesi Totali'] = mov_df['costo_totale'].cumsum()
+            mov_df['Incasso Totale'] = mov_df['ricavo_totale'].cumsum()
+            mov_df['Margine Netto'] = mov_df['margine'].cumsum()
             
-            # Calcolo cumulativo giorno per giorno
-            giornaliero['Soldi Spesi Totali'] = giornaliero['Spesi_Totali'].cumsum()
-            giornaliero['Soldi Guadagnati Totali'] = giornaliero['Guadagnati_Totali'].cumsum()
-            giornaliero['Soldi Totali (Margine Netto)'] = giornaliero['Margine_Totale'].cumsum()
+            # Etichetta temporale leggibile per gli assi
+            mov_df['Operazione'] = mov_df['Data/Ora'].dt.strftime('%d/%m/%Y %H:%M') + " (" + mov_df['prodotto'] + " - " + mov_df['tipo'] + ")"
             
-            chart_data = giornaliero.set_index('Data_Giorno')[[
-                'Soldi Spesi Totali', 
-                'Soldi Guadagnati Totali', 
-                'Soldi Totali (Margine Netto)'
+            data_chart = mov_df.set_index('Operazione')[[
+                'Spesi Totali', 
+                'Incasso Totale', 
+                'Margine Netto'
             ]]
             
-            st.line_chart(chart_data)
+            st.line_chart(data_chart)
 
 # ------------------------------------------
 # TAB 4: REPORT & STORICO
