@@ -22,7 +22,7 @@ def get_connection():
     return sqlite3.connect(DB_NAME, timeout=10)
 
 def init_db():
-    """Inizializza il database e applica le migrazioni dello schema."""
+    """Inizializza il database verificando le tabelle e garantendo le chiavi esterne per la sincronizzazione."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;")
@@ -223,6 +223,7 @@ def calcola_stato_magazzino(solo_disponibili=False):
     return pd.DataFrame(risultati)
 
 def storna_movimento(movimento_id):
+    """Annulla una transazione e ripristina sincronicamente la scorta del lotto coinvolto."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM movimenti WHERE id = ?", (movimento_id,))
@@ -245,7 +246,7 @@ def storna_movimento(movimento_id):
                 cursor.execute("UPDATE lotti SET quantita_attuale = MAX(0, quantita_attuale - ?) WHERE id = ?", (qta, lotto_id))
         
         cursor.execute("DELETE FROM movimenti WHERE id = ?", (movimento_id,))
-        return True, "Movimento stornato con successo!"
+        return True, "Movimento stornato con successo e giacenza del lotto ripristinata!"
 
 def elimina_lotto_db(lotto_id):
     with get_connection() as conn:
@@ -328,6 +329,7 @@ with tab1:
                                 ricavo_quota = prelievo * prezzo_vendita_unitario
                                 margine_quota = ricavo_quota - costo_quota
                                 
+                                # Sincronizzazione automatica del lotto
                                 if nuova_qta_lotto == 0:
                                     cursor.execute("""
                                         UPDATE lotti 
@@ -342,7 +344,7 @@ with tab1:
                                     VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?)
                                 """, (p_id, l_id, prelievo, prezzo_vendita_unitario, ricavo_quota, costo_quota, margine_quota, f"Lotto {cod_lotto} | {note}".strip(" |")))
                         
-                        st.success(f"✅ Vendita registrata!")
+                        st.success("✅ Vendita registrata e coordinata con i lotti e report!")
                         st.rerun()
 
     elif tipo_operazione == "Acquisto":
@@ -424,7 +426,7 @@ with tab1:
                             VALUES (?, ?, 'XME', ?, 0, ?, ?, ?)
                         """, (p_id, lotto_id_scelto, qta_xme, costo_perdita, -costo_perdita, f"XME: {motivo}"))
                     
-                    st.warning("Operazione XME registrata!")
+                    st.warning("Operazione XME registrata e sincronizzata col lotto!")
                     st.rerun()
 
 # ------------------------------------------
@@ -487,7 +489,7 @@ with tab2:
 
     st.markdown("---")
     
-    # SEZIONE DI GESTIONE LOTTI E PRODOTTI IN FONDO ALLA PAGINA (TUTTE CHIUSE DI DEFAULT)
+    # SEZIONE GESTIONE LOTTI E ANAGRAFICA (BOX CHIUSI DI DEFAULT PER EVITARE DISORDINE)
     st.subheader("⚙️ Gestione Lotti e Anagrafica Prodotti")
     
     col_l1, col_l2 = st.columns(2)
