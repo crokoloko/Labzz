@@ -305,7 +305,6 @@ with tab1:
             if qta_tot_disp <= 0:
                 st.error(f"⚠️ Nessuna scorta disponibile per **{prod_nome}**. Aggiungi prima un lotto dalla scheda 'Rifornimenti'.")
             else:
-                # MESSAGGIO SEMPLIFICATO RICHIESTO
                 st.info(f"Disponibilità totale: **{qta_tot_disp:,.1f} g**")
                 
                 with st.form("form_vendita"):
@@ -438,7 +437,8 @@ with tab2:
                 mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
                 mov_df = mov_df.sort_values('Data_Ora')
                 
-                mov_df['Spesi Totali'] = mov_df['costo_totale'].cumsum()
+                # Calcolo spesi solo dai carichi
+                mov_df['Spesi Totali'] = mov_df.apply(lambda r: r['costo_totale'] if r['tipo'] == 'CARICO' else 0, axis=1).cumsum()
                 mov_df['Incasso Totale'] = mov_df['ricavo_totale'].cumsum()
                 mov_df['Margine Netto'] = mov_df['margine'].cumsum()
                 
