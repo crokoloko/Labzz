@@ -22,7 +22,7 @@ def get_connection():
     return sqlite3.connect(DB_NAME, timeout=10)
 
 def init_db():
-    """Inizializza il database verificando le tabelle e garantendo le chiavi esterne per la sincronizzazione."""
+    """Inizializza il database verificando le tabelle, impostazioni e garantendo le chiavi esterne."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;")
@@ -81,11 +81,34 @@ def init_db():
         )
         """)
 
+        # 4. Tabella Impostazioni (per la soglia alert permanente)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS impostazioni (
+            chiave TEXT PRIMARY KEY,
+            valore REAL NOT NULL
+        )
+        """)
+        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('soglia_esaurimento', 10.0)")
+
 init_db()
 
 # ==========================================
 # FUNZIONI DI LETTURA E QUERY INTEGRATE
 # ==========================================
+def get_soglia_esaurimento():
+    """Recupera la soglia alert salvata nel database."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT valore FROM impostazioni WHERE chiave = 'soglia_esaurimento'")
+        row = cursor.fetchone()
+        return float(row[0]) if row else 10.0
+
+def set_soglia_esaurimento(valore):
+    """Salva permanentemente la nuova soglia alert nel database."""
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE impostazioni SET valore = ? WHERE chiave = 'soglia_esaurimento'", (valore,))
+
 def get_prodotti_df():
     with get_connection() as conn:
         return pd.read_sql_query("SELECT * FROM prodotti ORDER BY nome ASC", conn)
@@ -102,7 +125,7 @@ def get_lotti_attivi_df():
     with get_connection() as conn:
         return pd.read_sql_query(query, conn)
 
-def get_report_lotti_integrato_df(soglia_esaurimento_g=50.0):
+def get_report_lotti_integrato_df(soglia_esaurimento_g=10.0):
     query = """
         SELECT 
             l.id AS lotto_id,
@@ -248,7 +271,6 @@ def elimina_lotto_db(lotto_id):
 # ==========================================
 st.title("📦 Labzz - Magazzino FIFO Automatico")
 
-# NUOVO ORDINE DELLE SCHEDE
 tab1, tab2, tab3, tab4 = st.tabs([
     "💸 Cassa", 
     "📊 Dashboard & KPI", 
@@ -380,7 +402,7 @@ with tab1:
                         st.rerun()
 
 # ------------------------------------------
-# TAB 2: DASHBOARD & KPI (POSIZIONATO SUBITO DOPO LA CASSA)
+# TAB 2: DASHBOARD & KPI
 # ------------------------------------------
 with tab2:
     st.subheader("Dashboard & Analytics Integrata")
@@ -437,7 +459,8 @@ with tab2:
 
         with col_g2:
             st.subheader("📊 Guadagno Netto Reale per Lotto")
-            report_lotti = get_report_lotti_integrato_df()
+            soglia_salvata = get_soglia_esaurimento()
+            report_lotti = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_salvata)
             if report_lotti.empty:
                 st.info("Nessun lotto disponibile per il grafico.")
             else:
@@ -460,10 +483,9 @@ with tab2:
 with tab3:
     st.subheader("🚚 Registro Rifornimenti e Lotti")
     
-    if 'soglia_esaurimento' not in st.session_state:
-        st.session_state['soglia_esaurimento'] = 50.0
-
-    report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=st.session_state['soglia_esaurimento'])
+    # Recupera la soglia salvata nel database
+    soglia_attuale = get_soglia_esaurimento()
+    report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_attuale)
     
     if report_lotti_df.empty:
         st.info("Nessun lotto di rifornimento salvato.")
@@ -511,17 +533,22 @@ with tab3:
             hide_index=True
         )
 
-    # IMPOSTAZIONE SOGLIA ALERT (POSIZIONATA SOTTO LA TABELLA SPECIFICHE)
+    # IMPOSTAZIONE SOGLIA ALERT SALVATA NEL DATABASE
     st.markdown("---")
     col_cfg1, col_cfg2 = st.columns([1, 2])
     with col_cfg1:
-        st.session_state['soglia_esaurimento'] = st.number_input(
+        nuova_soglia = st.number_input(
             "⚙️ Soglia Alert In Esaurimento (g)", 
             min_value=1.0, 
-            value=float(st.session_state['soglia_esaurimento']), 
-            step=5.0, 
+            value=soglia_attuale, 
+            step=1.0, 
             format="%.1f"
         )
+        if nuova_soglia != soglia_attuale:
+            set_soglia_esaurimento(nuova_soglia)
+            st.success(f"Soglia salvata permanentemente a {nuova_soglia:,.1f} g!")
+            st.rerun()
+
     st.markdown("---")
     
     # SEZIONE GESTIONE LOTTI E ANAGRAFICA (CHIUSI DI DEFAULT)
