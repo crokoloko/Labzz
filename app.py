@@ -15,13 +15,13 @@ st.set_page_config(
 DB_NAME = "magazzino.db"
 
 # ==========================================
-# GESTIONE DATABASE SQLITE PERSISTENTE
+# GESTIONE DATABASE SQLITE
 # ==========================================
 def get_connection():
-    return sqlite3.connect(DB_NAME)
+    return sqlite3.connect(DB_NAME, timeout=10)
 
 def init_db():
-    """Inizializza e aggiorna le tabelle nel database magazzino.db."""
+    """Inizializza il database SQLite creando le tabelle se non esistono."""
     conn = get_connection()
     cursor = conn.cursor()
     
@@ -34,9 +34,6 @@ def init_db():
         valore_mercato_unitario REAL DEFAULT 0
     )
     """)
-    
-    # Normalizza l'unità di misura a grammi ('g') per tutti i prodotti esistenti
-    cursor.execute("UPDATE prodotti SET unita_misura = 'g'")
     
     # 2. Registro lotti di carico
     cursor.execute("""
@@ -72,7 +69,7 @@ def init_db():
     )
     """)
     
-    # Inserisce i prodotti base solo se il database è completamente nuovo
+    # Inserisci prodotti base se il database è vuoto
     cursor.execute("SELECT COUNT(*) FROM prodotti")
     if cursor.fetchone()[0] == 0:
         prodotti_iniziali = [
@@ -89,6 +86,7 @@ def init_db():
     conn.commit()
     conn.close()
 
+# Esegui inizializzazione DB
 init_db()
 
 # ==========================================
@@ -191,7 +189,6 @@ with tab1:
     if prodotti_df.empty:
         st.warning("Nessun prodotto presente in anagrafica. Aggiungi un prodotto dalla scheda 'Gestione Stock'.")
     else:
-        # 1. VENDITA
         if tipo_operazione == "Vendita":
             prod_nome = st.selectbox("Seleziona Prodotto da Vendere", prodotti_df['nome'].tolist())
             prod_row = prodotti_df[prodotti_df['nome'] == prod_nome].iloc[0]
@@ -264,7 +261,6 @@ with tab1:
                             st.success(f"✅ Vendita registrata! Incasso: €{ricavo_totale:,.2f} | Margine: €{margine:,.2f}")
                             st.rerun()
 
-        # 2. ACQUISTO
         elif tipo_operazione == "Acquisto":
             with st.form("form_carico"):
                 st.markdown("##### Registra Acquisto Stock")
@@ -305,7 +301,6 @@ with tab1:
                     st.success(f"✅ Acquisto registrato col lotto {codice_lotto}!")
                     st.rerun()
 
-        # 3. REGISTRA SCARTO
         elif tipo_operazione == "Registra Scarto":
             lotti_df = get_lotti_df()
             
@@ -433,7 +428,6 @@ with tab2:
 
     st.markdown("---")
     
-    # TABELLA PRODOTTI E GIACENZE
     st.subheader("Giacenza Attuale")
     df_stato = calcola_stato_magazzino()
     
@@ -463,7 +457,6 @@ with tab3:
     df_stato = calcola_stato_magazzino()
     lotti_df = get_lotti_df()
 
-    # Avviso Scadenze
     if not lotti_df.empty:
         lotti_df['data_scadenza'] = pd.to_datetime(lotti_df['data_scadenza'])
         oggi = pd.to_datetime(date.today())
@@ -475,7 +468,6 @@ with tab3:
                 msg = f"In scadenza tra {giorni} giorni!" if giorni >= 0 else "SCADUTO!"
                 st.error(f"🚨 **Lotto {row['codice_lotto']} ({row['prodotto']})**: {msg} (Data: {row['data_scadenza'].strftime('%Y-%m-%d')})")
 
-    # Metrics
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Valore Magazzino (Costo)", f"€ {df_stato['valore_totale_costo'].sum():,.2f}")
     col2.metric("Valore Magazzino (Vendita)", f"€ {df_stato['valore_totale_mercato'].sum():,.2f}")
