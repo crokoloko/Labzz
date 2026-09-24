@@ -248,10 +248,11 @@ def elimina_lotto_db(lotto_id):
 # ==========================================
 st.title("📦 Labzz - Magazzino FIFO Automatico")
 
+# NUOVO ORDINE DELLE SCHEDE
 tab1, tab2, tab3, tab4 = st.tabs([
     "💸 Cassa", 
-    "🚚 Rifornimenti",
     "📊 Dashboard & KPI", 
+    "🚚 Rifornimenti",
     "📜 Report & Storico"
 ])
 
@@ -379,12 +380,86 @@ with tab1:
                         st.rerun()
 
 # ------------------------------------------
-# TAB 2: RIFORNIMENTI
+# TAB 2: DASHBOARD & KPI (POSIZIONATO SUBITO DOPO LA CASSA)
 # ------------------------------------------
 with tab2:
+    st.subheader("Dashboard & Analytics Integrata")
+    df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
+    lotti_attivi_df = get_lotti_attivi_df()
+    movimenti_df = get_movimenti_dettagliati_df()
+
+    if df_stato_disp.empty and movimenti_df.empty:
+        st.info("Nessun dato di magazzino o movimento disponibile.")
+    else:
+        col1, col2, col3, col4 = st.columns(4)
+        val_costo = df_stato_disp['valore_totale_costo'].sum() if not df_stato_disp.empty else 0
+        val_mercato = df_stato_disp['valore_totale_mercato'].sum() if not df_stato_disp.empty else 0
+        incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
+        margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
+
+        col1.metric("Valore Magazzino (Costo)", f"€ {val_costo:,.2f}")
+        col2.metric("Valore Magazzino (Vendita)", f"€ {val_mercato:,.2f}")
+        col3.metric("Incasso Totale Vendite", f"€ {incasso_tot:,.2f}")
+        col4.metric("Margine Netto Effettivo", f"€ {margine_tot:,.2f}")
+
+        st.markdown("---")
+
+        col_g1, col_g2 = st.columns(2)
+
+        with col_g1:
+            st.subheader("📈 Storico Progressivo Operazioni")
+            if movimenti_df.empty:
+                st.info("Registra transazioni per generare il grafico.")
+            else:
+                mov_df = movimenti_df.copy()
+                mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
+                mov_df = mov_df.sort_values('Data_Ora')
+                
+                mov_df['Spesi Totali'] = mov_df['costo_totale'].cumsum()
+                mov_df['Incasso Totale'] = mov_df['ricavo_totale'].cumsum()
+                mov_df['Margine Netto'] = mov_df['margine'].cumsum()
+                
+                chart_df = mov_df.melt(
+                    id_vars=['Data_Ora', 'prodotto', 'tipo'],
+                    value_vars=['Spesi Totali', 'Incasso Totale', 'Margine Netto'],
+                    var_name='Metrica',
+                    value_name='Valore (€)'
+                )
+
+                chart = alt.Chart(chart_df).mark_line(point=True).encode(
+                    x=alt.X('Data_Ora:T', title='Data e Ora Transazione'),
+                    y=alt.Y('Valore (€):Q', title='Importo (€)'),
+                    color=alt.Color('Metrica:N', legend=alt.Legend(title="Legenda")),
+                    tooltip=['Data_Ora:T', 'prodotto:N', 'tipo:N', 'Metrica:N', 'Valore (€):Q']
+                ).properties(height=380).interactive()
+
+                st.altair_chart(chart, use_container_width=True)
+
+        with col_g2:
+            st.subheader("📊 Guadagno Netto Reale per Lotto")
+            report_lotti = get_report_lotti_integrato_df()
+            if report_lotti.empty:
+                st.info("Nessun lotto disponibile per il grafico.")
+            else:
+                chart_lotti = alt.Chart(report_lotti).mark_bar().encode(
+                    x=alt.X('codice_lotto:N', title='Codice Lotto', sort=None),
+                    y=alt.Y('guadagno_netto_lotto:Q', title='Guadagno Netto Realizzato (€)'),
+                    color=alt.condition(
+                        alt.datum.guadagno_netto_lotto >= 0,
+                        alt.value("#2ed573"),
+                        alt.value("#ff4757")
+                    ),
+                    tooltip=['codice_lotto:N', 'prodotto:N', 'costo_totale_lotto:Q', 'incasso_totale_lotto:Q', 'guadagno_netto_lotto:Q']
+                ).properties(height=380)
+
+                st.altair_chart(chart_lotti, use_container_width=True)
+
+# ------------------------------------------
+# TAB 3: RIFORNIMENTI
+# ------------------------------------------
+with tab3:
     st.subheader("🚚 Registro Rifornimenti e Lotti")
     
-    # Inizializza session_state per mantenere la soglia alert durante le interazioni
     if 'soglia_esaurimento' not in st.session_state:
         st.session_state['soglia_esaurimento'] = 50.0
 
@@ -436,7 +511,7 @@ with tab2:
             hide_index=True
         )
 
-    # IMPOSTAZIONE SOGLIA ALERT: Sotto le specifiche del magazzino e sopra la gestione lotti
+    # IMPOSTAZIONE SOGLIA ALERT (POSIZIONATA SOTTO LA TABELLA SPECIFICHE)
     st.markdown("---")
     col_cfg1, col_cfg2 = st.columns([1, 2])
     with col_cfg1:
@@ -545,81 +620,6 @@ with tab2:
                             st.rerun()
                         except sqlite3.IntegrityError:
                             st.error("Un prodotto con questo nome esiste già.")
-
-# ------------------------------------------
-# TAB 3: DASHBOARD & KPI
-# ------------------------------------------
-with tab3:
-    st.subheader("Dashboard & Analytics Integrata")
-    df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
-    lotti_attivi_df = get_lotti_attivi_df()
-    movimenti_df = get_movimenti_dettagliati_df()
-
-    if df_stato_disp.empty and movimenti_df.empty:
-        st.info("Nessun dato di magazzino o movimento disponibile.")
-    else:
-        col1, col2, col3, col4 = st.columns(4)
-        val_costo = df_stato_disp['valore_totale_costo'].sum() if not df_stato_disp.empty else 0
-        val_mercato = df_stato_disp['valore_totale_mercato'].sum() if not df_stato_disp.empty else 0
-        incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
-        margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
-
-        col1.metric("Valore Magazzino (Costo)", f"€ {val_costo:,.2f}")
-        col2.metric("Valore Magazzino (Vendita)", f"€ {val_mercato:,.2f}")
-        col3.metric("Incasso Totale Vendite", f"€ {incasso_tot:,.2f}")
-        col4.metric("Margine Netto Effettivo", f"€ {margine_tot:,.2f}")
-
-        st.markdown("---")
-
-        col_g1, col_g2 = st.columns(2)
-
-        with col_g1:
-            st.subheader("📈 Storico Progressivo Operazioni")
-            if movimenti_df.empty:
-                st.info("Registra transazioni per generare il grafico.")
-            else:
-                mov_df = movimenti_df.copy()
-                mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
-                mov_df = mov_df.sort_values('Data_Ora')
-                
-                mov_df['Spesi Totali'] = mov_df['costo_totale'].cumsum()
-                mov_df['Incasso Totale'] = mov_df['ricavo_totale'].cumsum()
-                mov_df['Margine Netto'] = mov_df['margine'].cumsum()
-                
-                chart_df = mov_df.melt(
-                    id_vars=['Data_Ora', 'prodotto', 'tipo'],
-                    value_vars=['Spesi Totali', 'Incasso Totale', 'Margine Netto'],
-                    var_name='Metrica',
-                    value_name='Valore (€)'
-                )
-
-                chart = alt.Chart(chart_df).mark_line(point=True).encode(
-                    x=alt.X('Data_Ora:T', title='Data e Ora Transazione'),
-                    y=alt.Y('Valore (€):Q', title='Importo (€)'),
-                    color=alt.Color('Metrica:N', legend=alt.Legend(title="Legenda")),
-                    tooltip=['Data_Ora:T', 'prodotto:N', 'tipo:N', 'Metrica:N', 'Valore (€):Q']
-                ).properties(height=380).interactive()
-
-                st.altair_chart(chart, use_container_width=True)
-
-        with col_g2:
-            st.subheader("📊 Guadagno Netto Reale per Lotto")
-            report_lotti = get_report_lotti_integrato_df()
-            if report_lotti.empty:
-                st.info("Nessun lotto disponibile per il grafico.")
-            else:
-                chart_lotti = alt.Chart(report_lotti).mark_bar().encode(
-                    x=alt.X('codice_lotto:N', title='Codice Lotto', sort=None),
-                    y=alt.Y('guadagno_netto_lotto:Q', title='Guadagno Netto Realizzato (€)'),
-                    color=alt.condition(
-                        alt.datum.guadagno_netto_lotto >= 0,
-                        alt.value("#2ed573"),
-                        alt.value("#ff4757")
-                    ),
-                    tooltip=['codice_lotto:N', 'prodotto:N', 'costo_totale_lotto:Q', 'incasso_totale_lotto:Q', 'guadagno_netto_lotto:Q']
-                ).properties(height=380)
-
-                st.altair_chart(chart_lotti, use_container_width=True)
 
 # ------------------------------------------
 # TAB 4: REPORT & STORICO
