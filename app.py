@@ -384,11 +384,11 @@ with tab1:
 with tab2:
     st.subheader("🚚 Registro Rifornimenti e Lotti")
     
-    col_cfg1, col_cfg2 = st.columns([1, 3])
-    with col_cfg1:
-        soglia_esaurimento = st.number_input("Soglia Alert In Esaurimento (g)", min_value=1.0, value=50.0, step=5.0, format="%.1f")
-    
-    report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_esaurimento)
+    # Inizializza session_state per mantenere la soglia alert durante le interazioni
+    if 'soglia_esaurimento' not in st.session_state:
+        st.session_state['soglia_esaurimento'] = 50.0
+
+    report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=st.session_state['soglia_esaurimento'])
     
     if report_lotti_df.empty:
         st.info("Nessun lotto di rifornimento salvato.")
@@ -409,6 +409,7 @@ with tab2:
         
         st.markdown("---")
         
+        # TABELLA SPECIFICHE MAGAZZINO / LOTTI
         st.dataframe(
             report_lotti_df[[
                 'lotto_id', 'prodotto', 'codice_lotto', 'stato_lotto', 'quantita_iniziale', 'qta_venduta_lotto', 'quantita_attuale',
@@ -435,6 +436,17 @@ with tab2:
             hide_index=True
         )
 
+    # IMPOSTAZIONE SOGLIA ALERT: Sotto le specifiche del magazzino e sopra la gestione lotti
+    st.markdown("---")
+    col_cfg1, col_cfg2 = st.columns([1, 2])
+    with col_cfg1:
+        st.session_state['soglia_esaurimento'] = st.number_input(
+            "⚙️ Soglia Alert In Esaurimento (g)", 
+            min_value=1.0, 
+            value=float(st.session_state['soglia_esaurimento']), 
+            step=5.0, 
+            format="%.1f"
+        )
     st.markdown("---")
     
     # SEZIONE GESTIONE LOTTI E ANAGRAFICA (CHIUSI DI DEFAULT)
