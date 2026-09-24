@@ -50,7 +50,7 @@ def init_db():
     )
     """)
     
-    # 3. Registro movimenti (carico, vendita, scarto)
+    # 3. Registro movimenti (carico, vendita, XME)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS movimenti (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -183,7 +183,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
     st.subheader("Cassa Operativa")
     
-    tipo_operazione = st.radio("Seleziona Operazione", ["Vendita", "Acquisto", "Registra Scarto"], horizontal=True)
+    tipo_operazione = st.radio("Seleziona Operazione", ["Vendita", "Acquisto", "XME"], horizontal=True)
     prodotti_df = get_prodotti_df()
     
     if prodotti_df.empty:
@@ -301,30 +301,30 @@ with tab1:
                     st.success(f"✅ Acquisto registrato col lotto {codice_lotto}!")
                     st.rerun()
 
-        elif tipo_operazione == "Registra Scarto":
+        elif tipo_operazione == "XME":
             lotti_df = get_lotti_df()
             
             if lotti_df.empty:
-                st.error("Nessun lotto disponibile da cui scaricare scarti.")
+                st.error("Nessun lotto disponibile per l'operazione XME.")
             else:
-                with st.form("form_scarto"):
-                    st.markdown("##### Registra Calo Peso / Scarto")
+                with st.form("form_xme"):
+                    st.markdown("##### Registra XME")
                     
                     opzioni_lotto = {f"{r['prodotto']} - Lotto: {r['codice_lotto']} (Disp: {r['quantita_attuale']:.0f} g)": r['id'] for _, r in lotti_df.iterrows()}
-                    lotto_selezionato_label = st.selectbox("Seleziona Lotto da Scaricare", list(opzioni_lotto.keys()))
+                    lotto_selezionato_label = st.selectbox("Seleziona Lotto", list(opzioni_lotto.keys()))
                     lotto_id_scelto = opzioni_lotto[lotto_selezionato_label]
                     
                     lotto_row = lotti_df[lotti_df['id'] == lotto_id_scelto].iloc[0]
                     
-                    qta_scarto = st.number_input("Quantità da Scartare (g)", min_value=1.0, max_value=float(lotto_row['quantita_attuale']), value=10.0, step=5.0)
-                    motivo = st.text_input("Motivazione Scarto", placeholder="Es. Calo peso, Sacchetto rotto")
+                    qta_xme = st.number_input("Quantità (g)", min_value=1.0, max_value=float(lotto_row['quantita_attuale']), value=10.0, step=5.0)
+                    motivo = st.text_input("Note XME", placeholder="Es. Utilizzo personale, Note varie")
 
-                    if st.form_submit_button("Conferma Scarto"):
+                    if st.form_submit_button("Conferma XME"):
                         conn = get_connection()
                         cursor = conn.cursor()
                         
-                        nuova_qta = lotto_row['quantita_attuale'] - qta_scarto
-                        costo_perdita = qta_scarto * lotto_row['costo_acquisto_unitario']
+                        nuova_qta = lotto_row['quantita_attuale'] - qta_xme
+                        costo_perdita = qta_xme * lotto_row['costo_acquisto_unitario']
                         
                         p_id = int(prodotti_df[prodotti_df['nome'] == lotto_row['prodotto']].iloc[0]['id'])
                         
@@ -332,12 +332,12 @@ with tab1:
                         
                         cursor.execute("""
                             INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, note)
-                            VALUES (?, ?, 'SCARTO', ?, 0, ?, ?, ?)
-                        """, (p_id, lotto_id_scelto, qta_scarto, costo_perdita, -costo_perdita, f"SCARTO: {motivo}"))
+                            VALUES (?, ?, 'XME', ?, 0, ?, ?, ?)
+                        """, (p_id, lotto_id_scelto, qta_xme, costo_perdita, -costo_perdita, f"XME: {motivo}"))
                         
                         conn.commit()
                         conn.close()
-                        st.warning(f"Scarto registrato! Perdita generata: €{costo_perdita:,.2f}")
+                        st.warning(f"Operazione XME registrata! Valore associato: €{costo_perdita:,.2f}")
                         st.rerun()
 
 # ------------------------------------------
@@ -536,3 +536,35 @@ with tab4:
             file_name=f"storico_magazzino_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv"
         )
+
+    st.markdown("---")
+    
+    # SEZIONE DI RESET DEI REPORT
+    st.subheader("⚙️ Gestione e Reset Report")
+    with st.expander("🚨 **Pulsante di Reset Storico**"):
+        st.warning("Attenzione: l'operazione cancellerà definitivamente tutte le transazioni storiche registrate.")
+        
+        if "conferma_reset" not in st.session_state:
+            st.session_state["conferma_reset"] = False
+
+        if not st.session_state["conferma_reset"]:
+            if st.button("🗑️ Resetta Storico Transazioni"):
+                st.session_state["conferma_reset"] = True
+                st.rerun()
+        else:
+            st.error("Sei davvero sicuro di voler cancellare TUTTE le transazioni?")
+            col_res1, col_res2 = st.columns(2)
+            with col_res1:
+                if st.button("✅ Sì, Cancella Definitivemente"):
+                    conn = get_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("DELETE FROM movimenti")
+                    conn.commit()
+                    conn.close()
+                    st.session_state["conferma_reset"] = False
+                    st.success("Storico delle transazioni resettato con successo!")
+                    st.rerun()
+            with col_res2:
+                if st.button("❌ Annulla"):
+                    st.session_state["conferma_reset"] = False
+                    st.rerun()
