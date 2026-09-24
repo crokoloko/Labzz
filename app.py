@@ -260,25 +260,25 @@ def elimina_lotto_db(lotto_id):
 st.title("📦 Labzz - Magazzino FIFO Automatico")
 
 tab1, tab2, tab3, tab4 = st.tabs([
-    "💸 Cassa & Movimenti", 
+    "💸 Cassa Operativa", 
     "🚚 Rifornimenti",
     "📊 Dashboard & KPI", 
     "📜 Report & Storico"
 ])
 
 # ------------------------------------------
-# TAB 1: CASSA & REGISTRA MOVIMENTI
+# TAB 1: CASSA OPERATIVA (SOLO VENDITE ED XME)
 # ------------------------------------------
 with tab1:
     st.subheader("Cassa Operativa")
     
-    tipo_operazione = st.radio("Seleziona Operazione", ["Vendita", "Acquisto", "XME"], horizontal=True)
+    tipo_operazione = st.radio("Seleziona Tipo Registrazione", ["Vendita", "XME"], horizontal=True)
     
     if tipo_operazione == "Vendita":
         prodotti_disp_df = get_prodotti_disponibili_df()
         
         if prodotti_disp_df.empty:
-            st.warning("⚠️ Nessun prodotto disponibile in magazzino.")
+            st.warning("⚠️ Nessun prodotto disponibile in magazzino da vendere.")
         else:
             prod_nome = st.selectbox("Seleziona Prodotto da Vendere", prodotti_disp_df['nome'].tolist())
             prod_row = prodotti_disp_df[prodotti_disp_df['nome'] == prod_nome].iloc[0]
@@ -347,48 +347,6 @@ with tab1:
                         st.success("✅ Vendita registrata e coordinata con i lotti e report!")
                         st.rerun()
 
-    elif tipo_operazione == "Acquisto":
-        prodotti_tutti_df = get_prodotti_df()
-        
-        if prodotti_tutti_df.empty:
-            st.warning("⚠️ Nessun prodotto censito in anagrafica. Crea prima un prodotto dal gestore sotto la scheda 'Rifornimenti'.")
-        else:
-            with st.form("form_carico"):
-                st.markdown("##### Registra Acquisto / Nuovo Lotto")
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    prod_nome = st.selectbox("Prodotto", prodotti_tutti_df['nome'].tolist())
-                    quantita = st.number_input("Quantità Acquistata (g)", min_value=0.5, value=1000.0, step=0.5, format="%.1f")
-                    costo_unitario = st.number_input("Costo d'Acquisto al grammo (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
-                    
-                with col2:
-                    data_acquisto = st.date_input("Data di Acquisto", value=date.today())
-                    codice_lotto = st.text_input("Codice Lotto", value=f"LOTTO-{datetime.now().strftime('%Y%m%d-%H%M')}")
-                    note = st.text_input("Note Aggiuntive")
-
-                if st.form_submit_button("Registra Rifornimento"):
-                    prod_row = prodotti_tutti_df[prodotti_tutti_df['nome'] == prod_nome].iloc[0]
-                    p_id = int(prod_row['id'])
-                    
-                    with get_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (p_id, codice_lotto, quantita, quantita, costo_unitario, data_acquisto, date.today()))
-                        
-                        lotto_id = cursor.lastrowid
-                        costo_totale = quantita * costo_unitario
-                        
-                        cursor.execute("""
-                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, note)
-                            VALUES (?, ?, 'CARICO', ?, ?, ?, ?)
-                        """, (p_id, lotto_id, quantita, costo_unitario, costo_totale, note))
-                    
-                    st.success(f"✅ Rifornimento registrato! Creato nuovo lotto: {codice_lotto}")
-                    st.rerun()
-
     elif tipo_operazione == "XME":
         lotti_df = get_lotti_attivi_df()
         
@@ -396,7 +354,7 @@ with tab1:
             st.error("Nessun lotto con giacenza disponibile per l'operazione XME.")
         else:
             with st.form("form_xme"):
-                st.markdown("##### Registra XME")
+                st.markdown("##### Registra Uscita Personale (XME)")
                 
                 opzioni_lotto = {f"{r['prodotto']} - Lotto: {r['codice_lotto']} (Disp: {r['quantita_attuale']:,.1f} g)": r['id'] for _, r in lotti_df.iterrows()}
                 lotto_selezionato_label = st.selectbox("Seleziona Lotto da Scaricare", list(opzioni_lotto.keys()))
@@ -405,9 +363,9 @@ with tab1:
                 lotto_row = lotti_df[lotti_df['id'] == lotto_id_scelto].iloc[0]
                 
                 qta_xme = st.number_input("Quantità (g)", min_value=0.5, max_value=float(lotto_row['quantita_attuale']), value=10.0, step=0.5, format="%.1f")
-                motivo = st.text_input("Note XME", placeholder="Es. Utilizzo personale, Note varie")
+                motivo = st.text_input("Note XME", placeholder="Es. Uso personale, Test, Note varie")
 
-                if st.form_submit_button("Conferma XME"):
+                if st.form_submit_button("Conferma Uscita XME"):
                     with get_connection() as conn:
                         cursor = conn.cursor()
                         nuova_qta = float(lotto_row['quantita_attuale']) - qta_xme
@@ -489,13 +447,13 @@ with tab2:
 
     st.markdown("---")
     
-    # SEZIONE GESTIONE LOTTI E ANAGRAFICA (BOX CHIUSI DI DEFAULT PER EVITARE DISORDINE)
+    # SEZIONE GESTIONE LOTTI E ANAGRAFICA (CHIUSI DI DEFAULT)
     st.subheader("⚙️ Gestione Lotti e Anagrafica Prodotti")
     
     col_l1, col_l2 = st.columns(2)
     
     with col_l1:
-        with st.expander("➕ **Aggiungi un Nuovo Lotto**", expanded=False):
+        with st.expander("➕ **Aggiungi un Nuovo Lotto / Rifornimento**", expanded=False):
             if prodotti_tutti_df.empty:
                 st.warning("Crea prima un prodotto in anagrafica nel pannello qui accanto.")
             else:
@@ -516,6 +474,12 @@ with tab2:
                                 INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
                                 VALUES (?, ?, ?, ?, ?, ?, ?)
                             """, (p_id_m, cod_lotto_m, qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today()))
+                            
+                            lotto_id = cursor.lastrowid
+                            cursor.execute("""
+                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, note)
+                                VALUES (?, ?, 'CARICO', ?, ?, ?, 'Nuovo Lotto Manuale')
+                            """, (p_id_m, lotto_id, qta_lotto_m, costo_u_lotto_m, qta_lotto_m * costo_u_lotto_m))
                         
                         st.success(f"✅ Lotto '{cod_lotto_m}' aggiunto con successo!")
                         st.rerun()
