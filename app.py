@@ -90,17 +90,6 @@ def get_prodotti_df():
     with get_connection() as conn:
         return pd.read_sql_query("SELECT * FROM prodotti ORDER BY nome ASC", conn)
 
-def get_prodotti_disponibili_df():
-    query = """
-        SELECT DISTINCT p.* 
-        FROM prodotti p
-        JOIN lotti l ON p.id = l.prodotto_id
-        WHERE l.quantita_attuale > 0
-        ORDER BY p.nome ASC
-    """
-    with get_connection() as conn:
-        return pd.read_sql_query(query, conn)
-
 def get_lotti_attivi_df():
     query = """
         SELECT l.id, p.nome AS prodotto, l.codice_lotto, l.quantita_iniziale, l.quantita_attuale, 
@@ -223,7 +212,7 @@ def calcola_stato_magazzino(solo_disponibili=False):
     return pd.DataFrame(risultati)
 
 def storna_movimento(movimento_id):
-    """Annulla una transazione e ripristina sincronicamente la scorta del lotto coinvolto."""
+    """Annulla una transazione e ripristina la scorta del lotto coinvolto."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM movimenti WHERE id = ?", (movimento_id,))
@@ -260,132 +249,134 @@ def elimina_lotto_db(lotto_id):
 st.title("📦 Labzz - Magazzino FIFO Automatico")
 
 tab1, tab2, tab3, tab4 = st.tabs([
-    "💸 Cassa Operativa", 
+    "💸 Cassa", 
     "🚚 Rifornimenti",
     "📊 Dashboard & KPI", 
     "📜 Report & Storico"
 ])
 
 # ------------------------------------------
-# TAB 1: CASSA OPERATIVA (SOLO VENDITE ED XME)
+# TAB 1: CASSA (SOLO VENDITE ED XME)
 # ------------------------------------------
 with tab1:
-    st.subheader("Cassa Operativa")
+    st.subheader("Cassa")
     
     tipo_operazione = st.radio("Seleziona Tipo Registrazione", ["Vendita", "XME"], horizontal=True)
     
-    if tipo_operazione == "Vendita":
-        prodotti_disp_df = get_prodotti_disponibili_df()
-        
-        if prodotti_disp_df.empty:
-            st.warning("⚠️ Nessun prodotto disponibile in magazzino da vendere.")
-        else:
-            prod_nome = st.selectbox("Seleziona Prodotto da Vendere", prodotti_disp_df['nome'].tolist())
-            prod_row = prodotti_disp_df[prodotti_disp_df['nome'] == prod_nome].iloc[0]
+    prodotti_tutti_df = get_prodotti_df()
+    
+    if prodotti_tutti_df.empty:
+        st.warning("⚠️ Nessun prodotto presente in anagrafica. Crea prima un prodotto dal pannello 'Rifornimenti'.")
+    else:
+        if tipo_operazione == "Vendita":
+            prod_nome = st.selectbox("Seleziona Prodotto da Vendere", prodotti_tutti_df['nome'].tolist())
+            prod_row = prodotti_tutti_df[prodotti_tutti_df['nome'] == prod_nome].iloc[0]
             p_id = int(prod_row['id'])
             
             with get_connection() as conn:
                 query_lotti = "SELECT * FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC, id ASC"
                 lotti_disponibili = pd.read_sql_query(query_lotti, conn, params=(p_id,))
 
-            qta_tot_disp = float(lotti_disponibili['quantita_attuale'].sum())
-            st.info(f"Disponibilità totale per **{prod_nome}**: **{qta_tot_disp:,.1f} g** su {len(lotti_disponibili)} lotti attivi.")
+            qta_tot_disp = float(lotti_disponibili['quantita_attuale'].sum()) if not lotti_disponibili.empty else 0.0
             
-            with st.form("form_vendita"):
-                st.markdown("##### Registra Vendita (Scarico FIFO Tracciato)")
-                col1, col2 = st.columns(2)
+            if qta_tot_disp <= 0:
+                st.error(f"⚠️ Nessuna scorta disponibile per **{prod_nome}**. Aggiungi prima un lotto dalla scheda 'Rifornimenti'.")
+            else:
+                st.info(f"Disponibilità totale per **{prod_nome}**: **{qta_tot_disp:,.1f} g** su {len(lotti_disponibili)} lotti attivi.")
                 
-                with col1:
-                    quantita_vendita = st.number_input("Quantità da Vendere (g)", min_value=0.5, value=min(100.0, qta_tot_disp), step=0.5, format="%.1f")
-                    prezzo_vendita_unitario = st.number_input("Prezzo al grammo (€/g)", min_value=0.1, value=float(prod_row['valore_mercato_unitario']), step=0.5, format="%.2f")
-                
-                with col2:
-                    totale_vendita = quantita_vendita * prezzo_vendita_unitario
-                    st.metric("Totale Incasso Previsto", f"€ {totale_vendita:,.2f}")
-                    note = st.text_input("Note (Opzionale)")
+                with st.form("form_vendita"):
+                    st.markdown("##### Registra Vendita (Scarico FIFO Tracciato)")
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        quantita_vendita = st.number_input("Quantità da Vendere (g)", min_value=0.5, value=min(100.0, qta_tot_disp), step=0.5, format="%.1f")
+                        prezzo_vendita_unitario = st.number_input("Prezzo al grammo (€/g)", min_value=0.1, value=float(prod_row['valore_mercato_unitario']), step=0.5, format="%.2f")
+                    
+                    with col2:
+                        totale_vendita = quantita_vendita * prezzo_vendita_unitario
+                        st.metric("Totale Incasso Previsto", f"€ {totale_vendita:,.2f}")
+                        note = st.text_input("Note (Opzionale)")
 
-                if st.form_submit_button("Conferma Vendita FIFO"):
-                    if quantita_vendita > qta_tot_disp:
-                        st.error(f"Quantità inserita ({quantita_vendita:,.1f} g) superiore alla disponibilità ({qta_tot_disp:,.1f} g).")
-                    else:
+                    if st.form_submit_button("Conferma Vendita FIFO"):
+                        if quantita_vendita > qta_tot_disp:
+                            st.error(f"Quantità inserita ({quantita_vendita:,.1f} g) superiore alla disponibilità ({qta_tot_disp:,.1f} g).")
+                        else:
+                            with get_connection() as conn:
+                                cursor = conn.cursor()
+                                qta_da_scaricare = float(quantita_vendita)
+                                
+                                for _, lotto in lotti_disponibili.iterrows():
+                                    if qta_da_scaricare <= 0:
+                                        break
+                                    
+                                    l_id = int(lotto['id'])
+                                    qta_lotto_disp = float(lotto['quantita_attuale'])
+                                    costo_u_lotto = float(lotto['costo_acquisto_unitario'])
+                                    cod_lotto = lotto['codice_lotto']
+                                    
+                                    prelievo = min(qta_lotto_disp, qta_da_scaricare)
+                                    nuova_qta_lotto = qta_lotto_disp - prelievo
+                                    qta_da_scaricare -= prelievo
+                                    
+                                    costo_quota = prelievo * costo_u_lotto
+                                    ricavo_quota = prelievo * prezzo_vendita_unitario
+                                    margine_quota = ricavo_quota - costo_quota
+                                    
+                                    if nuova_qta_lotto == 0:
+                                        cursor.execute("""
+                                            UPDATE lotti 
+                                            SET quantita_attuale = 0, data_completamento = ? 
+                                            WHERE id = ?
+                                        """, (date.today(), l_id))
+                                    else:
+                                        cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto, l_id))
+                                    
+                                    cursor.execute("""
+                                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, note)
+                                        VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?)
+                                    """, (p_id, l_id, prelievo, prezzo_vendita_unitario, ricavo_quota, costo_quota, margine_quota, f"Lotto {cod_lotto} | {note}".strip(" |")))
+                            
+                            st.success("✅ Vendita registrata e coordinata con i lotti e report!")
+                            st.rerun()
+
+        elif tipo_operazione == "XME":
+            lotti_df = get_lotti_attivi_df()
+            
+            if lotti_df.empty:
+                st.error("Nessun lotto con giacenza disponibile per l'operazione XME.")
+            else:
+                with st.form("form_xme"):
+                    st.markdown("##### Registra Uscita Personale (XME)")
+                    
+                    opzioni_lotto = {f"{r['prodotto']} - Lotto: {r['codice_lotto']} (Disp: {r['quantita_attuale']:,.1f} g)": r['id'] for _, r in lotti_df.iterrows()}
+                    lotto_selezionato_label = st.selectbox("Seleziona Lotto da Scaricare", list(opzioni_lotto.keys()))
+                    lotto_id_scelto = opzioni_lotto[lotto_selezionato_label]
+                    
+                    lotto_row = lotti_df[lotti_df['id'] == lotto_id_scelto].iloc[0]
+                    
+                    qta_xme = st.number_input("Quantità (g)", min_value=0.5, max_value=float(lotto_row['quantita_attuale']), value=10.0, step=0.5, format="%.1f")
+                    motivo = st.text_input("Note XME", placeholder="Es. Uso personale, Test, Note varie")
+
+                    if st.form_submit_button("Conferma Uscita XME"):
                         with get_connection() as conn:
                             cursor = conn.cursor()
-                            qta_da_scaricare = float(quantita_vendita)
+                            nuova_qta = float(lotto_row['quantita_attuale']) - qta_xme
+                            costo_perdita = qta_xme * float(lotto_row['costo_acquisto_unitario'])
                             
-                            for _, lotto in lotti_disponibili.iterrows():
-                                if qta_da_scaricare <= 0:
-                                    break
+                            p_id = int(prodotti_tutti_df[prodotti_tutti_df['nome'] == lotto_row['prodotto']].iloc[0]['id'])
+                            
+                            if nuova_qta == 0:
+                                cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (date.today(), lotto_id_scelto))
+                            else:
+                                cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, lotto_id_scelto))
                                 
-                                l_id = int(lotto['id'])
-                                qta_lotto_disp = float(lotto['quantita_attuale'])
-                                costo_u_lotto = float(lotto['costo_acquisto_unitario'])
-                                cod_lotto = lotto['codice_lotto']
-                                
-                                prelievo = min(qta_lotto_disp, qta_da_scaricare)
-                                nuova_qta_lotto = qta_lotto_disp - prelievo
-                                qta_da_scaricare -= prelievo
-                                
-                                costo_quota = prelievo * costo_u_lotto
-                                ricavo_quota = prelievo * prezzo_vendita_unitario
-                                margine_quota = ricavo_quota - costo_quota
-                                
-                                # Sincronizzazione automatica del lotto
-                                if nuova_qta_lotto == 0:
-                                    cursor.execute("""
-                                        UPDATE lotti 
-                                        SET quantita_attuale = 0, data_completamento = ? 
-                                        WHERE id = ?
-                                    """, (date.today(), l_id))
-                                else:
-                                    cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto, l_id))
-                                
-                                cursor.execute("""
-                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, note)
-                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?)
-                                """, (p_id, l_id, prelievo, prezzo_vendita_unitario, ricavo_quota, costo_quota, margine_quota, f"Lotto {cod_lotto} | {note}".strip(" |")))
+                            cursor.execute("""
+                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, note)
+                                VALUES (?, ?, 'XME', ?, 0, ?, ?, ?)
+                            """, (p_id, lotto_id_scelto, qta_xme, costo_perdita, -costo_perdita, f"XME: {motivo}"))
                         
-                        st.success("✅ Vendita registrata e coordinata con i lotti e report!")
+                        st.warning("Operazione XME registrata e sincronizzata col lotto!")
                         st.rerun()
-
-    elif tipo_operazione == "XME":
-        lotti_df = get_lotti_attivi_df()
-        
-        if lotti_df.empty:
-            st.error("Nessun lotto con giacenza disponibile per l'operazione XME.")
-        else:
-            with st.form("form_xme"):
-                st.markdown("##### Registra Uscita Personale (XME)")
-                
-                opzioni_lotto = {f"{r['prodotto']} - Lotto: {r['codice_lotto']} (Disp: {r['quantita_attuale']:,.1f} g)": r['id'] for _, r in lotti_df.iterrows()}
-                lotto_selezionato_label = st.selectbox("Seleziona Lotto da Scaricare", list(opzioni_lotto.keys()))
-                lotto_id_scelto = opzioni_lotto[lotto_selezionato_label]
-                
-                lotto_row = lotti_df[lotti_df['id'] == lotto_id_scelto].iloc[0]
-                
-                qta_xme = st.number_input("Quantità (g)", min_value=0.5, max_value=float(lotto_row['quantita_attuale']), value=10.0, step=0.5, format="%.1f")
-                motivo = st.text_input("Note XME", placeholder="Es. Uso personale, Test, Note varie")
-
-                if st.form_submit_button("Conferma Uscita XME"):
-                    with get_connection() as conn:
-                        cursor = conn.cursor()
-                        nuova_qta = float(lotto_row['quantita_attuale']) - qta_xme
-                        costo_perdita = qta_xme * float(lotto_row['costo_acquisto_unitario'])
-                        
-                        prodotti_df = get_prodotti_df()
-                        p_id = int(prodotti_df[prodotti_df['nome'] == lotto_row['prodotto']].iloc[0]['id'])
-                        
-                        if nuova_qta == 0:
-                            cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (date.today(), lotto_id_scelto))
-                        else:
-                            cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, lotto_id_scelto))
-                            
-                        cursor.execute("""
-                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, note)
-                            VALUES (?, ?, 'XME', ?, 0, ?, ?, ?)
-                        """, (p_id, lotto_id_scelto, qta_xme, costo_perdita, -costo_perdita, f"XME: {motivo}"))
-                    
-                    st.warning("Operazione XME registrata e sincronizzata col lotto!")
-                    st.rerun()
 
 # ------------------------------------------
 # TAB 2: RIFORNIMENTI
@@ -398,7 +389,6 @@ with tab2:
         soglia_esaurimento = st.number_input("Soglia Alert In Esaurimento (g)", min_value=1.0, value=50.0, step=5.0, format="%.1f")
     
     report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_esaurimento)
-    prodotti_tutti_df = get_prodotti_df()
     
     if report_lotti_df.empty:
         st.info("Nessun lotto di rifornimento salvato.")
