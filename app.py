@@ -13,6 +13,155 @@ st.set_page_config(
     layout="wide"
 )
 
+# ==========================================
+# INIEZIONE CSS CUSTOM (DARK MODE 3D / GLASSMORPHISM)
+# ==========================================
+st.markdown("""
+<style>
+    /* 1. SFONDO GLOBALE DARK GRADIENTE */
+    .stApp {
+        background: linear-gradient(135deg, #090d16 0%, #0f172a 50%, #1e293b 100%) !important;
+        color: #f8fafc !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    /* 2. TITOLO E INTESTAZIONI GLOW */
+    h1 {
+        color: #ffffff !important;
+        font-weight: 800 !important;
+        letter-spacing: -1px;
+        text-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+        margin-bottom: 25px !important;
+    }
+    h2, h3, h4, h5 {
+        color: #f1f5f9 !important;
+        font-weight: 700 !important;
+    }
+
+    /* 3. CARD METRICHE STILE 3D GLASSMORPHISM */
+    div[data-testid="stMetric"] {
+        background: rgba(30, 41, 59, 0.55) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 18px !important;
+        padding: 20px 24px !important;
+        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), 
+                    inset 0 1px 1px 0 rgba(255, 255, 255, 0.1) !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+    div[data-testid="stMetric"]:hover {
+        transform: translateY(-6px) !important;
+        border-color: rgba(56, 189, 248, 0.5) !important;
+        box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.7), 
+                    0 0 20px rgba(56, 189, 248, 0.25) !important;
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 2rem !important;
+        font-weight: 800 !important;
+        color: #38bdf8 !important;
+        text-shadow: 0 2px 10px rgba(56, 189, 248, 0.3);
+    }
+    div[data-testid="stMetricLabel"] {
+        color: #94a3b8 !important;
+        font-size: 0.9rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    /* 4. TAB OPERATIVI TATTILI 3D */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 12px !important;
+        background-color: transparent !important;
+        border-bottom: none !important;
+        padding: 8px 0 !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background: rgba(30, 41, 59, 0.6) !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        border-radius: 14px !important;
+        color: #94a3b8 !important;
+        font-weight: 700 !important;
+        padding: 12px 24px !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+        transition: all 0.25s ease !important;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        background: rgba(51, 65, 85, 0.8) !important;
+        color: #f8fafc !important;
+        transform: translateY(-2px) !important;
+    }
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+        color: #ffffff !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3) !important;
+    }
+
+    /* 5. CONTENITORI FORM ED EXPANDER GLASSMORPHISM */
+    div[data-testid="stForm"], div[data-testid="stExpander"] {
+        background: rgba(15, 23, 42, 0.6) !important;
+        backdrop-filter: blur(12px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 16px !important;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4) !important;
+        padding: 20px !important;
+    }
+    details summary {
+        color: #e2e8f0 !important;
+        font-weight: 600 !important;
+    }
+
+    /* 6. PULSANTI 3D ED EFFETTI HOVER */
+    .stButton > button, button[kind="primary"] {
+        background: linear-gradient(135deg, #0284c7 0%, #1d4ed8 100%) !important;
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 12px 28px !important;
+        box-shadow: 0 6px 20px rgba(2, 132, 199, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+    .stButton > button:hover {
+        transform: translateY(-3px) !important;
+        box-shadow: 0 10px 25px rgba(2, 132, 199, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+    }
+    .stButton > button:active {
+        transform: translateY(1px) !important;
+        box-shadow: 0 3px 10px rgba(2, 132, 199, 0.3) !important;
+    }
+
+    /* 7. CONTROLLI INPUT & SELECT */
+    .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
+        background-color: rgba(15, 23, 42, 0.8) !important;
+        color: #f8fafc !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        border-radius: 10px !important;
+    }
+    .stTextInput input:focus, .stNumberInput input:focus {
+        border-color: #38bdf8 !important;
+        box-shadow: 0 0 12px rgba(56, 189, 248, 0.3) !important;
+    }
+
+    /* 8. TABELLE STYLING GLASS */
+    div[data-testid="stDataFrame"] {
+        background: rgba(15, 23, 42, 0.5) !important;
+        border-radius: 14px !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        overflow: hidden !important;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+    }
+
+    /* 9. NOTIFICHE ED ALERT PERSONALIZZATI */
+    div[data-testid="stNotification"] {
+        border-radius: 12px !important;
+        backdrop-filter: blur(10px) !important;
+    }
+</style>
+""", unsafe_allow_html=True)
+
 DB_NAME = "magazzino.db"
 
 # ==========================================
@@ -282,7 +431,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # TAB 1: CASSA (SOLO VENDITE ED XME)
 # ------------------------------------------
 with tab1:
-    st.subheader("Cassa")
+    st.subheader("Cassa Operativa")
     
     tipo_operazione = st.radio("Seleziona Tipo Registrazione", ["Vendita", "XME"], horizontal=True)
     
@@ -448,12 +597,12 @@ with tab2:
                     value_name='Valore (€)'
                 )
 
-                chart = alt.Chart(chart_df).mark_line(point=True).encode(
+                chart = alt.Chart(chart_df).mark_line(point=True, strokeWidth=3).encode(
                     x=alt.X('Data_Ora:T', title='Data e Ora Transazione'),
                     y=alt.Y('Valore (€):Q', title='Importo (€)'),
-                    color=alt.Color('Metrica:N', legend=alt.Legend(title="Legenda")),
+                    color=alt.Color('Metrica:N', scale=alt.Scale(domain=['Spesi Totali', 'Incasso Totale', 'Margine Netto'], range=['#ff4757', '#2ed573', '#38bdf8']), legend=alt.Legend(title="Legenda")),
                     tooltip=['Data_Ora:T', 'prodotto:N', 'tipo:N', 'Metrica:N', 'Valore (€):Q']
-                ).properties(height=380).interactive()
+                ).properties(height=380).configure_view(strokeWidth=0).configure_axis(gridColor='rgba(255,255,255,0.05)', labelColor='#94a3b8', titleColor='#f8fafc').interactive()
 
                 st.altair_chart(chart, use_container_width=True)
 
@@ -464,7 +613,7 @@ with tab2:
             if report_lotti.empty:
                 st.info("Nessun lotto disponibile per il grafico.")
             else:
-                chart_lotti = alt.Chart(report_lotti).mark_bar().encode(
+                chart_lotti = alt.Chart(report_lotti).mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6).encode(
                     x=alt.X('codice_lotto:N', title='Codice Lotto', sort=None),
                     y=alt.Y('guadagno_netto_lotto:Q', title='Guadagno Netto Realizzato (€)'),
                     color=alt.condition(
@@ -473,7 +622,7 @@ with tab2:
                         alt.value("#ff4757")
                     ),
                     tooltip=['codice_lotto:N', 'prodotto:N', 'costo_totale_lotto:Q', 'incasso_totale_lotto:Q', 'guadagno_netto_lotto:Q']
-                ).properties(height=380)
+                ).properties(height=380).configure_view(strokeWidth=0).configure_axis(gridColor='rgba(255,255,255,0.05)', labelColor='#94a3b8', titleColor='#f8fafc')
 
                 st.altair_chart(chart_lotti, use_container_width=True)
 
