@@ -8,7 +8,7 @@ import altair as alt
 # CONFIGURAZIONE PAGINA STREAMLIT
 # ==========================================
 st.set_page_config(
-    page_title="Labzz - Magazzino Integrato",
+    page_title="Labzz - Magazzino FIFO Automatico",
     page_icon="📦",
     layout="wide"
 )
@@ -22,7 +22,7 @@ def get_connection():
     return sqlite3.connect(DB_NAME, timeout=10)
 
 def init_db():
-    """Inizializza il database e garantisce la presenza di chiavi esterne per la sincronizzazione lotti-movimenti."""
+    """Inizializza il database e applica le migrazioni per data_acquisto e data_completamento."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;")
@@ -47,13 +47,23 @@ def init_db():
             quantita_iniziale REAL NOT NULL,
             quantita_attuale REAL NOT NULL,
             costo_acquisto_unitario REAL NOT NULL,
+            data_acquisto DATE,
             data_carico DATE NOT NULL,
             data_scadenza DATE,
+            data_completamento DATE,
             FOREIGN KEY (prodotto_id) REFERENCES prodotti (id) ON DELETE CASCADE
         )
         """)
         
-        # 3. Registro movimenti (coordinato direttamente con lotto_id)
+        # Migrazione schema lotti
+        cursor.execute("PRAGMA table_info(lotti)")
+        colonne_lotti = [column[1] for column in cursor.fetchall()]
+        if 'data_acquisto' not in colonne_lotti:
+            cursor.execute("ALTER TABLE lotti ADD COLUMN data_acquisto DATE")
+        if 'data_completamento' not in colonne_lotti:
+            cursor.execute("ALTER TABLE lotti ADD COLUMN data_completamento DATE")
+
+        # 3. Registro movimenti
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS movimenti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -95,7 +105,7 @@ def get_prodotti_disponibili_df():
 def get_lotti_attivi_df():
     query = """
         SELECT l.id, p.nome AS prodotto, l.codice_lotto, l.quantita_iniziale, l.quantita_attuale, 
-               'g' AS unita_misura, l.costo_acquisto_unitario, l.data_carico, l.data_scadenza
+               'g' AS unita_misura, l.costo_acquisto_unitario, l.data_acquisto, l.data_carico, l.data_scadenza
         FROM lotti l
         JOIN prodotti p ON l.prodotto_id = p.id
         WHERE l.quantita_attuale > 0
@@ -104,8 +114,13 @@ def get_lotti_attivi_df():
     with get_connection() as conn:
         return pd.read_sql_query(query, conn)
 
-def get_report_lotti_integrato_df():
-    """Recupera ogni lotto incrociando direttamente lo storico dei movimenti collegati."""
+def get_report_lotti_integrato_df(soglia_esaurimento_g=50.0):
+    """
+    Recupera tutti i lotti calcolando automaticamente lo stato:
+    - '✅ Esaurito' se quantita_attuale == 0
+    - '⚠️ In Esaurimento' se 0 < quantita_attuale <= soglia_esaurimento_g
+    - '🔵 Attivo' se quantita_attuale > soglia_esaurimento_g
+    """
     query = """
         SELECT 
             l.id AS lotto_id,
@@ -120,8 +135,10 @@ def get_report_lotti_integrato_df():
             COALESCE(SUM(CASE WHEN m.tipo = 'VENDITA' THEN m.ricavo_totale ELSE 0 END), 0) AS incasso_totale_lotto,
             COALESCE(SUM(CASE WHEN m.tipo = 'VENDITA' THEN m.margine ELSE 0 END), 0) -
             COALESCE(SUM(CASE WHEN m.tipo = 'XME' THEN m.costo_totale ELSE 0 END), 0) AS guadagno_netto_lotto,
+            l.data_acquisto,
             l.data_carico,
-            l.data_scadenza
+            l.data_scadenza,
+            l.data_completamento
         FROM lotti l
         JOIN prodotti p ON l.prodotto_id = p.id
         LEFT JOIN movimenti m ON l.id = m.lotto_id
@@ -129,10 +146,24 @@ def get_report_lotti_integrato_df():
         ORDER BY l.data_carico DESC, l.id DESC
     """
     with get_connection() as conn:
-        return pd.read_sql_query(query, conn)
+        df = pd.read_sql_query(query, conn)
+
+    if not df.empty:
+        def calcola_stato(row):
+            qta = float(row['quantita_attuale'])
+            if qta == 0:
+                dt_comp = row['data_completamento']
+                return f"✅ Esaurito ({dt_comp})" if dt_comp else "✅ Esaurito"
+            elif qta <= soglia_esaurimento_g:
+                return f"⚠️ In Esaurimento ({qta:.1f} g rimasti)"
+            else:
+                return "🔵 Attivo"
+
+        df['stato_lotto'] = df.apply(calcola_stato, axis=1)
+
+    return df
 
 def get_movimenti_dettagliati_df():
-    """Recupera lo storico dei movimenti mostrando esplicitamente il codice del lotto di origine."""
     query = """
         SELECT 
             m.id, 
@@ -200,7 +231,6 @@ def calcola_stato_magazzino(solo_disponibili=False):
     return pd.DataFrame(risultati)
 
 def storna_movimento(movimento_id):
-    """Annulla un movimento e ripristina la quantità esatta nel lotto corrispondente."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM movimenti WHERE id = ?", (movimento_id,))
@@ -213,16 +243,20 @@ def storna_movimento(movimento_id):
         
         if tipo in ['VENDITA', 'XME']:
             if lotto_id:
-                cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale + ? WHERE id = ?", (qta, lotto_id))
+                # Ripristina quantità e rimuove eventuale data completamento
+                cursor.execute("""
+                    UPDATE lotti 
+                    SET quantita_attuale = quantita_attuale + ?, data_completamento = NULL 
+                    WHERE id = ?
+                """, (qta, lotto_id))
         elif tipo == 'CARICO':
             if lotto_id:
                 cursor.execute("UPDATE lotti SET quantita_attuale = MAX(0, quantita_attuale - ?) WHERE id = ?", (qta, lotto_id))
         
         cursor.execute("DELETE FROM movimenti WHERE id = ?", (movimento_id,))
-        return True, "Movimento stornato e scorta del lotto ripristinata con successo!"
+        return True, "Movimento stornato con successo!"
 
 def elimina_lotto_db(lotto_id):
-    """Rimuove un lotto e mantiene il riferimento nello storico dei movimenti."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE movimenti SET lotto_id = NULL WHERE lotto_id = ?", (lotto_id,))
@@ -231,7 +265,7 @@ def elimina_lotto_db(lotto_id):
 # ==========================================
 # INTERFACCIA UTENTE (STREAMLIT)
 # ==========================================
-st.title("📦 Labzz - Magazzino Coordinato FIFO")
+st.title("📦 Labzz - Magazzino FIFO Automatico")
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "💸 Cassa & Movimenti", 
@@ -304,13 +338,22 @@ with tab1:
                                 ricavo_quota = prelievo * prezzo_vendita_unitario
                                 margine_quota = ricavo_quota - costo_quota
                                 
-                                cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto, l_id))
+                                # AUTOMATISMO: Se si azzera la scorta, imposta la data di completamento automatica
+                                if nuova_qta_lotto == 0:
+                                    cursor.execute("""
+                                        UPDATE lotti 
+                                        SET quantita_attuale = 0, data_completamento = ? 
+                                        WHERE id = ?
+                                    """, (date.today(), l_id))
+                                else:
+                                    cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto, l_id))
+                                
                                 cursor.execute("""
                                     INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, note)
                                     VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?)
                                 """, (p_id, l_id, prelievo, prezzo_vendita_unitario, ricavo_quota, costo_quota, margine_quota, f"Lotto {cod_lotto} | {note}".strip(" |")))
                         
-                        st.success(f"✅ Vendita registrata e sincronizzata col report dei lotti!")
+                        st.success(f"✅ Vendita registrata!")
                         st.rerun()
 
     elif tipo_operazione == "Acquisto":
@@ -327,6 +370,7 @@ with tab1:
                     prod_nome = st.selectbox("Prodotto", prodotti_tutti_df['nome'].tolist())
                     quantita = st.number_input("Quantità Acquistata (g)", min_value=0.5, value=1000.0, step=0.5, format="%.1f")
                     costo_unitario = st.number_input("Costo d'Acquisto al grammo (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
+                    data_acquisto = st.date_input("Data di Acquisto", value=date.today())
                     
                 with col2:
                     codice_lotto = st.text_input("Codice Lotto", value=f"LOTTO-{datetime.now().strftime('%Y%m%d-%H%M')}")
@@ -340,9 +384,9 @@ with tab1:
                     with get_connection() as conn:
                         cursor = conn.cursor()
                         cursor.execute("""
-                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_carico, data_scadenza)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (p_id, codice_lotto, quantita, quantita, costo_unitario, date.today(), data_scadenza))
+                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico, data_scadenza)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (p_id, codice_lotto, quantita, quantita, costo_unitario, data_acquisto, date.today(), data_scadenza))
                         
                         lotto_id = cursor.lastrowid
                         costo_totale = quantita * costo_unitario
@@ -382,13 +426,17 @@ with tab1:
                         prodotti_df = get_prodotti_df()
                         p_id = int(prodotti_df[prodotti_df['nome'] == lotto_row['prodotto']].iloc[0]['id'])
                         
-                        cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, lotto_id_scelto))
+                        if nuova_qta == 0:
+                            cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (date.today(), lotto_id_scelto))
+                        else:
+                            cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, lotto_id_scelto))
+                            
                         cursor.execute("""
                             INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, note)
                             VALUES (?, ?, 'XME', ?, 0, ?, ?, ?)
                         """, (p_id, lotto_id_scelto, qta_xme, costo_perdita, -costo_perdita, f"XME: {motivo}"))
                     
-                    st.warning(f"Operazione XME registrata!")
+                    st.warning("Operazione XME registrata!")
                     st.rerun()
 
 # ------------------------------------------
@@ -431,9 +479,9 @@ with tab2:
                                 if qta_iniziale > 0:
                                     codice_lotto = f"LOTTO-INIT-{datetime.now().strftime('%Y%m%d')}"
                                     cursor.execute("""
-                                        INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_carico, data_scadenza)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                                    """, (p_id, codice_lotto, qta_iniziale, qta_iniziale, costo_u_init, date.today(), date.today()))
+                                        INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico, data_scadenza)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                    """, (p_id, codice_lotto, qta_iniziale, qta_iniziale, costo_u_init, date.today(), date.today(), date.today()))
                                     
                                     lotto_id = cursor.lastrowid
                                     cursor.execute("""
@@ -477,14 +525,14 @@ with tab2:
                                 WHERE id = ?
                             """, (nuovo_prezzo_grammo, nuova_scorta_min_g, p_id))
                             
-                            cursor.execute("UPDATE lotti SET quantita_attuale = 0 WHERE prodotto_id = ?", (p_id,))
+                            cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE prodotto_id = ? AND quantita_attuale > 0", (date.today(), p_id))
                             
                             if nuova_qta_tot > 0:
                                 cod_lotto_rett = f"RETT-{datetime.now().strftime('%Y%m%d-%H%M')}"
                                 cursor.execute("""
-                                    INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_carico)
-                                    VALUES (?, ?, ?, ?, ?, ?)
-                                """, (p_id, cod_lotto_rett, nuova_qta_tot, nuova_qta_tot, nuovo_costo_grammo, date.today()))
+                                    INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                                """, (p_id, cod_lotto_rett, nuova_qta_tot, nuova_qta_tot, nuovo_costo_grammo, date.today(), date.today()))
                         
                         st.success(f"Stock e parametri di '{prod_mod_nome}' aggiornati!")
                         st.rerun()
@@ -521,12 +569,22 @@ with tab2:
 with tab3:
     st.subheader("🚚 Rifornimenti e Report Dettagliato Lotti")
     
-    report_lotti_df = get_report_lotti_integrato_df()
+    col_cfg1, col_cfg2 = st.columns([1, 3])
+    with col_cfg1:
+        soglia_esaurimento = st.number_input("Soglia Alert In Esaurimento (g)", min_value=1.0, value=50.0, step=5.0, format="%.1f")
+    
+    report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_esaurimento)
     prodotti_tutti_df = get_prodotti_df()
     
     if report_lotti_df.empty:
         st.info("Nessun lotto di rifornimento salvato.")
     else:
+        # Avvisi visivi per lotti in esaurimento o completati
+        lotti_warning = report_lotti_df[report_lotti_df['stato_lotto'].str.contains("⚠️")]
+        if not lotti_warning.empty:
+            for _, w_row in lotti_warning.iterrows():
+                st.warning(f"⚠️ **Lotto {w_row['codice_lotto']} ({w_row['prodotto']})** in esaurimento! Scorta residua: **{w_row['quantita_attuale']:,.1f} g**")
+
         col_m1, col_m2, col_m3 = st.columns(3)
         costo_tot_lotti = report_lotti_df['costo_totale_lotto'].sum()
         incasso_tot_lotti = report_lotti_df['incasso_totale_lotto'].sum()
@@ -540,14 +598,15 @@ with tab3:
         
         st.dataframe(
             report_lotti_df[[
-                'lotto_id', 'prodotto', 'codice_lotto', 'quantita_iniziale', 'qta_venduta_lotto', 'quantita_attuale',
+                'lotto_id', 'prodotto', 'codice_lotto', 'stato_lotto', 'quantita_iniziale', 'qta_venduta_lotto', 'quantita_attuale',
                 'unita_misura', 'costo_acquisto_unitario', 'costo_totale_lotto',
-                'incasso_totale_lotto', 'guadagno_netto_lotto', 'data_carico', 'data_scadenza'
+                'incasso_totale_lotto', 'guadagno_netto_lotto', 'data_acquisto', 'data_carico', 'data_scadenza'
             ]],
             column_config={
                 "lotto_id": "ID Lotto",
                 "prodotto": "Prodotto",
                 "codice_lotto": "Codice Lotto",
+                "stato_lotto": "Stato Lotto",
                 "quantita_iniziale": st.column_config.NumberColumn("Q.tà Iniziale", format="%.1f g"),
                 "qta_venduta_lotto": st.column_config.NumberColumn("Q.tà Venduta", format="%.1f g"),
                 "quantita_attuale": st.column_config.NumberColumn("Q.tà Residua", format="%.1f g"),
@@ -556,6 +615,7 @@ with tab3:
                 "costo_totale_lotto": st.column_config.NumberColumn("Costo Totale Lotto", format="€ %.2f"),
                 "incasso_totale_lotto": st.column_config.NumberColumn("Incasso Generato", format="€ %.2f"),
                 "guadagno_netto_lotto": st.column_config.NumberColumn("Guadagno Netto", format="€ %.2f"),
+                "data_acquisto": "Data Acquisto",
                 "data_carico": "Data Carico",
                 "data_scadenza": "Data Scadenza"
             },
@@ -580,6 +640,7 @@ with tab3:
                     cod_lotto_m = st.text_input("Codice Lotto", value=f"LOTTO-MAN-{datetime.now().strftime('%Y%m%d-%H%M')}")
                     qta_lotto_m = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
                     costo_u_lotto_m = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
+                    data_acq_m = st.date_input("Data di Acquisto Lotto", value=date.today())
                     data_scad_m = st.date_input("Data di Scadenza Lotto", value=date.today())
                     
                     if st.form_submit_button("➕ Aggiungi Lotto"):
@@ -589,33 +650,32 @@ with tab3:
                         with get_connection() as conn:
                             cursor = conn.cursor()
                             cursor.execute("""
-                                INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_carico, data_scadenza)
-                                VALUES (?, ?, ?, ?, ?, ?, ?)
-                            """, (p_id_m, cod_lotto_m, qta_lotto_m, qta_lotto_m, costo_u_lotto_m, date.today(), data_scad_m))
+                                INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico, data_scadenza)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (p_id_m, cod_lotto_m, qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today(), data_scad_m))
                         
                         st.success(f"✅ Lotto '{cod_lotto_m}' aggiunto con successo!")
                         st.rerun()
 
     with col_l2:
-        with st.expander("🗑️ **Elimina un Lotto Esistente**", expanded=True):
+        with st.expander("🗑️ **Rimuovi un Lotto Esistente**", expanded=True):
             if report_lotti_df.empty:
                 st.info("Nessun lotto presente da rimuovere.")
             else:
-                opzioni_lotti_elim = {
-                    f"ID {r['lotto_id']} | {r['prodotto']} - Lotto: {r['codice_lotto']} (Residuo: {r['quantita_attuale']:,.1f} g)": r['lotto_id']
+                opzioni_lotti_gest = {
+                    f"ID {r['lotto_id']} | {r['prodotto']} - {r['codice_lotto']} (Residuo: {r['quantita_attuale']:,.1f} g | Status: {r['stato_lotto']})": r['lotto_id']
                     for _, r in report_lotti_df.iterrows()
                 }
                 
-                label_lotto_scelto = st.selectbox("Seleziona Lotto da Rimuovere", list(opzioni_lotti_elim.keys()))
-                id_lotto_scelto = opzioni_lotti_elim[label_lotto_scelto]
-                
+                label_lotto_scelto = st.selectbox("Seleziona Lotto da Eliminare", list(opzioni_lotti_gest.keys()))
+                id_lotto_scelto = opzioni_lotti_gest[label_lotto_scelto]
                 lotto_info = report_lotti_df[report_lotti_df['lotto_id'] == id_lotto_scelto].iloc[0]
                 
-                st.warning(f"Sei sicuro di voler eliminare il lotto **{lotto_info['codice_lotto']}**? I dati storici delle vendite rimarranno archiviati.")
+                st.caption(f"Eliminando il lotto **{lotto_info['codice_lotto']}**, i dati storici delle vendite rimarranno salvati nel database.")
                 
                 if st.button("🗑️ Rimuovi Definitivamente Lotto"):
                     elimina_lotto_db(id_lotto_scelto)
-                    st.success(f"✅ Lotto '{lotto_info['codice_lotto']}' rimosso!")
+                    st.success(f"Lotto '{lotto_info['codice_lotto']}' rimosso!")
                     st.rerun()
 
 # ------------------------------------------
