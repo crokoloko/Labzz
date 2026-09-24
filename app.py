@@ -137,7 +137,6 @@ def calcola_stato_magazzino(solo_disponibili=False):
         
         qta_totale = float(lotti_prod['quantita_attuale'].sum())
         
-        # Se richiesto, salta i prodotti esauriti
         if solo_disponibili and qta_totale <= 0:
             continue
 
@@ -215,7 +214,6 @@ with tab1:
     tipo_operazione = st.radio("Seleziona Operazione", ["Vendita", "Acquisto", "XME"], horizontal=True)
     
     if tipo_operazione == "Vendita":
-        # MOSTRA SOLO PRODOTTI CHE HANNO QUANTITÀ > 0 IN MAGAZZINO
         prodotti_disp_df = get_prodotti_disponibili_df()
         
         if prodotti_disp_df.empty:
@@ -369,7 +367,6 @@ with tab1:
 with tab2:
     st.subheader("📋 Gestione dello Stock (Unità: Grammi - g)")
     
-    # AVVISI SCORTA MINIMA (Solo per prodotti presenti in stock)
     df_stato_disponibile = calcola_stato_magazzino(solo_disponibili=True)
     if not df_stato_disponibile.empty:
         sotto_scorta = df_stato_disponibile[df_stato_disponibile['qta_disponibile'] < df_stato_disponibile['scorta_minima_g']]
@@ -495,17 +492,17 @@ with tab3:
     st.subheader("Dashboard & Analytics")
     df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
     lotti_df = get_lotti_df()
+    movimenti_df = get_movimenti_df()
 
-    if df_stato_disp.empty:
-        st.info("Nessun dato di magazzino da mostrare.")
+    if df_stato_disp.empty and movimenti_df.empty:
+        st.info("Nessun dato di magazzino o movimento disponibile.")
     else:
-        # Avviso Scorta Minima
-        sotto_scorta_dash = df_stato_disp[df_stato_disp['qta_disponibile'] < df_stato_disp['scorta_minima_g']]
-        if not sotto_scorta_dash.empty:
-            for _, r in sotto_scorta_dash.iterrows():
-                st.warning(f"⚠️ **Sotto scorta minima!** {r['prodotto']}: attuale {r['qta_disponibile']:,.1f} g (Scorta Minima: {r['scorta_minima_g']:,.1f} g)")
+        if not df_stato_disp.empty:
+            sotto_scorta_dash = df_stato_disp[df_stato_disp['qta_disponibile'] < df_stato_disp['scorta_minima_g']]
+            if not sotto_scorta_dash.empty:
+                for _, r in sotto_scorta_dash.iterrows():
+                    st.warning(f"⚠️ **Sotto scorta minima!** {r['prodotto']}: attuale {r['qta_disponibile']:,.1f} g (Scorta Minima: {r['scorta_minima_g']:,.1f} g)")
 
-        # Avviso Scadenze
         if not lotti_df.empty:
             lotti_df['data_scadenza'] = pd.to_datetime(lotti_df['data_scadenza'])
             oggi = pd.to_datetime(date.today())
@@ -518,26 +515,47 @@ with tab3:
                     st.error(f"🚨 **Lotto {row['codice_lotto']} ({row['prodotto']})**: {msg} (Data: {row['data_scadenza'].strftime('%Y-%m-%d')})")
 
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Valore Magazzino (Costo)", f"€ {df_stato_disp['valore_totale_costo'].sum():,.2f}")
-        col2.metric("Valore Magazzino (Vendita)", f"€ {df_stato_disp['valore_totale_mercato'].sum():,.2f}")
-        col3.metric("Incasso Totale Vendite", f"€ {df_stato_disp['incasso_totale'].sum():,.2f}")
-        col4.metric("Margine Netto Effettivo", f"€ {df_stato_disp['margine_totale'].sum():,.2f}")
+        val_costo = df_stato_disp['valore_totale_costo'].sum() if not df_stato_disp.empty else 0
+        val_mercato = df_stato_disp['valore_totale_mercato'].sum() if not df_stato_disp.empty else 0
+        incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
+        margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
+
+        col1.metric("Valore Magazzino (Costo)", f"€ {val_costo:,.2f}")
+        col2.metric("Valore Magazzino (Vendita)", f"€ {val_mercato:,.2f}")
+        col3.metric("Incasso Totale Vendite", f"€ {incasso_tot:,.2f}")
+        col4.metric("Margine Netto Effettivo", f"€ {margine_tot:,.2f}")
 
         st.markdown("---")
 
-        col_g1, col_g2 = st.columns(2)
-        
-        with col_g1:
-            st.subheader("Valore Stock per Prodotto (€)")
-            chart_data_valore = df_stato_disp.set_index('prodotto')[['valore_totale_costo', 'valore_totale_mercato']]
-            chart_data_valore.columns = ['Costo Totale', 'Mercato Totale']
-            st.bar_chart(chart_data_valore)
-
-        with col_g2:
-            st.subheader("Vendite e Margini (€)")
-            chart_data_vendite = df_stato_disp.set_index('prodotto')[['incasso_totale', 'margine_totale']]
-            chart_data_vendite.columns = ['Incasso', 'Margine']
-            st.bar_chart(chart_data_vendite)
+        # GRAFICO TEMPORALE: STORICO GIORNO DOPO GIORNO
+        st.subheader("📈 Andamento Economico Storico (Giorno per Giorno)")
+        if movimenti_df.empty:
+            st.info("Registra almeno una transazione per vedere lo storico temporale.")
+        else:
+            mov_df = movimenti_df.copy()
+            mov_df['Data_Giorno'] = pd.to_datetime(mov_df['data']).dt.date
+            
+            # Raggruppamento giornaliero per spese, incassi e margine
+            giornaliero = mov_df.groupby('Data_Giorno').agg(
+                Spesi_Totali=('costo_totale', 'sum'),
+                Guadagnati_Totali=('ricavo_totale', 'sum'),
+                Margine_Totale=('margine', 'sum')
+            ).reset_index()
+            
+            giornaliero = giornaliero.sort_values('Data_Giorno')
+            
+            # Calcolo cumulativo giorno per giorno
+            giornaliero['Soldi Spesi Totali'] = giornaliero['Spesi_Totali'].cumsum()
+            giornaliero['Soldi Guadagnati Totali'] = giornaliero['Guadagnati_Totali'].cumsum()
+            giornaliero['Soldi Totali (Margine Netto)'] = giornaliero['Margine_Totale'].cumsum()
+            
+            chart_data = giornaliero.set_index('Data_Giorno')[[
+                'Soldi Spesi Totali', 
+                'Soldi Guadagnati Totali', 
+                'Soldi Totali (Margine Netto)'
+            ]]
+            
+            st.line_chart(chart_data)
 
 # ------------------------------------------
 # TAB 4: REPORT & STORICO
