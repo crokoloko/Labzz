@@ -305,7 +305,8 @@ with tab1:
             if qta_tot_disp <= 0:
                 st.error(f"⚠️ Nessuna scorta disponibile per **{prod_nome}**. Aggiungi prima un lotto dalla scheda 'Rifornimenti'.")
             else:
-                st.info(f"Disponibilità totale per **{prod_nome}**: **{qta_tot_disp:,.1f} g** su {len(lotti_disponibili)} lotti attivi.")
+                # MESSAGGIO SEMPLIFICATO RICHIESTO
+                st.info(f"Disponibilità totale: **{qta_tot_disp:,.1f} g**")
                 
                 with st.form("form_vendita"):
                     st.markdown("##### Registra Vendita (Scarico FIFO Tracciato)")
@@ -483,7 +484,6 @@ with tab2:
 with tab3:
     st.subheader("🚚 Registro Rifornimenti e Lotti")
     
-    # Recupera la soglia salvata nel database
     soglia_attuale = get_soglia_esaurimento()
     report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_attuale)
     
@@ -506,7 +506,6 @@ with tab3:
         
         st.markdown("---")
         
-        # TABELLA SPECIFICHE MAGAZZINO / LOTTI
         st.dataframe(
             report_lotti_df[[
                 'lotto_id', 'prodotto', 'codice_lotto', 'stato_lotto', 'quantita_iniziale', 'qta_venduta_lotto', 'quantita_attuale',
@@ -533,7 +532,6 @@ with tab3:
             hide_index=True
         )
 
-    # IMPOSTAZIONE SOGLIA ALERT SALVATA NEL DATABASE
     st.markdown("---")
     col_cfg1, col_cfg2 = st.columns([1, 2])
     with col_cfg1:
@@ -551,7 +549,6 @@ with tab3:
 
     st.markdown("---")
     
-    # SEZIONE GESTIONE LOTTI E ANAGRAFICA (CHIUSI DI DEFAULT)
     st.subheader("⚙️ Gestione Lotti e Anagrafica Prodotti")
     
     col_l1, col_l2 = st.columns(2)
@@ -703,7 +700,6 @@ with tab4:
 
         st.markdown("---")
         
-        # ANNULLAMENTO / STORNO SINGOLO MOVIMENTO (CHIUSO DI DEFAULT)
         st.subheader("🔄 Storno Movimento (Ripristino Scorta Lotto)")
         with st.expander("🛠️ **Annulla una transazione specifica**", expanded=False):
             st.write("Selezionando una transazione, l'operazione verrà stornata e la quantità verrà restituita al lotto di origine.")
@@ -726,7 +722,6 @@ with tab4:
 
     st.markdown("---")
     
-    # RESET GLOBALE REPORT (CHIUSO DI DEFAULT)
     st.subheader("⚙️ Reset Globale Database")
     with st.expander("🚨 **Pulsante di Reset Totale Storico Transazioni**", expanded=False):
         st.warning("Attenzione: l'operazione cancellerà definitivamente tutte le transazioni registrate nello storico.")
