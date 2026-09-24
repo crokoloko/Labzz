@@ -14,31 +14,37 @@ st.set_page_config(
 )
 
 # ==========================================
-# INIEZIONE CSS CUSTOM (DARK MODE 3D / GLASSMORPHISM)
+# INIEZIONE CSS CUSTOM (FONTS + DARK MODE 3D / GLASSMORPHISM)
 # ==========================================
 st.markdown("""
 <style>
-    /* 1. SFONDO GLOBALE DARK GRADIENTE */
+    /* 1. IMPORTAZIONE GOOGLE FONTS (TITAN ONE & FREDOKA) */
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Titan+One&display=swap');
+
+    /* 2. SFONDO GLOBALE DARK GRADIENTE E FONT BASE */
     .stApp {
         background: linear-gradient(135deg, #090d16 0%, #0f172a 50%, #1e293b 100%) !important;
         color: #f8fafc !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-family: 'Fredoka', sans-serif !important;
+        font-weight: 500;
     }
 
-    /* 2. TITOLO E INTESTAZIONI GLOW */
+    /* 3. TITOLI E INTESTAZIONI 3D CON TITAN ONE */
     h1 {
+        font-family: 'Titan One', cursive, sans-serif !important;
         color: #ffffff !important;
-        font-weight: 800 !important;
-        letter-spacing: -1px;
-        text-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+        letter-spacing: 1px;
+        text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.35) !important;
         margin-bottom: 25px !important;
     }
     h2, h3, h4, h5 {
+        font-family: 'Titan One', cursive, sans-serif !important;
         color: #f1f5f9 !important;
-        font-weight: 700 !important;
+        letter-spacing: 0.5px;
+        text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5) !important;
     }
 
-    /* 3. CARD METRICHE STILE 3D GLASSMORPHISM */
+    /* 4. CARD METRICHE STILE 3D GLASSMORPHISM */
     div[data-testid="stMetric"] {
         background: rgba(30, 41, 59, 0.55) !important;
         backdrop-filter: blur(16px) !important;
@@ -57,20 +63,22 @@ st.markdown("""
                     0 0 20px rgba(56, 189, 248, 0.25) !important;
     }
     div[data-testid="stMetricValue"] {
-        font-size: 2rem !important;
-        font-weight: 800 !important;
+        font-family: 'Fredoka', sans-serif !important;
+        font-size: 2.1rem !important;
+        font-weight: 700 !important;
         color: #38bdf8 !important;
         text-shadow: 0 2px 10px rgba(56, 189, 248, 0.3);
     }
     div[data-testid="stMetricLabel"] {
+        font-family: 'Fredoka', sans-serif !important;
         color: #94a3b8 !important;
-        font-size: 0.9rem !important;
+        font-size: 0.95rem !important;
         font-weight: 600 !important;
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
 
-    /* 4. TAB OPERATIVI TATTILI 3D */
+    /* 5. TAB OPERATIVI TATTILI 3D */
     .stTabs [data-baseweb="tab-list"] {
         gap: 12px !important;
         background-color: transparent !important;
@@ -78,6 +86,7 @@ st.markdown("""
         padding: 8px 0 !important;
     }
     .stTabs [data-baseweb="tab"] {
+        font-family: 'Fredoka', sans-serif !important;
         background: rgba(30, 41, 59, 0.6) !important;
         border: 1px solid rgba(255, 255, 255, 0.05) !important;
         border-radius: 14px !important;
@@ -99,7 +108,7 @@ st.markdown("""
         box-shadow: 0 8px 20px rgba(37, 99, 235, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3) !important;
     }
 
-    /* 5. CONTENITORI FORM ED EXPANDER GLASSMORPHISM */
+    /* 6. CONTENITORI FORM ED EXPANDER GLASSMORPHISM */
     div[data-testid="stForm"], div[data-testid="stExpander"] {
         background: rgba(15, 23, 42, 0.6) !important;
         backdrop-filter: blur(12px) !important;
@@ -109,12 +118,14 @@ st.markdown("""
         padding: 20px !important;
     }
     details summary {
+        font-family: 'Fredoka', sans-serif !important;
         color: #e2e8f0 !important;
         font-weight: 600 !important;
     }
 
-    /* 6. PULSANTI 3D ED EFFETTI HOVER */
+    /* 7. PULSANTI 3D ED EFFETTI HOVER */
     .stButton > button, button[kind="primary"] {
+        font-family: 'Fredoka', sans-serif !important;
         background: linear-gradient(135deg, #0284c7 0%, #1d4ed8 100%) !important;
         color: #ffffff !important;
         font-weight: 700 !important;
@@ -133,8 +144,13 @@ st.markdown("""
         box-shadow: 0 3px 10px rgba(2, 132, 199, 0.3) !important;
     }
 
-    /* 7. CONTROLLI INPUT & SELECT */
+    /* 8. CONTROLLI INPUT, LABELS & SELECT */
+    label, p, span, div {
+        font-family: 'Fredoka', sans-serif !important;
+    }
     .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
+        font-family: 'Fredoka', sans-serif !important;
+        font-weight: 600 !important;
         background-color: rgba(15, 23, 42, 0.8) !important;
         color: #f8fafc !important;
         border: 1px solid rgba(255, 255, 255, 0.12) !important;
@@ -145,8 +161,9 @@ st.markdown("""
         box-shadow: 0 0 12px rgba(56, 189, 248, 0.3) !important;
     }
 
-    /* 8. TABELLE STYLING GLASS */
+    /* 9. TABELLE STYLING GLASS CON FREDOKA */
     div[data-testid="stDataFrame"] {
+        font-family: 'Fredoka', sans-serif !important;
         background: rgba(15, 23, 42, 0.5) !important;
         border-radius: 14px !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -154,8 +171,10 @@ st.markdown("""
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
     }
 
-    /* 9. NOTIFICHE ED ALERT PERSONALIZZATI */
+    /* 10. NOTIFICHE ED ALERT PERSONALIZZATI */
     div[data-testid="stNotification"] {
+        font-family: 'Fredoka', sans-serif !important;
+        font-weight: 600 !important;
         border-radius: 12px !important;
         backdrop-filter: blur(10px) !important;
     }
