@@ -25,7 +25,7 @@ def init_db():
     conn = get_connection()
     cursor = conn.cursor()
     
-    # Anagrafica prodotti (unità di misura predefinita: 'g')
+    # Anagrafica prodotti (Unità di misura forzata a 'g')
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS prodotti (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,6 +34,9 @@ def init_db():
         valore_mercato_unitario REAL DEFAULT 0
     )
     """)
+    
+    # Allinea prodotti esistenti all'unità di misura 'g'
+    cursor.execute("UPDATE prodotti SET unita_misura = 'g'")
     
     # Registro lotti di carico
     cursor.execute("""
@@ -69,7 +72,7 @@ def init_db():
     )
     """)
     
-    # Popola prodotti base se tabella vuota (Unità di misura in grammi 'g')
+    # Popola prodotti base se tabella vuota (Prezzi calcolati al grammo)
     cursor.execute("SELECT COUNT(*) FROM prodotti")
     if cursor.fetchone()[0] == 0:
         prodotti_iniziali = [
@@ -101,7 +104,7 @@ def get_lotti_df():
     conn = get_connection()
     query = """
         SELECT l.id, p.nome AS prodotto, l.codice_lotto, l.quantita_attuale, 
-               p.unita_misura, l.costo_acquisto_unitario, l.data_carico, l.data_scadenza
+               'g' AS unita_misura, l.costo_acquisto_unitario, l.data_carico, l.data_scadenza
         FROM lotti l
         JOIN prodotti p ON l.prodotto_id = p.id
         WHERE l.quantita_attuale > 0
@@ -114,7 +117,7 @@ def get_lotti_df():
 def get_movimenti_df():
     conn = get_connection()
     query = """
-        SELECT m.id, m.data, p.nome AS prodotto, m.tipo, m.quantita, p.unita_misura,
+        SELECT m.id, m.data, p.nome AS prodotto, m.tipo, m.quantita, 'g' AS unita_misura,
                m.prezzo_unitario, m.ricavo_totale, m.costo_totale, m.margine, m.note
         FROM movimenti m
         JOIN prodotti p ON m.prodotto_id = p.id
@@ -150,7 +153,7 @@ def calcola_stato_magazzino():
         risultati.append({
             'prodotto_id': p_id,
             'prodotto': prod['nome'],
-            'unita_misura': prod['unita_misura'],
+            'unita_misura': 'g',
             'qta_disponibile': qta_totale,
             'costo_medio_ponderato': costo_medio_ponderato,
             'valore_mercato_unitario': prod['valore_mercato_unitario'],
@@ -203,15 +206,15 @@ with tab1:
                 st.error(f"⚠️ Nessuna disponibilità in magazzino per **{prod_nome}**.")
             else:
                 qta_tot_disp = lotti_disponibili['quantita_attuale'].sum()
-                st.info(f"Disponibilità attuale per **{prod_nome}**: **{qta_tot_disp:,.0f} {prod_row['unita_misura']}**")
+                st.info(f"Disponibilità attuale per **{prod_nome}**: **{qta_tot_disp:,.0f} g**")
                 
                 with st.form("form_vendita"):
                     st.markdown("##### Registra Vendita")
                     col1, col2 = st.columns(2)
                     
                     with col1:
-                        quantita_vendita = st.number_input(f"Quantità da Vendere ({prod_row['unita_misura']})", min_value=1.0, value=100.0, step=10.0)
-                        prezzo_vendita_unitario = st.number_input(f"Prezzo al grammo (€/{prod_row['unita_misura']})", min_value=0.0001, value=float(prod_row['valore_mercato_unitario']), format="%.4f")
+                        quantita_vendita = st.number_input("Quantità da Vendere (g)", min_value=1.0, value=100.0, step=10.0)
+                        prezzo_vendita_unitario = st.number_input("Prezzo al grammo (€/g)", min_value=0.0001, value=float(prod_row['valore_mercato_unitario']), format="%.4f")
                     
                     with col2:
                         totale_vendita = quantita_vendita * prezzo_vendita_unitario
@@ -220,7 +223,7 @@ with tab1:
 
                     if st.form_submit_button("Vendita"):
                         if quantita_vendita > qta_tot_disp:
-                            st.error(f"Quantità inserita ({quantita_vendita} g) superiore alla disponibilità ({qta_tot_disp} g).")
+                            st.error(f"Quantità inserita ({quantita_vendita:,.0f} g) superiore alla disponibilità ({qta_tot_disp:,.0f} g).")
                         else:
                             conn = get_connection()
                             cursor = conn.cursor()
@@ -346,9 +349,8 @@ with tab1:
 # TAB 2: GESTIONE STOCK & AGGIUNTA RAPIDA
 # ------------------------------------------
 with tab2:
-    st.subheader("📋 Gestione Intuitiva dello Stock")
+    st.subheader("📋 Gestione dello Stock (Unità: Grammi - g)")
     
-    # FORMS PER AGGIUNTA / MODIFICA DIRETTI
     col_a, col_b = st.columns(2)
     
     with col_a:
@@ -398,7 +400,6 @@ with tab2:
                 p_row = prodotti_df[prodotti_df['nome'] == prod_mod_nome].iloc[0]
                 p_id = int(p_row['id'])
                 
-                # Calcola quantità attuale totale
                 conn = get_connection()
                 lotti_p = pd.read_sql_query("SELECT * FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0", conn, params=(p_id,))
                 conn.close()
@@ -407,7 +408,7 @@ with tab2:
                 costo_u_att = (lotti_p['quantita_attuale'] * lotti_p['costo_acquisto_unitario']).sum() / qta_attuale_tot if qta_attuale_tot > 0 else 0.0010
 
                 with st.form("form_rettifica_diretta"):
-                    nuova_qta_tot = st.number_input("Imposta Nuova Quantità Totale in Magazzino (g)", min_value=0.0, value=float(qta_attuale_tot), step=50.0)
+                    nuova_qta_tot = st.number_input("Nuova Quantità Totale (g)", min_value=0.0, value=float(qta_attuale_tot), step=50.0)
                     nuovo_costo_grammo = st.number_input("Costo d'Acquisto Unitario (€/g)", min_value=0.0001, value=float(costo_u_att if costo_u_att > 0 else 0.0010), format="%.4f")
                     nuovo_prezzo_grammo = st.number_input("Prezzo di Vendita Unitario (€/g)", min_value=0.0001, value=float(p_row['valore_mercato_unitario']), format="%.4f")
                     
@@ -415,11 +416,9 @@ with tab2:
                         conn = get_connection()
                         cursor = conn.cursor()
                         
-                        # Aggiorna prezzo vendita
                         cursor.execute("UPDATE prodotti SET valore_mercato_unitario = ? WHERE id = ?", (nuovo_prezzo_grammo, p_id))
-                        
-                        # Sovrascrivi stock corrente creando/aggiornando un lotto unico rettificato
                         cursor.execute("UPDATE lotti SET quantita_attuale = 0 WHERE prodotto_id = ?", (p_id,))
+                        
                         if nuova_qta_tot > 0:
                             cod_lotto_rett = f"RETT-{datetime.now().strftime('%Y%m%d-%H%M')}"
                             cursor.execute("""
