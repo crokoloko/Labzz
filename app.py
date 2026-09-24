@@ -503,9 +503,9 @@ with tab4:
     else:
         col_f1, col_f2 = st.columns(2)
         with col_f1:
-            prod_filtro = st.multiselect("Filtra per Prodotto", opzioni=movimenti_df['prodotto'].unique(), default=movimenti_df['prodotto'].unique())
+            prod_filtro = st.multiselect("Filtra per Prodotto", options=movimenti_df['prodotto'].unique(), default=movimenti_df['prodotto'].unique())
         with col_f2:
-            tipo_filtro = st.multiselect("Filtra per Tipo Operazione", opzioni=movimenti_df['tipo'].unique(), default=movimenti_df['tipo'].unique())
+            tipo_filtro = st.multiselect("Filtra per Tipo Operazione", options=movimenti_df['tipo'].unique(), default=movimenti_df['tipo'].unique())
             
         df_filtrato = movimenti_df[
             (movimenti_df['prodotto'].isin(prod_filtro)) & 
