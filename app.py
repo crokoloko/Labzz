@@ -2,6 +2,7 @@ import sqlite3
 from datetime import datetime, date
 import pandas as pd
 import streamlit as st
+import altair as alt
 
 # ==========================================
 # CONFIGURAZIONE PAGINA STREAMLIT
@@ -523,32 +524,39 @@ with tab3:
 
         st.markdown("---")
 
-        # GRAFICO A LINEE CON PUNTI SULLO STORICO DELLE VENDITE E OPERAZIONI
-        st.subheader("📈 Storico Progressivo Operazioni (Punti e Linee)")
+        # GRAFICO A LINEE ALTAIR (PUNTI E LINEE GARANTITI)
+        st.subheader("📈 Storico Progressivo Operazioni")
         if movimenti_df.empty:
             st.info("Registra almeno una transazione per generare il grafico.")
         else:
             mov_df = movimenti_df.copy()
+            mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
+            mov_df = mov_df.sort_values('Data_Ora')
             
-            # Formattazione e ordinamento per data/ora
-            mov_df['Data/Ora'] = pd.to_datetime(mov_df['data'])
-            mov_df = mov_df.sort_values('Data/Ora')
-            
-            # Traccia cumulativa movimento per movimento
+            # Calcolo cumulativo delle tre serie
             mov_df['Spesi Totali'] = mov_df['costo_totale'].cumsum()
             mov_df['Incasso Totale'] = mov_df['ricavo_totale'].cumsum()
             mov_df['Margine Netto'] = mov_df['margine'].cumsum()
             
-            # Etichetta temporale leggibile per gli assi
-            mov_df['Operazione'] = mov_df['Data/Ora'].dt.strftime('%d/%m/%Y %H:%M') + " (" + mov_df['prodotto'] + " - " + mov_df['tipo'] + ")"
-            
-            data_chart = mov_df.set_index('Operazione')[[
-                'Spesi Totali', 
-                'Incasso Totale', 
-                'Margine Netto'
-            ]]
-            
-            st.line_chart(data_chart)
+            # Trasformazione in formato long per Altair
+            chart_df = mov_df.melt(
+                id_vars=['Data_Ora', 'prodotto', 'tipo'],
+                value_vars=['Spesi Totali', 'Incasso Totale', 'Margine Netto'],
+                var_name='Metrica',
+                value_name='Valore (€)'
+            )
+
+            # Grafico ad alta compatibilità Altair
+            chart = alt.Chart(chart_df).mark_line(point=True).encode(
+                x=alt.X('Data_Ora:T', title='Data e Ora Transazione'),
+                y=alt.Y('Valore (€):Q', title='Importo (€)'),
+                color=alt.Color('Metrica:N', legend=alt.Legend(title="Legenda")),
+                tooltip=['Data_Ora:T', 'prodotto:N', 'tipo:N', 'Metrica:N', 'Valore (€):Q']
+            ).properties(
+                height=400
+            ).interactive()
+
+            st.altair_chart(chart, use_container_width=True)
 
 # ------------------------------------------
 # TAB 4: REPORT & STORICO
