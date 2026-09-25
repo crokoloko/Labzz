@@ -370,7 +370,6 @@ def reset_database_totale():
         cursor.execute("DELETE FROM lotti")
         cursor.execute("DELETE FROM prodotti")
         cursor.execute("DELETE FROM clienti")
-    # Pulisce anche lo stato di sessione del bot
     st.session_state["simulazione_attiva"] = False
     st.session_state["simulazione_in_pausa"] = False
     st.session_state["giorni_simulati"] = 0
@@ -1216,7 +1215,7 @@ with tab6:
                 else:
                     st.session_state["ultime_notizie"].append(random.choice(notizie_live_pool))
 
-                # ACCREDITO STIPENDIO MENSILE (narrativo/simulativo)
+                # ACCREDITO STIPENDIO MENSILE (narrativo/simulativo - non tocca la cassa reale)
                 if data_corrente.day == 1:
                     stipendio_netto = random.uniform(1650.0, 1800.0)
                     trigger_tiktok_effect("#38bdf8")
@@ -1352,7 +1351,7 @@ with tab6:
                                     costo_totale = 50.0
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nueva_qta == 0 else None
+                                    data_comp = data_corrente if nuova_qta == 0 else None
 
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                     cliente = random.choice(clienti_disponibili)
@@ -1385,7 +1384,7 @@ with tab6:
                                     costo_totale = 20.0
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nueva_qta == 0 else None
+                                    data_comp = data_corrente if nuova_qta == 0 else None
 
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                     cliente = random.choice(clienti_disponibili)
@@ -1399,7 +1398,6 @@ with tab6:
 
             st.session_state["giorni_simulati"] += 1
             
-            # Tempo dinamico: 7 secondi per transazioni/eventi principali, 2 secondi per le fasi di sola narrazione
             tempo_pausa = 7 if azione_principale_avvenuta else 2
             time.sleep(tempo_pausa)
             st.rerun()
