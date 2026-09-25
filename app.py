@@ -557,7 +557,7 @@ else:
         st.title("LaBzz")
 
 # ==========================================
-# MOTORE DI SIMULAZIONE LIVE (5 SECONDI = 1 GIORNO)
+# MOTORE DI SIMULAZIONE LIVE (3 SECONDI = 1 GIORNO)
 # ==========================================
 def esegui_giorno_simulazione(giorno_idx, p_name):
     giorni_totali = 365
@@ -693,6 +693,14 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
                         aggiungi_log_db(f"🔥 CLUB VENDITA: Serata weekend, {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}!")
 
     return True
+
+# AVANZAMENTO LIVE (1 giorno ogni 3 secondi se bot attivo)
+if get_impostazione('bot_attivo', '0') == '1':
+    giorni_gia_simulati = int(get_impostazione('giorni_simulati', '0'))
+    if giorni_gia_simulati < 365:
+        p_name = get_impostazione('nome_protagonista', 'Hassan')
+        esegui_giorno_simulazione(giorni_gia_simulati, p_name)
+        set_impostazione('giorni_simulati', str(giorni_gia_simulati + 1))
 
 # CONTROLLO GLOBALE VENDITE PER EFFETTI VISIVI INDIPENDENTI DAL TAB
 with get_connection() as conn:
@@ -1130,7 +1138,7 @@ with tab6:
     p_name_corrente = get_impostazione('nome_protagonista', 'Hassan')
 
     if not bot_attivo:
-        st.markdown("Avvia il bot per attivare il timer live (1 giorno ogni 5 secondi) e seguire la narrazione in tempo reale.")
+        st.markdown("Avvia il bot per attivare il timer live (1 giorno ogni 3 secondi) e seguire la storiella in tempo reale.")
         
         col_nome1, col_nome2 = st.columns([2, 1])
         with col_nome1:
@@ -1213,5 +1221,5 @@ with tab6:
 
         if giorni_simulati_correnti < 365:
             import time
-            time.sleep(5)
+            time.sleep(3)
             st.rerun()
