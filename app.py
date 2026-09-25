@@ -19,7 +19,6 @@ st.set_page_config(
 # FUNZIONE GENERAZIONE CODICE LOTTO PERSONALIZZATO
 # ==========================================
 def genera_codice_lotto_automatico(data_riferimento=None):
-    """Genera il codice lotto nel formato: giorno + iniziale del mese + ultime 2 cifre dell'anno (es. 25s26)."""
     if data_riferimento is None:
         data_riferimento = date.today()
     
@@ -41,7 +40,7 @@ def get_video_base64(file_path):
     return None
 
 # ==========================================
-# INIEZIONE CSS CUSTOM
+# INIEZIONE CSS CUSTOM (CON EFFETTI DEBITI LAMPEGGIANTI & COLOR SCROLL)
 # ==========================================
 st.markdown("""
 <style>
@@ -260,6 +259,55 @@ st.markdown("""
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         overflow: hidden !important;
         margin-bottom: 25px !important;
+    }
+
+    /* STILI CUSTOM PER DEBITI (PALLINO LAMPEGGIANTE + TESTO COLOR SCROLL CORSIBILE) */
+    @keyframes blink-dot {
+        0% { transform: scale(0.95); opacity: 0.4; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+        70% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+        100% { transform: scale(0.95); opacity: 0.4; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+    @keyframes color-scroll {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+
+    .debt-container {
+        background: rgba(239, 68, 68, 0.08);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        border-radius: 14px;
+        padding: 16px;
+        margin-bottom: 25px;
+    }
+
+    .debt-item {
+        display: flex;
+        align-items: center;
+        margin: 8px 0;
+        font-size: 1.1rem;
+    }
+
+    .debt-dot {
+        width: 12px;
+        height: 12px;
+        background-color: #ef4444;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 12px;
+        animation: blink-dot 1.5s infinite;
+    }
+
+    .debt-name {
+        font-family: 'Comic Sans MS', 'Chalkboard SE', 'Fira Code', cursive, sans-serif !important;
+        font-style: italic;
+        font-weight: 700;
+        background: linear-gradient(270deg, #ff4757, #ffa502, #ff6b81, #eccc68, #ff4757);
+        background-size: 300% 300%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: color-scroll 4s ease infinite;
     }
 
     @media (max-width: 768px) {
@@ -699,7 +747,7 @@ with tab1:
                                 ricavo_quota = prelievo * prezzo_unitario_calc
                                 margine_quota = ricavo_quota - costo_quota
                                 
-                                if nueva_qta_lotto == 0:
+                                if nuova_qta_lotto == 0:
                                     cursor.execute("""
                                         UPDATE lotti 
                                         SET quantita_attuale = 0, data_completamento = ? 
@@ -1113,19 +1161,36 @@ with tab5:
     if vendite_df.empty:
         st.info("Nessuna vendita registrata. Effettua acquisti dalla Cassa per visualizzare i report dei clienti.")
     else:
-        st.markdown("#### 🏆 Classifica e Percentuale Acquisti per Cliente")
-        
+        # SEZIONE DEBITI CON EFFETTO LAMPEGGIANTE E COLOR SCROLL
+        clienti_debito = vendite_df[vendite_df['pagamento'] == 'Dopo (Credito)']
+        if not clienti_debito.empty:
+            st.markdown("#### ⚠️ Persone in Debito (Da Riscuotere)")
+            
+            html_debiti = '<div class="debt-container">'
+            # Raggruppiamo per cliente e sommiamo il dovuto
+            debito_per_cliente = clienti_debito.groupby('cliente')['ricavo_totale'].sum().reset_index()
+            for _, row_d in debito_per_cliente.iterrows():
+                c_nome = row_d['cliente']
+                c_importo = row_d['ricavo_totale']
+                html_debiti += f'''
+                <div class="debt-item">
+                    <span class="debt-dot"></span>
+                    <span class="debt-name">{c_nome}</span>
+                    <span style="margin-left: auto; font-weight: 700; color: #ef4444;">€ {c_importo:,.2f}</span>
+                </div>
+                '''
+            html_debiti += '</div>'
+            st.markdown(html_debiti, unsafe_allow_html=True)
+
         clienti_grouped = vendite_df.groupby('cliente').agg(
             Spesa_Totale=('ricavo_totale', 'sum'),
             Grammi_Totali=('quantita', 'sum'),
             Numero_Acquisti=('id', 'count')
         ).reset_index().sort_values(by='Spesa_Totale', ascending=False)
         
-        # Calcolo percentuali sul totale speso
         totale_generale_spesa = clienti_grouped['Spesa_Totale'].sum()
         clienti_grouped['Percentuale'] = (clienti_grouped['Spesa_Totale'] / totale_generale_spesa * 100) if totale_generale_spesa > 0 else 0
         
-        # Grafico a torta con Altair e legenda con i nomi in parte
         chart_pie_clienti = alt.Chart(clienti_grouped).mark_arc(innerRadius=50, outerRadius=110).encode(
             theta=alt.Theta(field="Spesa_Totale", type="quantitative"),
             color=alt.Color(field="cliente", type="nominal", legend=alt.Legend(title="Clienti", orient="right")),
