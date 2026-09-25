@@ -628,7 +628,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🚚 Rifornimenti",
     "📈 Statistiche",
     "📜 Report & Storico",
-    "🤖 Bot Live (15 Sec)"
+    "🤖 Bot Live (7 Sec)"
 ])
 
 with tab1:
@@ -1124,7 +1124,7 @@ with tab6:
             st.success("✅ Reset generale completato con successo!")
             st.rerun()
 
-    # Loop di esecuzione giornaliera controllato (Pausa / Play) - 15 secondi netti
+    # Loop di esecuzione giornaliera controllato (Pausa / Play) - 7 secondi netti
     if st.session_state["simulazione_attiva"] and not st.session_state["simulazione_in_pausa"] and st.session_state["scelta_in_sospeso"] is None:
         giorni_totali = 365
         giorno_corrente_idx = st.session_state["giorni_simulati"]
@@ -1355,7 +1355,6 @@ with tab6:
                                     VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Feriale Lotto {cod_lotto}", ts_giorno))
                                 
-                                # Effetto TikTok: Verde se pagato subito, Rosso se a credito
                                 trigger_tiktok_effect("#2ed573" if pagamento == "Subito" else "#ff4757")
                 else:
                     if is_primo_sabato_mese:
@@ -1423,8 +1422,8 @@ with tab6:
 
             st.session_state["giorni_simulati"] += 1
             
-            # PAUSA DI 15 SECONDI NETTI TRA UN GIORNO E L'ALTRO
-            time.sleep(15)
+            # PAUSA DI 7 SECONDI NETTI TRA UN GIORNO E L'ALTRO
+            time.sleep(7)
             st.rerun()
         else:
             st.session_state["simulazione_attiva"] = False
