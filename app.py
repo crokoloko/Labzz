@@ -244,24 +244,6 @@ st.markdown("""
         margin-bottom: 25px !important;
     }
 
-    @keyframes color-scroll {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-    }
-
-    .debt-name {
-        font-family: 'Comic Sans MS', 'Chalkboard SE', 'Fira Code', cursive, sans-serif !important;
-        font-style: italic;
-        font-weight: 700;
-        font-size: 1.25rem;
-        background: linear-gradient(270deg, #ff4757, #ffa502, #ff6b81, #eccc68, #ff4757);
-        background-size: 300% 300%;
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        animation: color-scroll 4s ease infinite;
-    }
-
     @media (max-width: 768px) {
         .block-container {
             padding-top: 2.5rem !important;
@@ -696,10 +678,11 @@ with tab1:
                                 else:
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto, l_id))
                                 
+                                timestamp_attuale = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                 cursor.execute("""
-                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
-                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?)
-                                """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, nome_finale_cliente, tipo_pagamento, f"Lotto {cod_lotto}"))
+                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
+                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, nome_finale_cliente, tipo_pagamento, f"Lotto {cod_lotto}", timestamp_attuale))
                         
                         spara_fuochi_d_artificio()
                         st.success(f"✅ Vendita a '{nome_finale_cliente}' registrata (Pagamento: {tipo_pagamento})!")
@@ -734,10 +717,11 @@ with tab1:
                             else:
                                 cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, lotto_id_scelto))
                                 
+                            timestamp_attuale = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             cursor.execute("""
-                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note)
-                                VALUES (?, ?, 'XME', ?, 0, ?, ?, 'XME', 'Subito', ?)
-                            """, (p_id, lotto_id_scelto, qta_xme, costo_perdita, -costo_perdita, f"XME: {motivo}"))
+                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note, data)
+                                VALUES (?, ?, 'XME', ?, 0, ?, ?, 'XME', 'Subito', ?, ?)
+                            """, (p_id, lotto_id_scelto, qta_xme, costo_perdita, -costo_perdita, f"XME: {motivo}", timestamp_attuale))
                         
                         st.warning("Operazione XME registrata e sincronizzata col lotto!")
                         st.rerun()
@@ -852,7 +836,8 @@ with tab3:
                             p_id = cursor.lastrowid
                             cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, ?, ?, ?, ?, ?, ?)", (p_id, cod_lotto_m.strip(), qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today()))
                             lotto_id = cursor.lastrowid
-                            cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Primo Carico Lotto')", (p_id, lotto_id, qta_lotto_m, costo_u_lotto_m, qta_lotto_m * costo_u_lotto_m))
+                            timestamp_attuale = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Primo Carico Lotto', ?)", (p_id, lotto_id, qta_lotto_m, costo_u_lotto_m, qta_lotto_m * costo_u_lotto_m, timestamp_attuale))
                         st.success(f"✅ Prodotto '{nome_nuovo}' creato!")
                         st.rerun()
                     except sqlite3.IntegrityError:
@@ -875,7 +860,8 @@ with tab3:
                         cursor = conn.cursor()
                         cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, ?, ?, ?, ?, ?, ?)", (p_id_m, cod_lotto_add.strip(), qta_lotto_add, qta_lotto_add, costo_u_lotto_add, data_acq_add, date.today()))
                         lotto_id = cursor.lastrowid
-                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Rifornimento Lotto')", (p_id_m, lotto_id, qta_lotto_add, costo_u_lotto_add, qta_lotto_add * costo_u_lotto_add))
+                        timestamp_attuale = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Rifornimento Lotto', ?)", (p_id_m, lotto_id, qta_lotto_add, costo_u_lotto_add, qta_lotto_add * costo_u_lotto_add, timestamp_attuale))
                     st.success("✅ Lotto aggiunto!")
                     st.rerun()
 
@@ -916,7 +902,6 @@ with tab5:
             cols = st.columns(len(debito_per_cliente))
             for idx, row_d in debito_per_cliente.iterrows():
                 c_nome = row_d['cliente']
-                c_importo = row_d['ricavo_totale']
                 
                 with cols[idx]:
                     if st.button(f"✨ {c_nome}", key=f"btn_nome_{c_nome}", use_container_width=True):
