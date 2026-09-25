@@ -1000,7 +1000,6 @@ with tab4:
 
         st.altair_chart(chart_temp, use_container_width=True)
 
-        # GRAFICO MENSILE A 3 COLORI
         st.markdown("---")
         st.subheader("📅 Rendimenti Mensili (Tutti i 12 Mesi)")
         
@@ -1066,7 +1065,7 @@ with tab6:
             st.session_state["nome_protagonista"] = nuovo_nome.strip().capitalize()
             st.rerun()
 
-    # BIVIO DECISIONALE COLLEGATO ALLA TRAMA
+    # BIVIO DECISIONALE COLLEGATO ALLA TRAMA (CORRETTO)
     if st.session_state["scelta_in_sospeso"] is not None:
         bivio = st.session_state["scelta_in_sospeso"]
         with st.container(border=True):
@@ -1198,11 +1197,11 @@ with tab6:
                         "descrizione": f"💥 Notizia in cronaca: La scopamica di {p_name} si è intrufolata in casa svuotando la scorta di Hash mentre lui era in fabbrica, lasciandogli un biglietto sarcastico. Come gestisci questo paradosso relazionale?",
                         "opzione_a": {
                             "testo": "Tronca ogni rapporto con freddezza cinica (Perdi la scorta ma recuperi la lucidità)",
-                            "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'XME', 10.0, 0, 45.0, -45.0, 'Scopamica', 'Subito', 'Rottura cinica', ?)", (ts_giorno,))
+                            "azione": lambda: (lambda c: (c.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'XME', 10.0, 0, 45.0, -45.0, 'Scopamica', 'Subito', 'Rottura cinica', ?)", (ts_giorno,)), c.commit()))(get_connection())
                         },
                         "opzione_b": {
                             "testo": "Sorridi al paradosso e offrine dell'altra (Perdi 20g e alimenti il circolo vizioso)",
-                            "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'XME', 20.0, 0, 90.0, -90.0, 'Scopamica', 'Subito', 'Perdonata con cinismo', ?)", (ts_giorno,))
+                            "azione": lambda: (lambda c: (c.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'XME', 20.0, 0, 90.0, -90.0, 'Scopamica', 'Subito', 'Perdonata con cinismo', ?)", (ts_giorno,)), c.commit()))(get_connection())
                         }
                     }
                     st.rerun()
@@ -1213,7 +1212,7 @@ with tab6:
                         "descrizione": f"💔 Notizia in cronaca: La fidanzata di {p_name} gli impone un ultimatum surreale: 'O vendi la strumentazione musicale e pianti i turni in fabbrica per fare il bravo impiegato, o è finita!'. Che fai?",
                         "opzione_a": {
                             "testo": "Molla la tizia tossica all'istante: la libertà creativa vale più di ogni altra cosa!",
-                            "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'VENDITA', 0, 0, 50, 0, 50, 'Uscita Amici', 'Subito', 'Liberazione da relazione tossica', ?)", (ts_giorno,))
+                            "azione": lambda: (lambda c: (c.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'VENDITA', 0, 0, 50, 0, 50, 'Uscita Amici', 'Subito', 'Liberazione da relazione tossica', ?)", (ts_giorno,)), c.commit()))(get_connection())
                         },
                         "opzione_b": {
                             "testo": "Subisci il ricatto emotivo e prova a mediare (Accumuli stress e perdi concentrazione)",
@@ -1228,7 +1227,7 @@ with tab6:
                         "descrizione": f"💖 Notizia in cronaca: {p_name} incontra una ragazza saggia e pulita che gli offre una visione alternativa della vita, lontana dai sotterfugi e votata alla stabilità emotiva.",
                         "opzione_a": {
                             "testo": "Accetta la svolta pulita: metti la testa a posto e goditi la quiete domestica.",
-                            "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'VENDITA', 0, 0, 200, 0, 200, 'Nuova Vita', 'Subito', 'Premio stabilità emotiva', ?)", (ts_giorno,))
+                            "azione": lambda: (lambda c: (c.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'VENDITA', 0, 0, 200, 0, 200, 'Nuova Vita', 'Subito', 'Premio stabilità emotiva', ?)", (ts_giorno,)), c.commit()))(get_connection())
                         },
                         "opzione_b": {
                             "testo": "Rifiuta educatamente: 'Il mio destino è un equilibrio instabile tra casse acustiche e mobili in kit!'",
@@ -1240,7 +1239,7 @@ with tab6:
                     evento_paradossale = random.choice([
                         f"🌀 Paradosso cosmico: {p_name} scopre che il caporeparto della fabbrica ascolta i suoi stessi dischi tekno nei weekend.",
                         f"💸 Tragicommedia quotidiana: l'Alfa Giulietta parte al primo colpo ma la radio trasmette solo bollettini economici.",
-                        f"🐶 Il Pinscher nano adotta {p_name} come proprio animale domestico personale, pretendendo lunghe passeggiate notturne tra i boschi.",
+                        f"🐕 Il Pinscher nano adotta {p_name} come proprio animale domestico personale, pretendendo lunghe passeggiate notturne tra i boschi.",
                         f"🎭 Rivelazione surreale: clienti insospettabili si presentano in magazzino chiedendo componenti d'arredo e consigli di mixaggio."
                     ])
                     st.session_state["ultime_notizie"].append(evento_paradossale)
