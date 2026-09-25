@@ -377,7 +377,6 @@ def reset_database_totale():
     st.session_state["simulazione_in_pausa"] = False
     st.session_state["giorni_simulati"] = 0
     st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
-    st.session_state["scelta_in_sospeso"] = None
 
 def get_soglia_esaurimento():
     with get_connection() as conn:
@@ -553,41 +552,37 @@ def segna_debito_pagato(nome_cliente):
         cursor = conn.cursor()
         cursor.execute("UPDATE movimenti SET pagamento = 'Subito' WHERE cliente = ? AND pagamento = 'Dopo (Credito)'", (nome_cliente,))
 
-def spara_fuochi_d_artificio():
-    js_code = """
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <script>
-        var count = 200;
-        var defaults = { origin: { y: 0.7 } };
-
-        function fire(particleRatio, opts) {
-          confetti(Object.assign({}, defaults, opts, {
-            particleCount: Math.floor(count * particleRatio)
-          }));
-        }
-
-        fire(0.25, { spread: 26, startVelocity: 55 });
-        fire(0.2, { spread: 60 });
-        fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
-        fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
-        fire(0.1, { spread: 120, startVelocity: 45 });
-    </script>
+def trigger_valore_vendita_effect(importo_totale):
     """
-    st.components.v1.html(js_code, height=0)
+    Effetto visivo dinamico a schermo in base al valore della vendita:
+    - Vendite basse (< 30€): Particelle verdi tenui, delicate.
+    - Vendite medie (30€ - 100€): Esplosione blu/azzurra brillante.
+    - Vendite alte (> 100€): Fuochi d'artificio intensi color oro e viola.
+    """
+    if importo_totale < 30:
+        colore = "#2ed573"
+        particelle = 40
+        velocita = 30
+    elif importo_totale <= 100:
+        colore = "#38bdf8"
+        particelle = 90
+        velocita = 50
+    else:
+        colore = "#ffd700"
+        particelle = 200
+        velocita = 75
 
-def trigger_tiktok_effect(colore="#2ed573"):
     js_code = f"""
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script>
-        confetti({{{{
-            particleCount: 25,
-            spread: 50,
-            startVelocity: 40,
-            origin: {{ y: 0.8 }},
-            colors: ['{colore}', '#ffffff', '#38bdf8'],
-            shapes: ['circle'],
-            scalar: 1.2
-        }}}});
+        confetti({{
+            particleCount: {particelle},
+            spread: 90,
+            startVelocity: {velocita},
+            origin: {{ y: 0.6 }},
+            colors: ['{colore}', '#ffffff', '#2563eb', '#9333ea'],
+            scalar: 1.1
+        }});
     </script>
     """
     st.components.v1.html(js_code, height=0)
@@ -609,22 +604,19 @@ else:
         st.title("LaBzz")
 
 # ==========================================
-# CENTRO NOTIFICHE LIVE (UNICA NOTIFICA ATTIVA)
+# CENTRO NOTIFICHE LIVE
 # ==========================================
 if "ultime_notizie" not in st.session_state:
     st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
-if "scelta_in_sospeso" not in st.session_state:
-    st.session_state["scelta_in_sospeso"] = None
 if "nome_protagonista" not in st.session_state:
     st.session_state["nome_protagonista"] = "Hassan"
 
 if st.session_state["ultime_notizie"]:
     ultima_notif = st.session_state["ultime_notizie"][-1]
-    is_urgent = "⚠️" in ultima_notif or "DISASTRO" in ultima_notif or "DEBITO" in ultima_notif or "tossica" in ultima_notif.lower() or "scrocca" in ultima_notif.lower()
-    is_love = "💖" in ultima_notif or "ragazza" in ultima_notif.lower() or "amore" in ultima_notif.lower() or "scopamica" in ultima_notif.lower()
+    is_urgent = "⚠️" in ultima_notif or "DISASTRO" in ultima_notif or "DEBITO" in ultima_notif
     is_fun = "🎉" in ultima_notif or "birra" in ultima_notif.lower() or "tekno" in ultima_notif.lower() or "benvenuto" in ultima_notif.lower()
     
-    css_class = "alert-banner urgent" if is_urgent else ("alert-banner love" if is_love else ("alert-banner fun" if is_fun else "alert-banner"))
+    css_class = "alert-banner urgent" if is_urgent else ("alert-banner fun" if is_fun else "alert-banner")
     st.markdown(f'<div class="{css_class}">🔔 <b>Cronaca in diretta ({st.session_state["nome_protagonista"]}):</b> {ultima_notif}</div>', unsafe_allow_html=True)
 
 # 6 Tabs configurate
@@ -736,8 +728,8 @@ with tab1:
                                     VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, nome_finale_cliente, tipo_pagamento, f"Lotto {cod_lotto}", timestamp_attuale))
                         
-                        spara_fuochi_d_artificio()
-                        trigger_tiktok_effect("#2ed573" if tipo_pagamento == "Subito" else "#ff4757")
+                        # Attiva l'effetto visivo dinamico basato sul valore totale incassato
+                        trigger_valore_vendita_effect(totale_incassato)
                         st.success(f"✅ Vendita a '{nome_finale_cliente}' registrata (Pagamento: {tipo_pagamento})!")
 
         elif tipo_operazione == "XME":
@@ -776,7 +768,6 @@ with tab1:
                                 VALUES (?, ?, 'XME', ?, 0, ?, ?, 'XME', 'Subito', ?, ?)
                             """, (p_id, lotto_id_scelto, qta_xme, costo_perdita, -costo_perdita, f"XME: {motivo}", timestamp_attuale))
                         
-                        trigger_tiktok_effect("#ff4757")
                         st.warning("Operazione XME registrata e sincronizzata col lotto!")
                         st.rerun()
 
@@ -788,19 +779,16 @@ with tab2:
     if df_stato_disp.empty and movimenti_df.empty:
         st.info("Nessun dato di magazzino o movimento disponibile.")
     else:
-        # Estrazione e calcolo stipendi totali registrati nelle note o nelle notizie del bot
         stipendi_totali_accumulati = 0.0
         if "ultime_notizie" in st.session_state:
             for notizia in st.session_state["ultime_notizie"]:
                 if "STIPENDIO DI FABBRICA" in notizia or "TREDICESIMA" in notizia:
                     try:
-                        # Estrae l'importo in euro dalla stringa della notizia
                         parte_euro = notizia.split("€ ")[1].split(" ")[0].replace(".", "").replace(",", ".")
                         stipendi_totali_accumulati += float(parte_euro)
                     except:
                         pass
 
-        # Calcoli finanziari puri di Business
         val_costo = df_stato_disp['valore_totale_costo'].sum() if not df_stato_disp.empty else 0
         val_mercato = df_stato_disp['valore_totale_mercato'].sum() if not df_stato_disp.empty else 0
         totale_grammi_disp = df_stato_disp['qta_disponibile'].sum() if not df_stato_disp.empty else 0
@@ -809,12 +797,10 @@ with tab2:
         costi_lotti_tot = movimenti_df[movimenti_df['tipo'] == 'CARICO']['costo_totale'].sum() if not movimenti_df.empty else 0
         costi_xme_tot = movimenti_df[movimenti_df['tipo'] == 'XME']['costo_totale'].sum() if not movimenti_df.empty else 0
         
-        # Cassa netta del Business (esclude lo stipendio)
         cassa_business = 500.0 + incasso_tot - costi_lotti_tot - costi_xme_tot
         margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
         crediti_aperti = movimenti_df[(movimenti_df['tipo'] == 'VENDITA') & (movimenti_df['pagamento'] == 'Dopo (Credito)')]['ricavo_totale'].sum() if not movimenti_df.empty else 0
 
-        # Cassa Personale Totale (Stipendi + Cassa Business)
         cassa_personale_totale = cassa_business + stipendi_totali_accumulati
 
         st.markdown("##### 💼 Flussi di Business (Magazzino & Vendite)")
@@ -1106,8 +1092,8 @@ with tab5:
         st.download_button("📥 Scarica Report Storico in CSV", data=csv_data, file_name=f"report_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
 
 with tab6:
-    st.subheader("🤖 Bot Live: La Saga Paradossale")
-    st.markdown("Una storia complessa e paradossale tra turni in fabbrica, alienazione metalmeccanica, produzioni musicali acide e imprevisti surreali al limite del grottesco.")
+    st.subheader("🤖 Bot Live: Diario Automatico & Eventi")
+    st.markdown("Il bot registra in background le giornate di lavoro in fabbrica, i rifornimenti automatici e l'accredito dello stipendio mensile senza interruzioni.")
 
     col_nome1, col_nome2 = st.columns([2, 1])
     with col_nome1:
@@ -1115,27 +1101,6 @@ with tab6:
         if nuovo_nome.strip() != "" and nuovo_nome != st.session_state["nome_protagonista"]:
             st.session_state["nome_protagonista"] = nuovo_nome.strip().capitalize()
             st.rerun()
-
-    if st.session_state["scelta_in_sospeso"] is not None:
-        bivio = st.session_state["scelta_in_sospeso"]
-        with st.container(border=True):
-            st.markdown(f"### 🔀 BIVIO NARRATIVO: {bivio['titolo']}")
-            st.write(bivio['descrizione'])
-            
-            col_b1, col_b2 = st.columns(2)
-            with col_b1:
-                if st.button(f"👉 A: {bivio['opzione_a']['testo']}", use_container_width=True):
-                    bivio['opzione_a']['azione']()
-                    st.session_state["ultime_notizie"].append(f"Svolta narrativa ({st.session_state['nome_protagonista']}): {bivio['opzione_a']['testo']}")
-                    st.session_state["scelta_in_sospeso"] = None
-                    st.rerun()
-            with col_b2:
-                if st.button(f"👉 B: {bivio['opzione_b']['testo']}", use_container_width=True):
-                    bivio['opzione_b']['azione']()
-                    st.session_state["ultime_notizie"].append(f"Svolta narrativa ({st.session_state['nome_protagonista']}): {bivio['opzione_b']['testo']}")
-                    st.session_state["scelta_in_sospeso"] = None
-                    st.rerun()
-        st.markdown("---")
 
     if "simulazione_attiva" not in st.session_state:
         st.session_state["simulazione_attiva"] = False
@@ -1151,7 +1116,6 @@ with tab6:
                 reset_database_totale()
                 p_name = st.session_state["nome_protagonista"]
                 st.session_state["ultime_notizie"] = [f"🚀 Inizio della saga: {p_name} timbra il cartellino in fabbrica mentre progetta il suo alter ego underground."]
-                st.session_state["scelta_in_sospeso"] = None
                 st.session_state["simulazione_attiva"] = True
                 st.session_state["simulazione_in_pausa"] = False
                 st.session_state["giorni_simulati"] = 0
@@ -1214,7 +1178,7 @@ with tab6:
             st.success("✅ Reset generale completato con successo!")
             st.rerun()
 
-    if st.session_state["simulazione_attiva"] and not st.session_state["simulazione_in_pausa"] and st.session_state["scelta_in_sospeso"] is None:
+    if st.session_state["simulazione_attiva"] and not st.session_state["simulazione_in_pausa"]:
         giorni_totali = 365
         giorno_corrente_idx = st.session_state["giorni_simulati"]
         p_name = st.session_state["nome_protagonista"]
@@ -1231,88 +1195,21 @@ with tab6:
                 cursor = conn.cursor()
                 
                 saga_pool = [
-                    f"🏭 [{data_corrente.strftime('%d %b')}] Fabbrica e alienazione: {p_name} trascorre la mattinata a montare ante di armadi mentre medita sulla caducità dell'esistenza umana e sul prossimo pattern acid da 180 BPM.",
-                    f"🚗 [{data_corrente.strftime('%d %b')}] Viaggio in Alfa Giulietta: lungo i tornanti di collina, {p_name} riflette su quanto sia sottile il confine tra la linearità del lavoro dipendente e il caos dell'underground.",
-                    f"🧠 [{data_corrente.strftime('%d %b')}] Epifania notturna: {p_name} capisce che la vera ricchezza non è accumulare beni materiali, ma possedere abbastanza grammi e tracce non masterizzate per sopravsegnare l'universo.",
-                    f"📦 [{data_corrente.strftime('%d %b')}] Turno di notte logorante: tra bancali di truciolato e colle epossidiche, {p_name} riceve strane voci di corridoio sui vecchi debiti del vicinato.",
-                    f"🎵 [{data_corrente.strftime('%d %b')}] Studio session catartica: {p_name} collega l'Elektron Digitakt e realizza che ogni cassa dritta è un battito cardiaco sottratto alla catena di montaggio."
+                    f"🏭 [{data_corrente.strftime('%d %b')}] Fabbrica: {p_name} monta ante di armadi meditando su pattern acid da 180 BPM.",
+                    f"🚗 [{data_corrente.strftime('%d %b')}] Alfa Giulietta: viaggio lungo i tornanti di collina tra lavoro e underground.",
+                    f"🧠 [{data_corrente.strftime('%d %b')}] Studio session: {p_name} collega l'Elektron Digitakt per una sessione notturna.",
+                    f"📦 [{data_corrente.strftime('%d %b')}] Turno di notte: gestione dei bancali di truciolato e pianificazione tracce."
                 ]
 
-                rand_val = random.random()
-                if rand_val < 0.015:
-                    azione_principale_avvenuta = True
-                    st.session_state["scelta_in_sospeso"] = {
-                        "titolo": "La Scopamica Scroccona e il Paradosso dell'Affetto",
-                        "descrizione": f"💥 Notizia in cronaca: La scopamica di {p_name} si è intrufolata in casa svuotando la scorta di Hash mentre lui era in fabbrica, lasciandogli un biglietto sarcastico. Come gestisci questo paradosso relazionale?",
-                        "opzione_a": {
-                            "testo": "Tronca ogni rapporto con freddezza cinica (Perdi la scorta ma recuperi la lucidità)",
-                            "azione": lambda: (lambda c: (c.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'XME', 10.0, 0, 45.0, -45.0, 'Scopamica', 'Subito', 'Rottura cinica', ?)", (ts_giorno,)), c.commit()))(get_connection())
-                        },
-                        "opzione_b": {
-                            "testo": "Sorridi al paradosso e offrine dell'altra (Perdi 20g e alimenti il circolo vizioso)",
-                            "azione": lambda: (lambda c: (c.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'XME', 20.0, 0, 90.0, -90.0, 'Scopamica', 'Subito', 'Perdonata con cinismo', ?)", (ts_giorno,)), c.commit()))(get_connection())
-                        }
-                    }
-                    st.rerun()
-                elif rand_val < 0.03:
-                    azione_principale_avvenuta = True
-                    st.session_state["scelta_in_sospeso"] = {
-                        "titolo": "L'Aut aut della Fidanzata Tossica",
-                        "descrizione": f"💔 Notizia in cronaca: La fidanzata di {p_name} gli impone un ultimatum surreale: 'O vendi la strumentazione musicale e pianti i turni in fabbrica per fare il bravo impiegato, o è finita!'. Che fai?",
-                        "opzione_a": {
-                            "testo": "Molla la tizia tossica all'istante: la libertà creativa vale più di ogni altra cosa!",
-                            "azione": lambda: (lambda c: (c.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'VENDITA', 0, 0, 50, 0, 50, 'Uscita Amici', 'Subito', 'Liberazione da relazione tossica', ?)", (ts_giorno,)), c.commit()))(get_connection())
-                        },
-                        "opzione_b": {
-                            "testo": "Subisci il ricatto emotivo e prova a mediare (Accumuli stress e perdi concentrazione)",
-                            "azione": lambda: None
-                        }
-                    }
-                    st.rerun()
-                elif rand_val < 0.045:
-                    azione_principale_avvenuta = True
-                    st.session_state["scelta_in_sospeso"] = {
-                        "titolo": "La Proposta della Ragazza d'Oro",
-                        "descrizione": f"💖 Notizia in cronaca: {p_name} incontra una ragazza saggia e pulita che gli offre una visione alternativa della vita, lontana dai sotterfugi e votata alla stabilità emotiva.",
-                        "opzione_a": {
-                            "testo": "Accetta la svolta pulita: metti la testa a posto e goditi la quiete domestica.",
-                            "azione": lambda: (lambda c: (c.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'VENDITA', 0, 0, 200, 0, 200, 'Nuova Vita', 'Subito', 'Premio stabilità emotiva', ?)", (ts_giorno,)), c.commit()))(get_connection())
-                        },
-                        "opzione_b": {
-                            "testo": "Rifiuta educatamente: 'Il mio destino è un equilibrio instabile tra casse acustiche e mobili in kit!'",
-                            "azione": lambda: None
-                        }
-                    }
-                    st.rerun()
-                elif random.random() < 0.28:
-                    evento_paradossale = random.choice([
-                        f"🌀 Paradosso cosmico: {p_name} scopre che il caporeparto della fabbrica ascolta i suoi stessi dischi tekno nei weekend.",
-                        f"💸 Tragicommedia quotidiana: l'Alfa Giulietta parte al primo colpo ma la radio trasmette solo bollettini economici.",
-                        f"🐕 Il Pinscher nano adotta {p_name} come proprio animale domestico personale, pretendendo lunghe passeggiate notturne tra i boschi.",
-                        f"🎭 Rivelazione surreale: clienti insospettabili si presentano in magazzino chiedendo componenti d'arredo e consigli di mixaggio."
-                    ])
-                    st.session_state["ultime_notizie"].append(evento_paradossale)
-                else:
-                    st.session_state["ultime_notizie"].append(random.choice(saga_pool))
+                st.session_state["ultime_notizie"].append(random.choice(saga_pool))
 
                 if data_corrente.day == 1:
                     stipendio_netto = random.uniform(1650.0, 1800.0)
-                    trigger_tiktok_effect("#38bdf8")
-                    st.session_state["ultime_notizie"].append(f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato sul conto di {p_name} (narrativo).")
+                    st.session_state["ultime_notizie"].append(f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato sul conto di {p_name}.")
 
                 if data_corrente.month == 12 and data_corrente.day == 15:
                     tredicesima = random.uniform(1650.0, 1800.0)
-                    trigger_tiktok_effect("#38bdf8")
-                    st.session_state["ultime_notizie"].append(f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f} per {p_name} (narrativa).")
-
-                if random.random() < 0.004:
-                    cursor.execute("SELECT id FROM lotti WHERE quantita_attuale > 0")
-                    lotti_attivi_ids = [r[0] for r in cursor.fetchall()]
-                    if lotti_attivi_ids:
-                        for l_id_err in lotti_attivi_ids:
-                            cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (data_corrente, l_id_err))
-                        trigger_tiktok_effect("#ef4444")
-                        st.session_state["ultime_notizie"].append(f"⚠️ DISASTRO PARADOSSALE: Un guasto idraulico in magazzino rovina la merce. Perdita totale!")
+                    st.session_state["ultime_notizie"].append(f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f} per {p_name}.")
 
                 cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
                 giacenza_totale = cursor.fetchone()[0] or 0.0
@@ -1343,7 +1240,7 @@ with tab6:
                         else:
                             spesa_lotto = costo_base_lotto * 1.27
                             nota_rifornimento = "Rifornimento a DEBITO (+27%)"
-                            st.session_state["ultime_notizie"].append(f"💳 DEBITO STRUTTURALE: Rifornimento acquistato a debito per {p_name} (€ {spesa_lotto:,.2f}).")
+                            st.session_state["ultime_notizie"].append(f"💳 Rifornimento a debito per {p_name} (€ {spesa_lotto:,.2f}).")
 
                         costo_u = spesa_lotto / qta_lotto
                         codice_l = genera_codice_lotto_automatico(data_corrente)
@@ -1367,12 +1264,9 @@ with tab6:
 
                 cursor.execute("SELECT id FROM prodotti")
                 prod_ids = [r[0] for r in cursor.fetchall()]
-                is_primo_sabato_mese = (data_corrente.weekday() == 5 and data_corrente.day <= 7)
 
                 if not is_weekend:
                     num_clienti = random.choices([0, 1], weights=[60, 40])[0]
-                    if num_clienti > 0:
-                        azione_principale_avvenuta = True
                     for _ in range(num_clienti):
                         if not prod_ids:
                             break
@@ -1401,88 +1295,46 @@ with tab6:
                                     INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                                     VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Feriale Lotto {cod_lotto}", ts_giorno))
-                                trigger_tiktok_effect("#2ed573" if pagamento == "Subito" else "#ff4757")
                 else:
-                    if is_primo_sabato_mese:
-                        azione_principale_avvenuta = True
-                        num_clienti_speciale = random.randint(2, 4)
-                        for _ in range(num_clienti_speciale):
-                            if not prod_ids:
-                                break
-                            p_id = random.choice(prod_ids)
-                            cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC LIMIT 1", (p_id,))
-                            lotto_attivo = cursor.fetchone()
+                    num_clienti_weekend = random.choices([0, 1, 2], weights=[50, 35, 15])[0]
+                    for _ in range(num_clienti_weekend):
+                        if not prod_ids:
+                            break
+                        p_id = random.choice(prod_ids)
+                        cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC LIMIT 1", (p_id,))
+                        lotto_attivo = cursor.fetchone()
 
-                            if lotto_attivo:
-                                l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
-                                qta_vendita = 1.0
-                                qta_vendita = min(qta_disp, qta_vendita)
-                                
-                                if qta_vendita > 0:
-                                    prezzo_unitario = 90.0
-                                    ricavo_totale = qta_vendita * prezzo_unitario
-                                    costo_totale = 50.0
-                                    margine = ricavo_totale - costo_totale
-                                    nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nuova_qta == 0 else None
+                        if lotto_attivo:
+                            l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
+                            qta_vendita = 1.0
+                            qta_vendita = min(qta_disp, qta_vendita)
+                            
+                            if qta_vendita > 0:
+                                prezzo_unitario = 40.0
+                                ricavo_totale = qta_vendita * prezzo_unitario
+                                costo_totale = 20.0
+                                margine = ricavo_totale - costo_totale
+                                nuova_qta = qta_disp - qta_vendita
+                                data_comp = data_corrente if nuova_qta == 0 else None
 
-                                    cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
-                                    cliente = random.choice(clienti_disponibili)
-                                    pagamento = "Subito" if random.random() < 0.80 else "Dopo (Credito)"
+                                cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
+                                cliente = random.choice(clienti_disponibili)
+                                pagamento = "Subito" if random.random() < 0.80 else "Dopo (Credito)"
 
-                                    cursor.execute("""
-                                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
-                                        VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                    """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Sabato Speciale (€50 -> €90)", ts_giorno))
-                                    trigger_tiktok_effect("#2ed573" if pagamento == "Subito" else "#ff4757")
-                    else:
-                        num_clienti_weekend = random.choices([0, 1, 2, 3], weights=[40, 40, 15, 5])[0]
-                        if num_clienti_weekend > 0:
-                            azione_principale_avvenuta = True
-                        for _ in range(num_clienti_weekend):
-                            if not prod_ids:
-                                break
-                            p_id = random.choice(prod_ids)
-                            cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC LIMIT 1", (p_id,))
-                            lotto_attivo = cursor.fetchone()
-
-                            if lotto_attivo:
-                                l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
-                                qta_vendita = 1.0
-                                qta_vendita = min(qta_disp, qta_vendita)
-                                
-                                if qta_vendita > 0:
-                                    prezzo_unitario = 40.0
-                                    ricavo_totale = qta_vendita * prezzo_unitario
-                                    costo_totale = 20.0
-                                    margine = ricavo_totale - costo_totale
-                                    nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nuova_qta == 0 else None
-
-                                    cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
-                                    cliente = random.choice(clienti_disponibili)
-                                    pagamento = "Subito" if random.random() < 0.80 else "Dopo (Credito)"
-
-                                    cursor.execute("""
-                                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
-                                        VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                    """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Weekend Club", ts_giorno))
-                                    trigger_tiktok_effect("#2ed573" if pagamento == "Subito" else "#ff4757")
+                                cursor.execute("""
+                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
+                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Weekend Club", ts_giorno))
 
             st.session_state["giorni_simulati"] += 1
-            
-            tempo_pausa = 7 if azione_principale_avvenuta else 2
-            time.sleep(tempo_pausa)
+            time.sleep(2)
             st.rerun()
         else:
             st.session_state["simulazione_attiva"] = False
-            spara_fuochi_d_artificio()
-            st.success("🎉 Saga completata con successo!")
+            st.success("🎉 Simulazione completata con successo!")
 
     st.markdown("---")
     st.markdown("### 🛠️ Gestione Dati e Ripristino")
-    st.write("Usa il pulsante sottostante per azzerare la storia e ripartire da zero.")
-    
     if st.button("🗑️ ESEGUI RESET GENERALE DI TUTTI I DATI", use_container_width=True):
         reset_database_totale()
         st.success("✅ Reset generale completato con successo!")
