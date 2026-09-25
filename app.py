@@ -1130,7 +1130,7 @@ with tab6:
             st.success("✅ Reset generale completato con successo!")
             st.rerun()
 
-    # Loop di esecuzione giornaliera controllato (Pausa / Play) - 7 secondi netti
+    # Loop di esecuzione giornaliera controllato (Pausa / Play) - Tempi differenziati (Azione principale = 7s, Storia/Secondarie = 2s)
     if st.session_state["simulazione_attiva"] and not st.session_state["simulazione_in_pausa"] and st.session_state["scelta_in_sospeso"] is None:
         giorni_totali = 365
         giorno_corrente_idx = st.session_state["giorni_simulati"]
@@ -1142,10 +1142,12 @@ with tab6:
 
             st.info(f"⏳ {p_name} in azione... Giorno {giorno_corrente_idx + 1} di {giorni_totali} ({data_corrente.strftime('%d %B %Y')} - {'Weekend' if data_corrente.weekday() >= 5 else 'Feriale'})")
 
+            # Variabile per decidere se questo giorno contiene eventi principali o secondari
+            azione_principale_avvenuta = False
+
             with get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # NOTIFICHE PIÙ LUNGHE, DETTAGLIATE E DAL TONO IRONICO/DIVERTENTE
                 notizie_live_pool = [
                     f"⚙️ [{data_corrente.strftime('%d %b')}] Turno pesante in fabbrica per {p_name}: tra pannelli di legno da smistare e colle chimiche, la mente viaggia già sui bpm della prossima traccia tekno da chiudere in studio.",
                     f"🏭 [{data_corrente.strftime('%d %b')}] 9 ore filate di assemblaggio mobili. {p_name} valuta seriamente se licenziarsi per vivere di sola musica o se continuare a soffrire per lo stipendio sicuro.",
@@ -1154,10 +1156,10 @@ with tab6:
                     f"📦 [{data_corrente.strftime('%d %b')}] Controllo scorte in corso: {p_name} analizza i movimenti di magazzino e pianifica le prossime mosse per mantenere i conti in perfetto equilibrio.",
                 ]
                 
-                # Eventi casuali dettagliati e divertenti
                 rand_val = random.random()
                 if rand_val < 0.015:
-                    # BIVIO 1: La scopamica scroccona
+                    # BIVIO 1
+                    azione_principale_avvenuta = True
                     st.session_state["scelta_in_sospeso"] = {
                         "titolo": "La Scopamica Scroccona",
                         "descrizione": f"💥 Colpo di scena! La scopamica di {p_name} si presenta a casa senza preavviso, svuota mezza scorta di Hash ridendosela e lo tratta pure male. Che fai?",
@@ -1172,7 +1174,8 @@ with tab6:
                     }
                     st.rerun()
                 elif rand_val < 0.03:
-                    # BIVIO 2: La fidanzata tossica
+                    # BIVIO 2
+                    azione_principale_avvenuta = True
                     st.session_state["scelta_in_sospeso"] = {
                         "titolo": "Drammi di Coppia (Fidanzata Tossica)",
                         "descrizione": f"💔 Relazione al capolinea: la ragazza di {p_name} gli fa scenate isteriche ogni volta che accende il mixer o va a lavorare in fabbrica. Clima irrespirabile!",
@@ -1187,7 +1190,8 @@ with tab6:
                     }
                     st.rerun()
                 elif rand_val < 0.045:
-                    # BIVIO 3: La ragazza d'oro che vuole metterlo a posto
+                    # BIVIO 3
+                    azione_principale_avvenuta = True
                     st.session_state["scelta_in_sospeso"] = {
                         "titolo": "L'Incontro con la Ragazza d'Oro",
                         "descrizione": f"💖 Svolta inaspettata: {p_name} conosce una ragazza d'oro, assennata e dolce, che gli propone di mettere la testa a posto e concentrarsi solo su fabbrica e studio.",
@@ -1215,6 +1219,7 @@ with tab6:
 
                 # ACCREDITO STIPENDIO MENSILE
                 if data_corrente.day == 1:
+                    azione_principale_avvenuta = True
                     stipendio_netto = random.uniform(1650.0, 1800.0)
                     cursor.execute("""
                         INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
@@ -1225,6 +1230,7 @@ with tab6:
 
                 # TREDICESIMA A DICEMBRE
                 if data_corrente.month == 12 and data_corrente.day == 15:
+                    azione_principale_avvenuta = True
                     tredicesima = random.uniform(1650.0, 1800.0)
                     cursor.execute("""
                         INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
@@ -1233,7 +1239,7 @@ with tab6:
                     trigger_tiktok_effect("#38bdf8")
                     st.session_state["ultime_notizie"].append(f"🎄 TREDICESIMA: Arrivata la tanto attesa tredicesima di € {tredicesima:,.2f} per {p_name}!")
 
-                # 1. DISASTRO MAGAZZINO (0.4%)
+                # DISASTRO MAGAZZINO (0.4%)
                 if random.random() < 0.004:
                     cursor.execute("SELECT id FROM lotti WHERE quantita_attuale > 0")
                     lotti_attivi_ids = [r[0] for r in cursor.fetchall()]
@@ -1243,7 +1249,7 @@ with tab6:
                         trigger_tiktok_effect("#ef4444")
                         st.session_state["ultime_notizie"].append(f"⚠️ DISASTRO: Infiltrazioni d'acqua in magazzino rovinano la merce di {p_name}. Perdita secca!")
 
-                # 2. RIFORNIMENTO AUTOMATICO
+                # RIFORNIMENTO AUTOMATICO
                 cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
                 giacenza_totale = cursor.fetchone()[0] or 0.0
 
@@ -1262,6 +1268,7 @@ with tab6:
                     cursor.execute("SELECT id FROM prodotti")
                     prod_disponibili = [r[0] for r in cursor.fetchall()]
                     if prod_disponibili:
+                        azione_principale_avvenuta = True
                         p_id_rif = random.choice(prod_disponibili)
                         qta_lotto = 80.0
                         costo_base_lotto = qta_lotto * 4.50
@@ -1288,37 +1295,7 @@ with tab6:
                             VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
                         """, (p_id_rif, l_id_rif, qta_lotto, costo_u, spesa_lotto, nota_rifornimento, ts_giorno))
 
-                # 3. NUOVI CONTATTI (1%)
-                if random.random() < 0.01:
-                    nomi_nuovi = ["Davide N.", "Simone P.", "Federico R.", "Mattia B.", "Alessio M."]
-                    nuovo_contatto = random.choice(nomi_nuovi) + f" ({data_corrente.strftime('%b')})"
-                    cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (nuovo_contatto,))
-                    st.session_state["ultime_notizie"].append(f"🤝 {p_name} amplia la rete: stretto un nuovo contatto con {nuovo_contatto}!")
-
-                # 4. CONSUMI PERSONALI (30%)
-                if random.random() < 0.30:
-                    cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE quantita_attuale > 0 LIMIT 1")
-                    lotto_attivo_xme = cursor.fetchone()
-                    if lotto_attivo_xme:
-                        l_id_xme, qta_disp_xme, costo_u_xme = lotto_attivo_xme
-                        qta_consumo = random.choice([0.5, 1.0])
-                        qta_consumo = min(qta_disp_xme, qta_consumo)
-                        
-                        if qta_consumo > 0:
-                            costo_perdita = qta_consumo * costo_u_xme
-                            nuova_qta = qta_disp_xme - qta_consumo
-                            data_comp_xme = data_corrente if nuova_qta == 0 else None
-                            
-                            cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp_xme, l_id_xme))
-                            cursor.execute("SELECT prodotto_id FROM lotti WHERE id = ?", (l_id_xme,))
-                            p_id_xme = cursor.fetchone()[0]
-                            
-                            cursor.execute("""
-                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note, data)
-                                VALUES (?, ?, 'XME', ?, 0, ?, ?, 'XME', 'Subito', 'Consumo Personale', ?)
-                            """, (p_id_xme, l_id_xme, qta_consumo, costo_perdita, -costo_perdita, ts_giorno))
-
-                # 5. VENDITE CON MARGINI SPECIFICI E ANIMAZIONE TIKTOK DEDICATA
+                # VENDITE
                 is_weekend = data_corrente.weekday() >= 5
                 cursor.execute("SELECT nome FROM clienti")
                 clienti_disponibili = [r[0] for r in cursor.fetchall()]
@@ -1332,6 +1309,8 @@ with tab6:
 
                 if not is_weekend:
                     num_clienti = random.choices([0, 1], weights=[60, 40])[0]
+                    if num_clienti > 0:
+                        azione_principale_avvenuta = True
                     for _ in range(num_clienti):
                         if not prod_ids:
                             break
@@ -1364,6 +1343,7 @@ with tab6:
                                 trigger_tiktok_effect("#2ed573" if pagamento == "Subito" else "#ff4757")
                 else:
                     if is_primo_sabato_mese:
+                        azione_principale_avvenuta = True
                         num_clienti_speciale = random.randint(2, 4)
                         for _ in range(num_clienti_speciale):
                             if not prod_ids:
@@ -1396,6 +1376,8 @@ with tab6:
                                     trigger_tiktok_effect("#2ed573" if pagamento == "Subito" else "#ff4757")
                     else:
                         num_clienti_weekend = random.choices([0, 1, 2, 3], weights=[40, 40, 15, 5])[0]
+                        if num_clienti_weekend > 0:
+                            azione_principale_avvenuta = True
                         for _ in range(num_clienti_weekend):
                             if not prod_ids:
                                 break
@@ -1414,7 +1396,7 @@ with tab6:
                                     costo_totale = 20.0
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nuova_qta == 0 else None
+                                    data_comp = data_corrente if nueva_qta == 0 else None
 
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                     cliente = random.choice(clienti_disponibili)
@@ -1423,13 +1405,14 @@ with tab6:
                                     cursor.execute("""
                                         INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                                         VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                    """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Weekend Amnesia (€20 -> €40)", ts_giorno))
+                                    """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Weekend Amnesia (€20 -> (€40)", ts_giorno))
                                     trigger_tiktok_effect("#2ed573" if pagamento == "Subito" else "#ff4757")
 
             st.session_state["giorni_simulati"] += 1
             
-            # PAUSA DI 7 SECONDI NETTI TRA UN GIORNO E L'ALTRO
-            time.sleep(7)
+            # TEMPO DINAMICO: 7 secondi se è successo qualcosa di principale (transazioni, stipendio, rifornimenti), 2 secondi per le cose secondarie o di puro racconto.
+            tempo_pausa = 7 if azione_principale_avvenuta else 2
+            time.sleep(tempo_pausa)
             st.rerun()
         else:
             st.session_state["simulazione_attiva"] = False
