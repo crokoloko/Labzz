@@ -29,7 +29,13 @@ st.markdown("""
         font-weight: 500;
     }
 
-    /* 3. TITOLI E INTESTAZIONI 3D CON TITAN ONE */
+    /* 3. STILE PER IL LOGO IMMAGINE INTESTAZIONE */
+    .app-logo {
+        filter: drop-shadow(0 0 15px rgba(56, 189, 248, 0.4));
+        margin-bottom: 20px;
+    }
+
+    /* 4. TITOLI E INTESTAZIONI 3D CON TITAN ONE */
     h1 {
         font-family: 'Titan One', cursive, sans-serif !important;
         color: #ffffff !important;
@@ -44,7 +50,7 @@ st.markdown("""
         text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5) !important;
     }
 
-    /* 4. CARD METRICHE STILE 3D GLASSMORPHISM */
+    /* 5. CARD METRICHE STILE 3D GLASSMORPHISM */
     div[data-testid="stMetric"] {
         background: rgba(30, 41, 59, 0.55) !important;
         backdrop-filter: blur(16px) !important;
@@ -78,7 +84,7 @@ st.markdown("""
         letter-spacing: 0.5px;
     }
 
-    /* 5. TAB OPERATIVI TATTILI 3D */
+    /* 6. TAB OPERATIVI TATTILI 3D */
     .stTabs [data-baseweb="tab-list"] {
         gap: 12px !important;
         background-color: transparent !important;
@@ -108,7 +114,7 @@ st.markdown("""
         box-shadow: 0 8px 20px rgba(37, 99, 235, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3) !important;
     }
 
-    /* 6. CONTENITORI FORM ED EXPANDER GLASSMORPHISM */
+    /* 7. CONTENITORI FORM ED EXPANDER GLASSMORPHISM */
     div[data-testid="stForm"], div[data-testid="stExpander"] {
         background: rgba(15, 23, 42, 0.6) !important;
         backdrop-filter: blur(12px) !important;
@@ -123,7 +129,7 @@ st.markdown("""
         font-weight: 600 !important;
     }
 
-    /* 7. PULSANTI 3D ED EFFETTI HOVER */
+    /* 8. PULSANTI 3D ED EFFETTI HOVER */
     .stButton > button, button[kind="primary"] {
         font-family: 'Fredoka', sans-serif !important;
         background: linear-gradient(135deg, #0284c7 0%, #1d4ed8 100%) !important;
@@ -144,7 +150,7 @@ st.markdown("""
         box-shadow: 0 3px 10px rgba(2, 132, 199, 0.3) !important;
     }
 
-    /* 8. CONTROLLI INPUT, LABELS & SELECT */
+    /* 9. CONTROLLI INPUT, LABELS & SELECT */
     label, p, span, div {
         font-family: 'Fredoka', sans-serif !important;
     }
@@ -161,7 +167,7 @@ st.markdown("""
         box-shadow: 0 0 12px rgba(56, 189, 248, 0.3) !important;
     }
 
-    /* 9. TABELLE STYLING GLASS CON FREDOKA */
+    /* 10. TABELLE STYLING GLASS CON FREDOKA */
     div[data-testid="stDataFrame"] {
         font-family: 'Fredoka', sans-serif !important;
         background: rgba(15, 23, 42, 0.5) !important;
@@ -171,7 +177,7 @@ st.markdown("""
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
     }
 
-    /* 10. NOTIFICHE ED ALERT PERSONALIZZATI */
+    /* 11. NOTIFICHE ED ALERT PERSONALIZZATI */
     div[data-testid="stNotification"] {
         font-family: 'Fredoka', sans-serif !important;
         font-weight: 600 !important;
@@ -437,7 +443,12 @@ def elimina_lotto_db(lotto_id):
 # ==========================================
 # INTERFACCIA UTENTE (STREAMLIT)
 # ==========================================
-st.title("LaBzz")
+
+# Caricamento del Logo al posto del titolo testuale (puoi modificare 'width' se desideri ridimensionarlo)
+try:
+    st.image("logo.png", width=260)
+except Exception:
+    st.title("LaBzz")  # Fallback nel caso in cui il file logo.png non sia presente nella cartella
 
 tab1, tab2, tab3, tab4 = st.tabs([
     "💸 Cassa", 
