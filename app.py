@@ -1277,10 +1277,10 @@ with tab6:
                         
                         if qta_consumo > 0:
                             costo_perdita = qta_consumo * costo_u_xme
-                            nuova_qta_xme = qta_disp_xme - qta_consumo
-                            data_comp_xme = data_corrente if nuova_qta_xme == 0 else None
+                            nuova_qta = qta_disp_xme - qta_consumo
+                            data_comp_xme = data_corrente if nuova_qta == 0 else None
                             
-                            cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta_xme, data_comp_xme, l_id_xme))
+                            cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp_xme, l_id_xme))
                             cursor.execute("SELECT prodotto_id FROM lotti WHERE id = ?", (l_id_xme,))
                             p_id_xme = cursor.fetchone()[0]
                             
@@ -1321,7 +1321,7 @@ with tab6:
                                 costo_totale = qta_vendita * costo_u
                                 margine = ricavo_totale - costo_totale
                                 nuova_qta = qta_disp - qta_vendita
-                                data_comp = data_corrente if nueva_qta == 0 else None
+                                data_comp = data_corrente if nuova_qta == 0 else None
 
                                 cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                 cliente = random.choice(clienti_disponibili)
@@ -1382,7 +1382,7 @@ with tab6:
                                     costo_totale = 20.0  # Costo specifico Amnesia
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nueva_qta == 0 else None
+                                    data_comp = data_corrente if nuova_qta == 0 else None
 
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                     cliente = random.choice(clienti_disponibili)
@@ -1411,7 +1411,7 @@ with tab6:
         st.session_state["simulazione_attiva"] = False
         st.session_state["simulazione_in_pausa"] = False
         st.session_state["giorni_simulati"] = 0
-        st.session_state["ultime_notizie"] = ["Benvenuto in este pazzo mondo del cazzo."]
+        st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
         st.session_state["scelta_in_sospeso"] = None
         st.success("✅ Reset generale completato con successo!")
         st.rerun()
