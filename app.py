@@ -27,7 +27,7 @@ def get_video_base64(file_path):
     return None
 
 # ==========================================
-# INIEZIONE CSS CUSTOM (CENTRATURA + CORREZIONI PARSING E MARGINI)
+# INIEZIONE CSS CUSTOM (FIX DEFINITIVO ARROW_RIGHT & DESIGN CLEAN)
 # ==========================================
 st.markdown("""
 <style>
@@ -51,7 +51,7 @@ st.markdown("""
     /* 4. MARGINE SUPERIORE ED INFERIORE ESTESO PER EVITARE TAGLI IN FONDO */
     .block-container {
         padding-top: 2.8rem !important;
-        padding-bottom: 6rem !important; /* Spazio extra in fondo per la leggibilità */
+        padding-bottom: 6rem !important;
         padding-left: 0.8rem !important;
         padding-right: 0.8rem !important;
     }
@@ -94,12 +94,12 @@ st.markdown("""
         justify-content: center !important;
     }
 
-    /* 7. CENTRATURA DI TUTTI I TITOLI E INTESTAZIONI */
+    /* 7. TITOLI E INTESTAZIONI PRINCIPALI CENTRATI */
     h1, h2, h3, h4, h5, h6 {
         font-family: 'Titan One', cursive, sans-serif !important;
         color: #ffffff !important;
         text-align: center !important;
-        line-height: 1.5 !important;
+        line-height: 1.4 !important;
         margin-top: 15px !important;
         margin-bottom: 15px !important;
         word-break: break-word !important;
@@ -116,14 +116,13 @@ st.markdown("""
         text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5) !important;
     }
 
-    /* 8. CENTRATURA DI TESTI STANDARD, DIDASCALIE E SUBHEADER */
-    .stMarkdown, .stText, p, span, label, caption, div[data-testid="stCaptionContainer"] {
-        text-align: center !important;
+    /* CENTRATURA TESTI DESCRITTIVI SPECIFICI */
+    .stMarkdown p {
         font-family: 'Fredoka', sans-serif !important;
         line-height: 1.5 !important;
     }
 
-    /* 9. CONTENITORE CUSTOM PER GRIGLIA DASHBOARD */
+    /* 8. CONTENITORE CUSTOM PER GRIGLIA DASHBOARD */
     .dashboard-grid {
         display: grid !important;
         grid-template-columns: repeat(2, 1fr) !important;
@@ -167,32 +166,45 @@ st.markdown("""
         text-shadow: 0 2px 6px rgba(56, 189, 248, 0.3);
     }
 
-    /* 10. RISOLUZIONE TESTI SORMONTATI SU EXPANDER E FORM */
-    div[data-testid="stForm"], div[data-testid="stExpander"] {
+    /* 9. FIX DEFINITIVO PER EXPANDER & TESTI SORMONTATI */
+    div[data-testid="stExpander"] {
         background: rgba(15, 23, 42, 0.75) !important;
         backdrop-filter: blur(12px) !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
         border-radius: 16px !important;
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4) !important;
-        padding: 20px !important;
-        margin-bottom: 25px !important;
-        height: auto !important; /* Garantisce che la scatola si espanda dinamicamente */
-        min-height: auto !important;
-        overflow: visible !important;
+        margin-bottom: 18px !important;
+        overflow: hidden !important;
     }
 
+    /* Correzione del tag summary e delle frecce interne */
     div[data-testid="stExpander"] details summary {
-        color: #e2e8f0 !important;
+        color: #f1f5f9 !important;
         font-weight: 600 !important;
-        font-size: 1rem !important;
-        padding: 10px 5px !important;
-        text-align: center !important;
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
+        font-size: 0.98rem !important;
+        padding: 14px 16px !important;
+        line-height: 1.4 !important;
     }
 
-    /* 11. TAB OPERATIVI 3D */
+    div[data-testid="stExpander"] details summary span {
+        text-align: left !important;
+    }
+
+    div[data-testid="stExpanderDetails"] {
+        padding: 16px !important;
+        border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
+    }
+
+    div[data-testid="stForm"] {
+        background: rgba(15, 23, 42, 0.75) !important;
+        backdrop-filter: blur(12px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 16px !important;
+        padding: 20px !important;
+        margin-bottom: 20px !important;
+    }
+
+    /* 10. TAB OPERATIVI 3D */
     .stTabs [data-baseweb="tab"] {
         font-family: 'Fredoka', sans-serif !important;
         background: rgba(15, 23, 42, 0.7) !important;
@@ -210,11 +222,11 @@ st.markdown("""
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
     }
 
-    /* 12. PULSANTI 3D ED EFFETTI HOVER */
+    /* 11. PULSANTI 3D CLEAN */
     .stButton {
         display: flex !important;
         justify-content: center !important;
-        margin: 10px 0 !important;
+        margin: 12px 0 !important;
     }
 
     .stButton > button, button[kind="primary"] {
@@ -234,7 +246,7 @@ st.markdown("""
         box-shadow: 0 10px 25px rgba(2, 132, 199, 0.5) !important;
     }
 
-    /* 13. CONTROLLI INPUT, LABELS & SELECT */
+    /* 12. INPUT E SELECT CLEAN */
     .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
         font-family: 'Fredoka', sans-serif !important;
         font-weight: 600 !important;
@@ -242,10 +254,9 @@ st.markdown("""
         color: #f8fafc !important;
         border: 1px solid rgba(255, 255, 255, 0.12) !important;
         border-radius: 10px !important;
-        text-align: center !important;
     }
 
-    /* 14. TABELLE STYLING GLASS CON MARGINE INFERIORE */
+    /* 13. TABELLE STYLING GLASS */
     div[data-testid="stDataFrame"] {
         font-family: 'Fredoka', sans-serif !important;
         background: rgba(15, 23, 42, 0.6) !important;
@@ -259,7 +270,7 @@ st.markdown("""
     @media (max-width: 768px) {
         .block-container {
             padding-top: 2.5rem !important;
-            padding-bottom: 8rem !important; /* Spazio ampio per evitare sovrapposizioni in basso */
+            padding-bottom: 8rem !important;
         }
         .logo-container video {
             max-width: 95% !important;
@@ -838,11 +849,11 @@ with tab3:
 
     st.markdown("---")
     
-    # SEZIONE GESTIONE LOTTI E ANAGRAFICA SENZA SOVRAPPOSIZIONI E CON TESTI CENTRATI
+    # SEZIONE GESTIONE LOTTI E ANAGRAFICA CLEAN
     st.subheader("⚙️ Gestione Lotti e Anagrafica")
     st.write("Apri i pannelli sottostanti per inserire nuovi rifornimenti, eliminare lotti o aggiungere un nuovo prodotto:")
     
-    with st.expander("➕ **Aggiungi un Nuovo Lotto / Rifornimento**", expanded=False):
+    with st.expander("➕ Aggiungi un Nuovo Lotto / Rifornimento", expanded=False):
         if prodotti_tutti_df.empty:
             st.warning("Crea prima un prodotto in anagrafica nel pannello dedicato.")
         else:
@@ -873,7 +884,7 @@ with tab3:
                     st.success(f"✅ Lotto '{cod_lotto_m}' aggiunto con successo!")
                     st.rerun()
 
-    with st.expander("🗑️ **Rimuovi un Lotto Esistente**", expanded=False):
+    with st.expander("🗑️ Rimuovi un Lotto Esistente", expanded=False):
         if report_lotti_df.empty:
             st.info("Nessun lotto presente da rimuovere.")
         else:
@@ -893,7 +904,7 @@ with tab3:
                 st.success(f"Lotto '{lotto_info['codice_lotto']}' rimosso!")
                 st.rerun()
 
-    with st.expander("➕ **Crea Nuovo Prodotto in Anagrafica**", expanded=False):
+    with st.expander("➕ Crea Nuovo Prodotto in Anagrafica", expanded=False):
         with st.form("form_nuovo_prodotto"):
             nome_nuovo = st.text_input("Nome Prodotto", placeholder="Es. Zafferano, Spezia")
             qta_iniziale = st.number_input("Quantità Iniziale (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
@@ -987,9 +998,9 @@ with tab4:
 
         st.markdown("---")
         
-        # BLOCCO STORNO CON MARGINI CORRETTI E SPAZIATI
+        # BLOCCO STORNO CLEAN
         st.subheader("🔄 Storno Movimento")
-        with st.expander("🛠️ **Annulla una transazione specifica**", expanded=False):
+        with st.expander("🛠️ Annulla una transazione specifica", expanded=False):
             st.write("Selezionando una transazione, l'operazione verrà stornata e la quantità verrà restituita al lotto di origine.")
             
             opzioni_movimenti = {
@@ -1010,9 +1021,9 @@ with tab4:
 
     st.markdown("---")
     
-    # BLOCCO RESET FINALE SPAZIATO PER EVITARE TAGLI IN FONDO ALLA PAGINA
+    # BLOCCO RESET CLEAN
     st.subheader("⚙️ Reset Globale Database")
-    with st.expander("🚨 **Pulsante di Reset Totale Storico Transazioni**", expanded=False):
+    with st.expander("🚨 Pulsante di Reset Totale Storico Transazioni", expanded=False):
         st.warning("Attenzione: l'operazione cancellerà definitivamente tutte le transazioni registrate nello storico.")
         
         if "conferma_reset" not in st.session_state:
