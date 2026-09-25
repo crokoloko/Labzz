@@ -42,7 +42,7 @@ def get_video_base64(file_path):
     return None
 
 # ==========================================
-# INIEZIONE CSS CUSTOM
+# INIEZIONE CSS CUSTOM & EFFETTO CUORI TIKTOK
 # ==========================================
 st.markdown("""
 <style>
@@ -567,6 +567,24 @@ def spara_fuochi_d_artificio():
     """
     st.components.v1.html(js_code, height=0)
 
+# FUNZIONE EFFETTO CUORE / PUFF TIKTOK COLORATO
+def trigger_tiktok_effect(colore="#2ed573"):
+    js_code = f"""
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script>
+        confetti({{{{
+            particleCount: 25,
+            spread: 50,
+            startVelocity: 40,
+            origin: {{ y: 0.8 }},
+            colors: ['{colore}', '#ffffff', '#38bdf8'],
+            shapes: ['circle'],
+            scalar: 1.2
+        }}}});
+    </script>
+    """
+    st.components.v1.html(js_code, height=0)
+
 video_b64 = get_video_base64("logo.gif.mp4")
 
 if video_b64:
@@ -697,7 +715,7 @@ with tab1:
                                 ricavo_quota = prelievo * prezzo_unitario_calc
                                 margine_quota = ricavo_quota - costo_quota
                                 
-                                if nueva_qta_lotto == 0:
+                                if nuova_qta_lotto == 0:
                                     cursor.execute("""
                                         UPDATE lotti 
                                         SET quantita_attuale = 0, data_completamento = ? 
@@ -712,7 +730,7 @@ with tab1:
                                     VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, nome_finale_cliente, tipo_pagamento, f"Lotto {cod_lotto}", timestamp_attuale))
                         
-                        spara_fuochi_d_artificio()
+                        trigger_tiktok_effect("#2ed573" if tipo_pagamento == "Subito" else "#ff4757")
                         st.success(f"✅ Vendita a '{nome_finale_cliente}' registrata (Pagamento: {tipo_pagamento})!")
 
         elif tipo_operazione == "XME":
@@ -751,6 +769,7 @@ with tab1:
                                 VALUES (?, ?, 'XME', ?, 0, ?, ?, 'XME', 'Subito', ?, ?)
                             """, (p_id, lotto_id_scelto, qta_xme, costo_perdita, -costo_perdita, f"XME: {motivo}", timestamp_attuale))
                         
+                        trigger_tiktok_effect("#ff4757")
                         st.warning("Operazione XME registrata e sincronizzata col lotto!")
                         st.rerun()
 
@@ -1195,6 +1214,7 @@ with tab6:
                         INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                         VALUES (1, 'VENDITA', 0, 0, ?, 0, ?, 'Fabbrica', 'Subito', 'Accredito Stipendio Mensile', ?)
                     """, (stipendio_netto, stipendio_netto, ts_giorno))
+                    trigger_tiktok_effect("#38bdf8")
                     st.session_state["ultime_notizie"].append(f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato sul conto di {p_name}!")
 
                 # TREDICESIMA A DICEMBRE
@@ -1204,6 +1224,7 @@ with tab6:
                         INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                         VALUES (1, 'VENDITA', 0, 0, ?, 0, ?, 'Fabbrica', 'Subito', 'Accredito Tredicesima', ?)
                     """, (tredicesima, tredicesima, ts_giorno))
+                    trigger_tiktok_effect("#38bdf8")
                     st.session_state["ultime_notizie"].append(f"🎄 TREDICESIMA: Arrivata la tanto attesa tredicesima di € {tredicesima:,.2f} per {p_name}!")
 
                 # 1. DISASTRO MAGAZZINO (0.4%)
@@ -1213,6 +1234,7 @@ with tab6:
                     if lotti_attivi_ids:
                         for l_id_err in lotti_attivi_ids:
                             cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (data_corrente, l_id_err))
+                        trigger_tiktok_effect("#ef4444")
                         st.session_state["ultime_notizie"].append(f"⚠️ DISASTRO: Infiltrazioni d'acqua in magazzino rovinano la merce di {p_name}. Perdita secca!")
 
                 # 2. RIFORNIMENTO AUTOMATICO
@@ -1290,7 +1312,7 @@ with tab6:
                                 VALUES (?, ?, 'XME', ?, 0, ?, ?, 'XME', 'Subito', 'Consumo Personale', ?)
                             """, (p_id_xme, l_id_xme, qta_consumo, costo_perdita, -costo_perdita, ts_giorno))
 
-                # 5. VENDITE CON MARGINI SPECIFICI
+                # 5. VENDITE CON MARGINI SPECIFICI E ANIMAZIONE TIKTOK DEDICATA
                 is_weekend = data_corrente.weekday() >= 5
                 cursor.execute("SELECT nome FROM clienti")
                 clienti_disponibili = [r[0] for r in cursor.fetchall()]
@@ -1322,7 +1344,7 @@ with tab6:
                                 costo_totale = qta_vendita * costo_u
                                 margine = ricavo_totale - costo_totale
                                 nuova_qta = qta_disp - qta_vendita
-                                data_comp = data_corrente if nuova_qta == 0 else None
+                                data_comp = data_corrente if nueva_qta == 0 else None
 
                                 cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                 cliente = random.choice(clienti_disponibili)
@@ -1332,6 +1354,9 @@ with tab6:
                                     INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                                     VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Feriale Lotto {cod_lotto}", ts_giorno))
+                                
+                                # Effetto TikTok: Verde se pagato subito, Rosso se a credito
+                                trigger_tiktok_effect("#2ed573" if pagamento == "Subito" else "#ff4757")
                 else:
                     if is_primo_sabato_mese:
                         num_clienti_speciale = random.randint(2, 4)
@@ -1353,7 +1378,7 @@ with tab6:
                                     costo_totale = 50.0
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nuova_qta == 0 else None
+                                    data_comp = data_corrente if nueva_qta == 0 else None
 
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                     cliente = random.choice(clienti_disponibili)
@@ -1363,6 +1388,7 @@ with tab6:
                                         INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                                         VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                     """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Sabato Speciale Hash (€50 -> €90)", ts_giorno))
+                                    trigger_tiktok_effect("#2ed573" if pagamento == "Subito" else "#ff4757")
                     else:
                         num_clienti_weekend = random.choices([0, 1, 2, 3], weights=[40, 40, 15, 5])[0]
                         for _ in range(num_clienti_weekend):
@@ -1383,7 +1409,7 @@ with tab6:
                                     costo_totale = 20.0
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nuova_qta == 0 else None
+                                    data_comp = data_corrente if nueva_qta == 0 else None
 
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                     cliente = random.choice(clienti_disponibili)
@@ -1393,6 +1419,7 @@ with tab6:
                                         INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                                         VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                     """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Weekend Amnesia (€20 -> €40)", ts_giorno))
+                                    trigger_tiktok_effect("#2ed573" if pagamento == "Subito" else "#ff4757")
 
             st.session_state["giorni_simulati"] += 1
             
