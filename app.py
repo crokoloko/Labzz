@@ -50,21 +50,26 @@ st.markdown("""
         padding-right: 0.5rem !important;
     }
 
-    /* 4. CENTRATURA LOGO VIDEO MP4 / GIF */
+    /* 4. CENTRATURA PERFETTA LOGO VIDEO MP4 / GIF SENZA SFUMATURA */
     .logo-container {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
+        text-align: center !important;
         width: 100% !important;
         margin: 0 auto 0.5rem auto !important;
+        padding: 0 !important;
     }
 
     .logo-container video {
+        display: block !important;
+        margin: 0 auto !important;
         max-width: 380px !important;
         width: 100% !important;
         height: auto !important;
         border-radius: 16px !important;
-        filter: drop-shadow(0 0 20px rgba(56, 189, 248, 0.4));
+        filter: none !important; /* Rimossa la sfumatura attorno al logo */
+        box-shadow: none !important;
         object-fit: contain !important;
     }
 
@@ -161,7 +166,7 @@ st.markdown("""
             padding-right: 0.3rem !important;
         }
         .logo-container video {
-            max-width: 85% !important;
+            max-width: 90% !important;
         }
         div[data-testid="stTabs"] {
             margin-top: -0.8rem !important;
@@ -535,7 +540,7 @@ def elimina_lotto_db(lotto_id):
 # INTERFACCIA UTENTE (STREAMLIT)
 # ==========================================
 
-# HEADER LOGO ANIMATO MP4 CONVERTITO IN BASE64
+# HEADER LOGO ANIMATO MP4 CONVERTITO IN BASE64 E CENTRATO
 video_b64 = get_video_base64("logo.gif.mp4")
 
 if video_b64:
