@@ -328,7 +328,15 @@ def init_db():
         if 'data_completamento' not in colonne_lotti:
             cursor.execute("ALTER TABLE lotti ADD COLUMN data_completamento DATE")
 
-        # 3. Registro movimenti (Aggiunta colonna cliente)
+        # 3. Tabella Clienti (per mantenere l'anagrafica dei clienti aggiornata)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS clienti (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT UNIQUE NOT NULL
+        )
+        """)
+
+        # 4. Registro movimenti
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS movimenti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -348,20 +356,10 @@ def init_db():
         )
         """)
 
-        # Migrazione colonna cliente se db esistente
-        cursor.execute("PRAGMA table_info(movimenti)")
-        colonne_mov = [column[1] for column in cursor.fetchall()]
-        if 'cliente' not in colonne_mov:
-            cursor.execute("ALTER TABLE movimenti ADD COLUMN cliente TEXT DEFAULT 'Anonimo'")
-
-        # 4. Tabella Impostazioni (per la soglia alert permanente)
-        cursor.execute("""
-        CREATE TABLE IF NOT EXISTS impostazioni (
-            chiave TEXT PRIMARY KEY,
-            valore REAL NOT NULL
-        )
-        """)
-        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('soglia_esaurimento', 10.0)")
+        # Popola tabella clienti con i clienti esistenti nello storico se la tabella è vuota
+        cursor.execute("SELECT COUNT(*) FROM clienti")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("INSERT OR IGNORE INTO clienti (nome) SELECT DISTINCT cliente FROM movimenti WHERE cliente IS NOT NULL AND cliente != ''")
 
 init_db()
 
@@ -369,7 +367,6 @@ init_db()
 # FUNZIONI DI LETTURA E QUERY INTEGRATE
 # ==========================================
 def get_soglia_esaurimento():
-    """Recupera la soglia alert salvata nel database."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT valore FROM impostazioni WHERE chiave = 'soglia_esaurimento'")
@@ -377,7 +374,6 @@ def get_soglia_esaurimento():
         return float(row[0]) if row else 10.0
 
 def set_soglia_esaurimento(valore):
-    """Salva permanentemente la nuova soglia alert nel database."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE impostazioni SET valore = ? WHERE chiave = 'soglia_esaurimento'", (valore,))
@@ -465,6 +461,19 @@ def get_movimenti_dettagliati_df():
     with get_connection() as conn:
         return pd.read_sql_query(query, conn)
 
+def get_clienti_registrati():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT nome FROM clienti ORDER BY nome ASC")
+        return [row[0] for row in cursor.fetchall()]
+
+def aggiungi_cliente_se_nuovo(nome):
+    if nome and nome.strip() != "":
+        nome_pulito = nome.strip().capitalize()
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (nome_pulito,))
+
 def calcola_stato_magazzino(solo_disponibili=False):
     with get_connection() as conn:
         prodotti_df = pd.read_sql_query("SELECT * FROM prodotti", conn)
@@ -509,7 +518,6 @@ def calcola_stato_magazzino(solo_disponibili=False):
     return pd.DataFrame(risultati)
 
 def storna_movimento(movimento_id):
-    """Annulla una transazione e ripristina la scorta del lotto coinvolto."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM movimenti WHERE id = ?", (movimento_id,))
@@ -567,7 +575,6 @@ def spara_fuochi_d_artificio():
 # INTERFACCIA UTENTE (STREAMLIT)
 # ==========================================
 
-# HEADER LOGO ANIMATO MP4 CONVERTITO IN BASE64 E CENTRATO
 video_b64 = get_video_base64("logo.gif.mp4")
 
 if video_b64:
@@ -594,7 +601,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ------------------------------------------
-# TAB 1: CASSA (CAMPO CLIENTE ATTIVO)
+# TAB 1: CASSA (AUTOCOMPLETAMENTO DINAMICO CLIENTE)
 # ------------------------------------------
 with tab1:
     st.subheader("💸 Cassa Operativa")
@@ -631,9 +638,32 @@ with tab1:
                 with col2:
                     prezzo_unitario_calc = (totale_incassato / quantita_vendita) if quantita_vendita > 0 else 0.0
                     st.metric("Prezzo al Grammo Calcolato", f"€ {prezzo_unitario_calc:,.2f} / g")
-                    nome_cliente = st.text_input("Nome Cliente", value="Anonimo", placeholder="Es. Marco, Luca...")
+                    
+                    # LOGICA AUTOCOMPLETAMENTO DINAMICO CLIENTE
+                    clienti_esistenti = get_clienti_registrati()
+                    
+                    # Input di testo vuoto iniziale
+                    input_cliente = st.text_input("Nome Cliente", value="", placeholder="Inizia a digitare il nome...")
+                    
+                    # Filtra i suggerimenti in base a ciò che l'utente sta scrivendo
+                    suggerimenti = []
+                    if input_cliente.strip() != "":
+                        suggerimenti = [c for c in clienti_esistenti if input_cliente.strip().lower() in c.lower()]
+                    
+                    # Mostra suggerimenti se trovati
+                    cliente_selezionato_suggerito = None
+                    if suggerimenti:
+                        cliente_selezionato_suggerito = st.selectbox("Suggerimenti Cliente", ["-- Seleziona o Continua a Scrivere --"] + suggerimenti, key="select_suggerimento_cliente")
 
                 if st.button("Conferma Vendita", key="btn_conferma_v"):
+                    # Determina il nome finale del cliente
+                    if cliente_selezionato_suggerito and cliente_selezionato_suggerito != "-- Seleziona o Continua a Scrivere --":
+                        nome_finale_cliente = cliente_selezionato_suggerito
+                    elif input_cliente.strip() != "":
+                        nome_finale_cliente = input_cliente.strip().capitalize()
+                    else:
+                        nome_finale_cliente = "Anonimo"
+
                     if quantita_vendita <= 0:
                         st.error("Inserisci una quantità di grammi superiore a 0 g.")
                     elif totale_incassato <= 0:
@@ -641,7 +671,9 @@ with tab1:
                     elif quantita_vendita > qta_tot_disp:
                         st.error(f"Quantità inserita ({quantita_vendita:,.1f} g) superiore alla disponibilità ({qta_tot_disp:,.1f} g).")
                     else:
-                        cliente_pulito = nome_cliente.strip().capitalize() if nome_cliente.strip() != "" else "Anonimo"
+                        # Registra automaticamente il nuovo cliente se non esiste
+                        aggiungi_cliente_se_nuovo(nome_finale_cliente)
+
                         with get_connection() as conn:
                             cursor = conn.cursor()
                             qta_da_scaricare = float(quantita_vendita)
@@ -675,10 +707,10 @@ with tab1:
                                 cursor.execute("""
                                     INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, note)
                                     VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?)
-                                """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, cliente_pulito, f"Lotto {cod_lotto}"))
+                                """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, nome_finale_cliente, f"Lotto {cod_lotto}"))
                         
                         spara_fuochi_d_artificio()
-                        st.success(f"✅ Vendita a '{cliente_pulito}' registrata e coordinata con i lotti e report!")
+                        st.success(f"✅ Vendita a '{nome_finale_cliente}' registrata e coordinata con i lotti e report!")
 
         elif tipo_operazione == "XME":
             lotti_df = get_lotti_attivi_df()
@@ -956,7 +988,7 @@ with tab3:
                         st.error("Un prodotto con questo nome esiste già.")
 
 # ------------------------------------------
-# TAB 4: REPORT & STORICO (INCLUSO CLIENTE)
+# TAB 4: REPORT & STORICO
 # ------------------------------------------
 with tab4:
     st.subheader("📜 Registro Storico Transazioni")
