@@ -86,14 +86,18 @@ st.markdown("""
         text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5) !important;
     }
 
-    /* 7. CARD METRICHE COMPATTE A FORMA DI QUADRATINO (GLASSMORPHISM 3D) */
+    /* 7. STRUTTURA QUADRATINI METRICHE (DIMENSIONI RIDOTTE COMPATTE) */
+    div[data-testid="metric-container"] {
+        width: 100% !important;
+    }
+
     div[data-testid="stMetric"] {
         background: rgba(30, 41, 59, 0.55) !important;
         backdrop-filter: blur(16px) !important;
         -webkit-backdrop-filter: blur(16px) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 16px !important;
-        padding: 10px 8px !important;
+        border-radius: 14px !important;
+        padding: 6px 4px !important;
         box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.5), 
                     inset 0 1px 1px 0 rgba(255, 255, 255, 0.1) !important;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
@@ -105,53 +109,36 @@ st.markdown("""
         justify-content: center !important;
         align-items: center !important;
         text-align: center !important;
-        margin: 0 auto 10px auto !important;
-        max-width: 150px !important;
+        margin: 0 auto 8px auto !important;
+        max-width: 110px !important; /* Dimensione ridotta per permettere l'affiancamento 2x2 su mobile */
         width: 100% !important;
     }
 
     div[data-testid="stMetric"]:hover {
-        transform: translateY(-4px) !important;
+        transform: translateY(-3px) !important;
         border-color: rgba(56, 189, 248, 0.5) !important;
-        box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.7), 
-                    0 0 15px rgba(56, 189, 248, 0.25) !important;
+        box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.7), 
+                    0 0 12px rgba(56, 189, 248, 0.25) !important;
     }
 
     div[data-testid="stMetricValue"] {
         font-family: 'Fredoka', sans-serif !important;
-        font-size: 1.2rem !important;
+        font-size: 0.95rem !important; /* Font proporzionato al riquadro ridotto */
         font-weight: 700 !important;
         color: #38bdf8 !important;
-        text-shadow: 0 2px 8px rgba(56, 189, 248, 0.3);
+        text-shadow: 0 2px 6px rgba(56, 189, 248, 0.3);
         word-break: break-word !important;
-        margin-top: 4px !important;
+        margin-top: 2px !important;
     }
 
     div[data-testid="stMetricLabel"] {
         font-family: 'Fredoka', sans-serif !important;
         color: #94a3b8 !important;
-        font-size: 0.72rem !important;
+        font-size: 0.62rem !important; /* Etichetta compatta */
         font-weight: 600 !important;
         text-transform: uppercase;
-        letter-spacing: 0.3px;
-        line-height: 1.1 !important;
-    }
-
-    /* FORZATURA GRIGLIA 2 PER RIGA ANCHE SU MOBILE */
-    div[data-testid="column"] {
-        width: 50% !important;
-        flex: 1 1 50% !important;
-        min-width: 45% !important;
-        padding-left: 4px !important;
-        padding-right: 4px !important;
-    }
-
-    div[data-testid="stHorizontalBlock"] {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        justify-content: space-between !important;
-        gap: 8px !important;
+        letter-spacing: 0.2px;
+        line-height: 1.0 !important;
     }
 
     /* Regolazione specifica per Mobile */
@@ -168,14 +155,14 @@ st.markdown("""
             margin-top: -0.8rem !important;
         }
         div[data-testid="stMetric"] {
-            max-width: 140px !important;
-            padding: 6px 4px !important;
+            max-width: 95px !important; /* Ulteriore riduzione per schermi stretti */
+            padding: 4px 2px !important;
         }
         div[data-testid="stMetricValue"] {
-            font-size: 1.05rem !important;
+            font-size: 0.85rem !important;
         }
         div[data-testid="stMetricLabel"] {
-            font-size: 0.65rem !important;
+            font-size: 0.58rem !important;
         }
     }
 
@@ -686,14 +673,14 @@ with tab2:
         incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
         margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
 
-        # RIGA 1 (2 COLONNE AFFIANCATE)
+        # RIGA 1: Valore (Costo) & Valore (Vendita)
         riga1_col1, riga1_col2 = st.columns(2)
         with riga1_col1:
             st.metric("Valore (Costo)", f"€ {val_costo:,.2f}")
         with riga1_col2:
             st.metric("Valore (Vendita)", f"€ {val_mercato:,.2f}")
 
-        # RIGA 2 (2 COLONNE AFFIANCATE)
+        # RIGA 2: Incasso Totale & Margine Netto
         riga2_col1, riga2_col2 = st.columns(2)
         with riga2_col1:
             st.metric("Incasso Totale", f"€ {incasso_tot:,.2f}")
@@ -918,7 +905,7 @@ with tab3:
                             st.success(f"Prodotto '{nome_nuovo}' salvato con successo!")
                             st.rerun()
                         except sqlite3.IntegrityError:
-                            st.error("Un prodotto con questo nome esiste già.")
+                            st.error("Un prodotto con questo nome existe già.")
 
 # ------------------------------------------
 # TAB 4: REPORT & STORICO
