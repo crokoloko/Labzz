@@ -781,14 +781,26 @@ with tab1:
                         st.rerun()
 
 with tab2:
-    st.subheader("📊 Dashboard & Analytics (Quadro Completo)")
+    st.subheader("📊 Dashboard & Analytics (Business vs Stipendio)")
     df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
     movimenti_df = get_movimenti_dettagliati_df()
 
     if df_stato_disp.empty and movimenti_df.empty:
         st.info("Nessun dato di magazzino o movimento disponibile.")
     else:
-        # Calcoli finanziari e di magazzino estesi
+        # Estrazione e calcolo stipendi totali registrati nelle note o nelle notizie del bot
+        stipendi_totali_accumulati = 0.0
+        if "ultime_notizie" in st.session_state:
+            for notizia in st.session_state["ultime_notizie"]:
+                if "STIPENDIO DI FABBRICA" in notizia or "TREDICESIMA" in notizia:
+                    try:
+                        # Estrae l'importo in euro dalla stringa della notizia
+                        parte_euro = notizia.split("€ ")[1].split(" ")[0].replace(".", "").replace(",", ".")
+                        stipendi_totali_accumulati += float(parte_euro)
+                    except:
+                        pass
+
+        # Calcoli finanziari puri di Business
         val_costo = df_stato_disp['valore_totale_costo'].sum() if not df_stato_disp.empty else 0
         val_mercato = df_stato_disp['valore_totale_mercato'].sum() if not df_stato_disp.empty else 0
         totale_grammi_disp = df_stato_disp['qta_disponibile'].sum() if not df_stato_disp.empty else 0
@@ -797,43 +809,50 @@ with tab2:
         costi_lotti_tot = movimenti_df[movimenti_df['tipo'] == 'CARICO']['costo_totale'].sum() if not movimenti_df.empty else 0
         costi_xme_tot = movimenti_df[movimenti_df['tipo'] == 'XME']['costo_totale'].sum() if not movimenti_df.empty else 0
         
-        cassa_reale = 500.0 + incasso_tot - costi_lotti_tot - costi_xme_tot
+        # Cassa netta del Business (esclude lo stipendio)
+        cassa_business = 500.0 + incasso_tot - costi_lotti_tot - costi_xme_tot
         margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
-        
-        # Calcolo crediti aperti
         crediti_aperti = movimenti_df[(movimenti_df['tipo'] == 'VENDITA') & (movimenti_df['pagamento'] == 'Dopo (Credito)')]['ricavo_totale'].sum() if not movimenti_df.empty else 0
 
-        # Griglia KPI ampliata a 6 box (3x2) per tenere sotto occhio tutto
+        # Cassa Personale Totale (Stipendi + Cassa Business)
+        cassa_personale_totale = cassa_business + stipendi_totali_accumulati
+
+        st.markdown("##### 💼 Flussi di Business (Magazzino & Vendite)")
         st.markdown(f"""
         <div class="dashboard-grid">
             <div class="custom-card">
-                <div class="card-label">Cassa Reale (€)</div>
-                <div class="card-value">€ {cassa_reale:,.2f}</div>
+                <div class="card-label">Cassa Business Netta</div>
+                <div class="card-value">€ {cassa_business:,.2f}</div>
             </div>
             <div class="custom-card">
-                <div class="card-label">Valore Magazzino (Costo)</div>
-                <div class="card-value">€ {val_costo:,.2f}</div>
-            </div>
-            <div class="custom-card">
-                <div class="card-label">Valore di Mercato Atteso</div>
-                <div class="card-value">€ {val_mercato:,.2f}</div>
-            </div>
-            <div class="custom-card">
-                <div class="card-label">Incasso Totale</div>
+                <div class="card-label">Incasso Totale Business</div>
                 <div class="card-value">€ {incasso_tot:,.2f}</div>
             </div>
             <div class="custom-card">
                 <div class="card-label">Margine Netto Reale</div>
                 <div class="card-value">€ {margine_tot:,.2f}</div>
             </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("##### 💶 Entrate Personali & Stipendio (Fabbrica)")
+        st.markdown(f"""
+        <div class="dashboard-grid">
             <div class="custom-card">
-                <div class="card-label">Crediti da Riscuotere</div>
+                <div class="card-label">Stipendi Totali Accreditati</div>
+                <div class="card-value" style="color: #38bdf8;">€ {stipendi_totali_accumulati:,.2f}</div>
+            </div>
+            <div class="custom-card">
+                <div class="card-label">Crediti Aperti da Riscuotere</div>
                 <div class="card-value" style="color: #ef4444;">€ {crediti_aperti:,.2f}</div>
+            </div>
+            <div class="custom-card">
+                <div class="card-label">Patrimonio Totale (Stipendi + Business)</div>
+                <div class="card-value" style="color: #2ed573;">€ {cassa_personale_totale:,.2f}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        # Sezione sintesi rapida delle giacenze per prodotto
         col_s1, col_s2 = st.columns(2)
         with col_s1:
             st.markdown("##### 📦 Giacenze Attuali per Prodotto")
@@ -843,13 +862,13 @@ with tab2:
                 st.info("Nessuna giacenza attiva.")
                 
         with col_s2:
-            st.markdown("##### 🔍 Panoramica Spese & Consumi XME")
+            st.markdown("##### 🔍 Panoramica Costi & Consumi")
             st.metric("Totale Speso in Rifornimenti (Lotti)", f"€ {costi_lotti_tot:,.2f}")
-            st.metric("Totale Valore Sprecato/Uso Personale (XME)", f"€ {costi_xme_tot:,.2f}")
+            st.metric("Totale Valore Uso Personale (XME)", f"€ {costi_xme_tot:,.2f}")
             st.metric("Giacenza Totale in Grammi", f"{totale_grammi_disp:,.1f} g")
 
         st.markdown("---")
-        st.subheader("📈 Storico Progressivo Operazioni")
+        st.subheader("📈 Storico Progressivo Operazioni (Business)")
         if not movimenti_df.empty:
             mov_df = movimenti_df.copy()
             mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
