@@ -976,201 +976,156 @@ with tab5:
 
 with tab6:
     st.subheader("🤖 Bot Live: Simulazione Anno in 3 Minuti (Day-by-Day)")
-    st.markdown("Avvia la simulazione interattiva giorno per giorno: i dati, le metriche e i grafici generali si aggiorneranno in tempo reale mentre il bot lavora per la durata esatta di **3 minuti**.")
+    st.markdown("Avvia la simulazione interattiva giorno per giorno. Se ti sposti sulle schede **Dashboard** o **Cassa** mentre il bot gira, vedrai i conti e i grafici aggiornarsi in tempo reale.")
+
+    # Gestione dello stato di simulazione in corso
+    if "simulazione_attiva" not in st.session_state:
+        st.session_state["simulazione_attiva"] = False
+    if "giorni_simulati" not in st.session_state:
+        st.session_state["giorni_simulati"] = 0
 
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
-        avvia_live = st.button("🚀 Avvia Simulazione Live (3 Minuti)", use_container_width=True)
+        if not st.session_state["simulazione_attiva"]:
+            if st.button("🚀 Avvia Simulazione Live (3 Minuti)", use_container_width=True):
+                # Inizializza i dati se è la prima partenza
+                reset_database_totale()
+                with get_connection() as conn:
+                    cursor = conn.cursor()
+                    prodotti_nomi = ["Super Skunk", "Amnesia Haze", "OG Kush", "Lemon Haze", "Gelato #33"]
+                    for p_nome in prodotti_nomi:
+                        cursor.execute("INSERT OR IGNORE INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) VALUES (?, 'g', 50.0, 50.0)", (p_nome,))
+                        cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (p_nome,))
+                        p_id = cursor.fetchone()[0]
+                        
+                        data_inizio = date.today() - timedelta(days=365)
+                        qta_lotto = 500.0
+                        costo_u = random.choice([2.0, 2.5, 3.0])
+                        codice_l = genera_codice_lotto_automatico(data_inizio)
+                        cursor.execute("""
+                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (p_id, codice_l, qta_lotto, qta_lotto, costo_u, data_inizio, data_inizio))
+                        l_id = cursor.lastrowid
+                        ts_c = datetime.combine(data_inizio, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+                        cursor.execute("""
+                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
+                            VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Carico Iniziale Live', ?)
+                        """, (p_id, l_id, qta_lotto, costo_u, qta_lotto * costo_u, ts_c))
+                    
+                    clienti_fittizi = ["Mario Rossi", "Luca Bianchi", "Giulia Verdi", "Sara Neri", "Marco Gialli"]
+                    for c in clienti_fittizi:
+                        cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (c,))
+
+                st.session_state["simulazione_attiva"] = True
+                st.session_state["giorni_simulati"] = 0
+                st.rerun()
+        else:
+            if st.button("⏹️ Ferma Simulazione", use_container_width=True):
+                st.session_state["simulazione_attiva"] = False
+                st.rerun()
+
     with col_btn2:
-        reset_db_btn = st.button("🗑️ Reset Totale Dati Originali", use_container_width=True)
+        if st.button("🗑️ Reset Totale Dati Originali", use_container_width=True):
+            reset_database_totale()
+            st.session_state["simulazione_attiva"] = False
+            st.session_state["giorni_simulati"] = 0
+            st.success("✅ Database azzerato con successo!")
+            st.rerun()
 
-    if reset_db_btn:
-        reset_database_totale()
-        st.success("✅ Database azzerato con successo! Tutti i prodotti, lotti, vendite, clienti e statistiche sono stati eliminati.")
-        st.rerun()
-
-    if avvia_live:
-        progress_bar = st.progress(0, text="Inizializzazione simulazione live...")
-        status_text = st.empty()
+    # Loop di esecuzione giornaliera basato su session_state e st.rerun()
+    if st.session_state["simulazione_attiva"]:
+        giorni_totali = 365
+        giorno_corrente_idx = st.session_state["giorni_simulati"]
         
-        st.markdown("### 📊 Monitoraggio Statistiche in Diretta")
-        live_metrics_placeholder = st.empty()
-        live_chart_placeholder = st.empty()
+        if giorno_corrente_idx < giorni_totali:
+            data_corrente = (date.today() - timedelta(days=365)) + timedelta(days=giorno_corrente_idx)
+            ts_giorno = datetime.combine(data_corrente, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
 
-        with get_connection() as conn:
-            cursor = conn.cursor()
-            
-            prodotti_nomi = ["Super Skunk", "Amnesia Haze", "OG Kush", "Lemon Haze", "Gelato #33"]
-            prodotti_ids = []
-            for p_nome in prodotti_nomi:
-                cursor.execute("INSERT OR IGNORE INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) VALUES (?, 'g', 50.0, 50.0)", (p_nome,))
-                cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (p_nome,))
-                prodotti_ids.append(cursor.fetchone()[0])
-
-            clienti_fittizi = ["Mario Rossi", "Luca Bianchi", "Giulia Verdi", "Sara Neri", "Marco Gialli", "Anonimo"]
-            for c in clienti_fittizi:
-                if c != "Anonimo":
-                    cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (c,))
-
-            data_inizio = date.today() - timedelta(days=365)
-            
-            for p_id in prodotti_ids:
-                qta_lotto = 500.0
-                costo_u = random.choice([2.0, 2.5, 3.0])
-                codice_l = genera_codice_lotto_automatico(data_inizio)
-                cursor.execute("""
-                    INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (p_id, codice_l, qta_lotto, qta_lotto, costo_u, data_inizio, data_inizio))
-                l_id = cursor.lastrowid
-                ts_c = datetime.combine(data_inizio, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
-                cursor.execute("""
-                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
-                    VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Carico Iniziale Live', ?)
-                """, (p_id, l_id, qta_lotto, costo_u, qta_lotto * costo_u, ts_c))
-
-        tot_giorni = 365
-        intervallo_tempo = 180 / tot_giorni  # Circa 0.49 secondi per giorno per coprire esattamente 3 minuti
-
-        current_day = data_inizio
-        giorni_passati = 0
-
-        while current_day <= date.today():
-            ts_giorno = datetime.combine(current_day, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
-            status_text.markdown(f"### ⏳ Data Simulazione: **{current_day.strftime('%d %B %Y')}**")
+            st.info(f"⏳ Simulazione in corso... Giorno {giorno_corrente_idx + 1} di {giorni_totali} ({data_corrente.strftime('%d %B %Y')})")
 
             with get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # Rifornimento intelligente se scorte basse
+                cursor.execute("SELECT id FROM prodotti")
+                prodotti_ids = [r[0] for r in cursor.fetchall()]
+                clienti_fittizi = ["Mario Rossi", "Luca Bianchi", "Giulia Verdi", "Sara Neri", "Marco Gialli", "Anonimo"]
+
+                # Rifornimento intelligente
                 cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
                 giacenza_totale = cursor.fetchone()[0] or 0.0
                 if giacenza_totale < 300.0 or random.random() < 0.08:
-                    p_id_rif = random.choice(prodotti_ids)
-                    qta_lotto = 500.0
-                    costo_u = random.choice([2.0, 2.5, 3.0])
-                    codice_l = genera_codice_lotto_automatico(current_day)
-                    cursor.execute("""
-                        INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, (p_id_rif, codice_l, qta_lotto, qta_lotto, costo_u, current_day, current_day))
-                    l_id_rif = cursor.lastrowid
-                    cursor.execute("""
-                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
-                        VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Rifornimento Live', ?)
-                    """, (p_id_rif, l_id_rif, qta_lotto, costo_u, qta_lotto * costo_u, ts_giorno))
-
-                # Vendite giornaliere realistiche
-                for _ in range(random.randint(0, 3)):
-                    p_id = random.choice(prodotti_ids)
-                    cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC LIMIT 1", (p_id,))
-                    lotto_attivo = cursor.fetchone()
-
-                    if lotto_attivo:
-                        l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
-
-                        rand_tier = random.random()
-                        if rand_tier < 0.60:
-                            prezzo_unitario = 10.0
-                            qta_vendita = random.choice([5.0, 10.0, 20.0])
-                        elif rand_tier < 0.85:
-                            prezzo_unitario = 50.0
-                            qta_vendita = random.choice([1.0, 2.0, 3.0])
-                        else:
-                            prezzo_unitario = 90.0
-                            qta_vendita = random.choice([0.5, 1.0])
-
-                        qta_vendita = min(qta_disp, qta_vendita)
-                        if qta_vendita <= 0:
-                            continue
-
-                        ricavo_totale = qta_vendita * prezzo_unitario
-                        costo_totale = qta_vendita * costo_u
-                        margine = ricavo_totale - costo_totale
-                        nuova_qta = qta_disp - qta_vendita
-                        data_comp = current_day if nuova_qta == 0 else None
-
-                        cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
-                        cliente = random.choice(clienti_fittizi)
-                        pagamento = "Subito" if random.random() < 0.70 else "Dopo (Credito)"
-
+                    if prodotti_ids:
+                        p_id_rif = random.choice(prodotti_ids)
+                        qta_lotto = 500.0
+                        costo_u = random.choice([2.0, 2.5, 3.0])
+                        codice_l = genera_codice_lotto_automatico(data_corrente)
                         cursor.execute("""
-                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
-                            VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Live Lotto {cod_lotto}", ts_giorno))
+                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (p_id_rif, codice_l, qta_lotto, qta_lotto, costo_u, data_corrente, data_corrente))
+                        l_id_rif = cursor.lastrowid
+                        cursor.execute("""
+                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
+                            VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Rifornimento Live', ?)
+                        """, (p_id_rif, l_id_rif, qta_lotto, costo_u, qta_lotto * costo_u, ts_giorno))
 
-            # AGGIORNAMENTO LIVE IN TEMPO REALE OGNI GIORNO
-            df_s = calcola_stato_magazzino(solo_disponibili=True)
-            mov_s = get_movimenti_dettagliati_df()
+                # Vendite giornaliere
+                for _ in range(random.randint(0, 3)):
+                    if prodotti_ids:
+                        p_id = random.choice(prodotti_ids)
+                        cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC LIMIT 1", (p_id,))
+                        lotto_attivo = cursor.fetchone()
+
+                        if lotto_attivo:
+                            l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
+
+                            rand_tier = random.random()
+                            if rand_tier < 0.60:
+                                prezzo_unitario = 10.0
+                                qta_vendita = random.choice([5.0, 10.0, 20.0])
+                            elif rand_tier < 0.85:
+                                prezzo_unitario = 50.0
+                                qta_vendita = random.choice([1.0, 2.0, 3.0])
+                            else:
+                                prezzo_unitario = 90.0
+                                qta_vendita = random.choice([0.5, 1.0])
+
+                            qta_vendita = min(qta_disp, qta_vendita)
+                            if qta_vendita > 0:
+                                ricavo_totale = qta_vendita * prezzo_unitario
+                                costo_totale = qta_vendita * costo_u
+                                margine = ricavo_totale - costo_totale
+                                nuova_qta = qta_disp - qta_vendita
+                                data_comp = data_corrente if nuova_qta == 0 else None
+
+                                cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
+                                cliente = random.choice(clienti_fittizi)
+                                pagamento = "Subito" if random.random() < 0.70 else "Dopo (Credito)"
+
+                                cursor.execute("""
+                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
+                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Live Lotto {cod_lotto}", ts_giorno))
+
+            st.session_state["giorni_simulati"] += 1
             
-            val_costo = df_s['valore_totale_costo'].sum() if not df_s.empty else 0
-            val_mercato = df_s['valore_totale_mercato'].sum() if not df_s.empty else 0
-            incasso_tot = mov_s[mov_s['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not mov_s.empty else 0
-            margine_tot = mov_s[mov_s['tipo'] == 'VENDITA']['margine'].sum() if not mov_s.empty else 0
-
-            with live_metrics_placeholder.container():
-                st.markdown(f"""
-                <div class="dashboard-grid">
-                    <div class="custom-card">
-                        <div class="card-label">Valore Magazzino (Costo)</div>
-                        <div class="card-value">€ {val_costo:,.2f}</div>
-                    </div>
-                    <div class="custom-card">
-                        <div class="card-label">Valore di Mercato</div>
-                        <div class="card-value">€ {val_mercato:,.2f}</div>
-                    </div>
-                    <div class="custom-card">
-                        <div class="card-label">Incasso Totale</div>
-                        <div class="card-value">€ {incasso_tot:,.2f}</div>
-                    </div>
-                    <div class="custom-card">
-                        <div class="card-label">Margine Netto</div>
-                        <div class="card-value">€ {margine_tot:,.2f}</div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-            if not mov_s.empty:
-                mov_df = mov_s.copy()
-                mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
-                mov_df = mov_df.sort_values('Data_Ora')
-                
-                mov_df['Spesi Totali'] = mov_df.apply(lambda r: r['costo_totale'] if r['tipo'] == 'CARICO' else 0, axis=1).cumsum()
-                mov_df['Incasso Totale'] = mov_df['ricavo_totale'].cumsum()
-                mov_df['Margine Netto'] = mov_df['margine'].cumsum()
-                
-                chart_df = mov_df.melt(
-                    id_vars=['Data_Ora', 'prodotto', 'tipo'],
-                    value_vars=['Spesi Totali', 'Incasso Totale', 'Margine Netto'],
-                    var_name='Metrica',
-                    value_name='Valore (€)'
-                )
-
-                chart = alt.Chart(chart_df).mark_line(point=False, strokeWidth=2.5).encode(
-                    x=alt.X('Data_Ora:T', title='Data e Ora Transazione'),
-                    y=alt.Y('Valore (€):Q', title='Importo (€)'),
-                    color=alt.Color('Metrica:N', scale=alt.Scale(domain=['Spesi Totali', 'Incasso Totale', 'Margine Netto'], range=['#ff4757', '#2ed573', '#38bdf8']), legend=alt.Legend(title="Legenda")),
-                    tooltip=['Data_Ora:T', 'prodotto:N', 'tipo:N', 'Metrica:N', 'Valore (€):Q']
-                ).properties(height=380).configure_view(strokeWidth=0).configure_axis(gridColor='rgba(255,255,255,0.05)', labelColor='#94a3b8', titleColor='#f8fafc').interactive()
-
-                with live_chart_placeholder.container():
-                    st.altair_chart(chart, use_container_width=True)
-
-            giorni_passati += 1
-            progress_bar.progress(min(giorni_passati / tot_giorni, 1.0), text=f"Progresso anno: {giorni_passati} / {tot_giorni} giorni simulati.")
-            
-            current_day += timedelta(days=1)
-            time.sleep(intervallo_tempo)
-
-        spara_fuochi_d_artificio()
-        status_text.success("🎉 Simulazione Live completata giorno per giorno! Ora puoi esplorare liberamente le schede Dashboard, Cassa e Statistiche.")
+            # Pausa calibrata per coprire 3 minuti totali in 365 giorni (circa 0.49 secondi per giorno)
+            time.sleep(180 / giorni_totali)
+            st.rerun()
+        else:
+            st.session_state["simulazione_attiva"] = False
+            spara_fuochi_d_artificio()
+            st.success("🎉 Simulazione completata con successo! Guarda tutte le schede Dashboard e Statistiche.")
 
     # Sezione di Reset in fondo alla pagina
     st.markdown("---")
     st.markdown("### 🛠️ Gestione Dati e Ripristino")
-    st.write("Usa il pulsante sottostante per cancellare completamente qualsiasi dato (clienti, lotti, vendite, rifornimenti, statistiche e magazzino) e azzerare l'applicazione.")
+    st.write("Usa il pulsante sottostante per cancellare completamente qualsiasi dato e azzerare l'applicazione.")
     
     if st.button("🗑️ ESEGUI RESET GENERALE DI TUTTI I DATI", use_container_width=True):
         reset_database_totale()
-        st.success("✅ Reset generale completato con successo! L'applicazione è ora completamente pulita.")
+        st.session_state["simulazione_attiva"] = False
+        st.session_state["giorni_simulati"] = 0
+        st.success("✅ Reset generale completato con successo!")
         st.rerun()
