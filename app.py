@@ -832,10 +832,10 @@ with tab3:
             nome_nuovo = st.text_input("Nome Prodotto", placeholder="Es. Nome Nuova Varietà / Prodotto")
             data_acq_m = st.date_input("Data di Acquisto Lotto", value=date.today())
             cod_lotto_m = st.text_input("Codice Lotto", value=genera_codice_lotto_automatico(data_acq_m))
-            qta_lotto_m = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
-            costo_u_lotto_m = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
-            prezzo_v_init = st.number_input("Prezzo di Vendita Standard (€/g)", min_value=0.1, value=2.0, step=0.5, format="%.2f")
-            scorta_min_init = st.number_input("Scorta Minima Alert (g)", min_value=0.0, value=50.0, step=10.0, format="%.1f")
+            qta_lotto_m = st.number_input("Quantità Lotto (g)", min_value=0.5, value=80.0, step=0.5, format="%.1f")
+            costo_u_lotto_m = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=3.75, step=0.25, format="%.2f")
+            prezzo_v_init = st.number_input("Prezzo di Vendita Standard (€/g)", min_value=0.1, value=10.0, step=0.5, format="%.2f")
+            scorta_min_init = st.number_input("Scorta Minima Alert (g)", min_value=0.0, value=10.0, step=5.0, format="%.1f")
 
             if st.form_submit_button("Crea Prodotto e Registra Lotto"):
                 if nome_nuovo.strip() == "":
@@ -862,8 +862,8 @@ with tab3:
                 p_nome_lotto = st.selectbox("Seleziona Prodotto Esistente", prodotti_esistenti_df['nome'].tolist())
                 data_acq_add = st.date_input("Data di Acquisto", value=date.today(), key="date_acq_add")
                 cod_lotto_add = st.text_input("Codice Lotto", value=genera_codice_lotto_automatico(data_acq_add), key="input_cod_lotto_add")
-                qta_lotto_add = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
-                costo_u_lotto_add = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
+                qta_lotto_add = st.number_input("Quantità Lotto (g)", min_value=0.5, value=80.0, step=0.5, format="%.1f")
+                costo_u_lotto_add = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=3.75, step=0.25, format="%.2f")
                 
                 if st.form_submit_button("➕ Aggiungi Nuovo Lotto"):
                     p_row_m = prodotti_esistenti_df[prodotti_esistenti_df['nome'] == p_nome_lotto].iloc[0]
@@ -976,7 +976,7 @@ with tab5:
 
 with tab6:
     st.subheader("🤖 Bot Live: Simulazione Reale con Budget 500 €")
-    st.markdown("Il bot gestisce il budget, i rifornimenti, i giorni morti, i consumi personali, l'acquisizione rara di nuovi contatti e il sabato speciale del mese con picco di vendite d'élite.")
+    st.markdown("Il bot gestisce il capitale, i rifornimenti (€300 per 80g), disastri di magazzino rari (perdita totale merce per disordine), consumi personali, nuovi contatti e la possibilità di fare debiti (+27% di costo) se è senza soldi.")
 
     if "simulazione_attiva" not in st.session_state:
         st.session_state["simulazione_attiva"] = False
@@ -993,31 +993,33 @@ with tab6:
                     
                     prodotti_nomi = ["Super Skunk", "Amnesia Haze", "OG Kush", "Lemon Haze", "Gelato #33"]
                     for p_nome in prodotti_nomi:
-                        cursor.execute("INSERT OR IGNORE INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) VALUES (?, 'g', 15.0, 20.0)", (p_nome,))
+                        cursor.execute("INSERT OR IGNORE INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) VALUES (?, 'g', 15.0, 10.0)", (p_nome,))
                     
                     clienti_fittizi = ["Mario Rossi", "Luca Bianchi", "Giulia Verdi", "Sara Neri", "Marco Gialli"]
                     for c in clienti_fittizi:
                         cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (c,))
 
+                    # CARICO INIZIALE CON IL BUDGET DI € 500 (80g a €300)
                     data_inizio = date.today() - timedelta(days=365)
                     cursor.execute("SELECT id FROM prodotti LIMIT 1")
                     p_id_init = cursor.fetchone()[0]
                     
-                    qta_lotto_init = 100.0
-                    costo_u_init = 1.00
+                    qta_init = 80.0
+                    costo_tot_init = 300.0
+                    costo_u_init = costo_tot_init / qta_init
                     codice_l_init = genera_codice_lotto_automatico(data_inizio)
                     
                     cursor.execute("""
                         INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) 
                         VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """, (p_id_init, codice_l_init, qta_lotto_init, qta_lotto_init, costo_u_init, data_inizio, data_inizio))
+                    """, (p_id_init, codice_l_init, qta_init, qta_init, costo_u_init, data_inizio, data_inizio))
                     l_id_init = cursor.lastrowid
                     
                     ts_c = datetime.combine(data_inizio, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
                     cursor.execute("""
                         INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
-                        VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Capitale Iniziale / Primo Lotto', ?)
-                    """, (p_id_init, l_id_init, qta_lotto_init, costo_u_init, qta_lotto_init * costo_u_init, ts_c))
+                        VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Lotto Iniziale €300 per 80g', ?)
+                    """, (p_id_init, l_id_init, qta_init, costo_u_init, costo_tot_init, ts_c))
 
                 st.session_state["simulazione_attiva"] = True
                 st.session_state["giorni_simulati"] = 0
@@ -1032,10 +1034,10 @@ with tab6:
             reset_database_totale()
             st.session_state["simulazione_attiva"] = False
             st.session_state["giorni_simulati"] = 0
-            st.success("✅ Database azzerato con successo!")
+            st.success("✅ Reset generale completato con successo!")
             st.rerun()
 
-    # Loop di esecuzione giornaliera con logica avanzata (nuovi contatti, sabato speciale, ecc.)
+    # Loop di esecuzione giornaliera con logica avanzata (disastri magazzino e debiti +27%)
     if st.session_state["simulazione_attiva"]:
         giorni_totali = 365
         giorno_corrente_idx = st.session_state["giorni_simulati"]
@@ -1061,45 +1063,67 @@ with tab6:
 
                 cassa_attuale = 500.0 + incassi - costi_lotti - costi_xme_tot
 
-                # 1. RIFORNIMENTO AUTOMATICO
+                # 1. DISASTRO / ROVINA MERCE (Evento raro, es. 0.5% al giorno): Butta via tutta la merce per disordine/trattamento errato
+                if random.random() < 0.005:
+                    cursor.execute("SELECT id FROM lotti WHERE quantita_attuale > 0")
+                    lotti_attivi_ids = [r[0] for r in cursor.fetchall()]
+                    if lotti_attivi_ids:
+                        for l_id_err in lotti_attivi_ids:
+                            cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (data_corrente, l_id_err))
+                        cursor.execute("SELECT id FROM prodotti LIMIT 1")
+                        p_err = cursor.fetchone()
+                        if p_err:
+                            cursor.execute("""
+                                INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note, data)
+                                VALUES (?, 'XME', 0, 0, 0, 0, 'Disastro', 'Subito', 'Merce rovinata buttata via per disordine', ?)
+                            """, (p_err[0], ts_giorno))
+
+                # 2. RIFORNIMENTO AUTOMATICO (Anche a debito con maggiorazione +27% se senza soldi)
                 cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
                 giacenza_totale = cursor.fetchone()[0] or 0.0
 
-                if giacenza_totale < 20.0 and cassa_attuale >= 80.0:
+                if giacenza_totale < 15.0:
                     cursor.execute("SELECT id FROM prodotti")
                     prod_disponibili = [r[0] for r in cursor.fetchall()]
                     if prod_disponibili:
                         p_id_rif = random.choice(prod_disponibili)
-                        qta_lotto = 100.0
-                        costo_u = 0.80
-                        spesa_lotto = qta_lotto * costo_u
+                        qta_lotto = 80.0
                         
-                        if cassa_attuale >= spesa_lotto:
-                            codice_l = genera_codice_lotto_automatico(data_corrente)
-                            cursor.execute("""
-                                INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) 
-                                VALUES (?, ?, ?, ?, ?, ?, ?)
-                            """, (p_id_rif, codice_l, qta_lotto, qta_lotto, costo_u, data_corrente, data_corrente))
-                            l_id_rif = cursor.lastrowid
-                            
-                            cursor.execute("""
-                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
-                                VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Rifornimento Automatico', ?)
-                            """, (p_id_rif, l_id_rif, qta_lotto, costo_u, spesa_lotto, ts_giorno))
+                        if cassa_attuale >= 300.0:
+                            spesa_lotto = 300.0
+                            nota_rifornimento = "Rifornimento standard €300"
+                        else:
+                            # Debito con ricarico del +27% (€300 + 27% = €381)
+                            spesa_lotto = 300.0 * 1.27
+                            nota_rifornimento = "Rifornimento a DEBITO (+27% maggiorazione)"
 
-                # 2. ACQUISIZIONE RARA DI PERSONE NUOVE (1.5% di probabilità al giorno)
+                        costo_u = spesa_lotto / qta_lotto
+                        codice_l = genera_codice_lotto_automatico(data_corrente)
+                        
+                        cursor.execute("""
+                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) 
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (p_id_rif, codice_l, qta_lotto, qta_lotto, costo_u, data_corrente, data_corrente))
+                        l_id_rif = cursor.lastrowid
+                        
+                        cursor.execute("""
+                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
+                            VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
+                        """, (p_id_rif, l_id_rif, qta_lotto, costo_u, spesa_lotto, nota_rifornimento, ts_giorno))
+
+                # 3. ACQUISIZIONE NUOVI CONTATTI (1.5%)
                 if random.random() < 0.015:
-                    nomi_nuovi = ["Davide N.", "Simone P.", "Federico R.", "Mattia B.", "Alessio M.", "Christian L.", "Davide K."]
+                    nomi_nuovi = ["Davide N.", "Simone P.", "Federico R.", "Mattia B.", "Alessio M.", "Christian L."]
                     nuovo_contatto = random.choice(nomi_nuovi) + f" (Nuovo {data_corrente.strftime('%b')})"
                     cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (nuovo_contatto,))
 
-                # 3. CONSUMI PERSONALI / TEST (XME)
-                if random.random() < 0.40:
+                # 4. CONSUMI PERSONALI (XME)
+                if random.random() < 0.35:
                     cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE quantita_attuale > 0 LIMIT 1")
                     lotto_attivo_xme = cursor.fetchone()
                     if lotto_attivo_xme:
                         l_id_xme, qta_disp_xme, costo_u_xme = lotto_attivo_xme
-                        qta_consumo = random.choice([0.5, 1.0, 1.5])
+                        qta_consumo = random.choice([0.5, 1.0])
                         qta_consumo = min(qta_disp_xme, qta_consumo)
                         
                         if qta_consumo > 0:
@@ -1113,15 +1137,13 @@ with tab6:
                             
                             cursor.execute("""
                                 INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note, data)
-                                VALUES (?, ?, 'XME', ?, 0, ?, ?, 'XME', 'Subito', 'Consumo Personale / Test', ?)
+                                VALUES (?, ?, 'XME', ?, 0, ?, ?, 'XME', 'Subito', 'Consumo Personale', ?)
                             """, (p_id_xme, l_id_xme, qta_consumo, costo_perdita, -costo_perdita, ts_giorno))
 
-                # 4. IMPREVISTI (2%)
+                # 5. IMPREVISTI GENERICI (2%)
                 if random.random() < 0.02:
-                    importi_imprevisti = [20.0, 35.0, 50.0]
-                    costo_perdita = random.choice(importi_imprevisti)
-                    motivo_scelto = random.choice(["Guasto improvviso attrezzatura", "Merce danneggiata in magazzino", "Spesa straordinaria"])
-                    
+                    costo_perdita = random.choice([20.0, 35.0, 50.0])
+                    motivo_scelto = random.choice(["Guasto improvviso attrezzatura", "Multa amministrativa", "Spesa straordinaria"])
                     cursor.execute("SELECT id FROM prodotti LIMIT 1")
                     p_rnd = cursor.fetchone()
                     if p_rnd:
@@ -1130,7 +1152,7 @@ with tab6:
                             VALUES (?, 'XME', 0, 0, ?, ?, 'Imprevisto', 'Subito', ?, ?)
                         """, (p_rnd[0], costo_perdita, -costo_perdita, motivo_scelto, ts_giorno))
 
-                # 5. GESTIONE VENDITE (Feriali, Weekend normali e Sabato Speciale del Mese)
+                # 6. VENDITE (Feriali, Weekend e Sabato Speciale)
                 is_weekend = data_corrente.weekday() >= 5
                 cursor.execute("SELECT nome FROM clienti")
                 clienti_disponibili = [r[0] for r in cursor.fetchall()]
@@ -1140,13 +1162,9 @@ with tab6:
                 cursor.execute("SELECT id FROM prodotti")
                 prod_ids = [r[0] for r in cursor.fetchall()]
 
-                # Verifica se è il primo sabato del mese (sabato speciale con vendite amplificate 50€-90€)
-                is_primo_sabato_mese = False
-                if data_corrente.weekday() == 5 and data_corrente.day <= 7:
-                    is_primo_sabato_mese = True
+                is_primo_sabato_mese = (data_corrente.weekday() == 5 and data_corrente.day <= 7)
 
                 if not is_weekend:
-                    # FERIALI: Giorni morti, 1 persona o fino a 3-4 clienti al grammo
                     num_clienti = random.choices([0, 1, 2, 3, 4], weights=[25, 30, 25, 15, 5])[0]
                     for _ in range(num_clienti):
                         if not prod_ids:
@@ -1157,11 +1175,11 @@ with tab6:
 
                         if lotto_attivo:
                             l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
-                            qta_vendita = random.choice([1.0, 2.0, 3.0, 5.0])
+                            qta_vendita = random.choice([1.0, 2.0, 3.0])
                             qta_vendita = min(qta_disp, qta_vendita)
                             
                             if qta_vendita > 0:
-                                prezzo_unitario = random.choice([10.0, 12.0, 15.0])
+                                prezzo_unitario = 10.0
                                 ricavo_totale = qta_vendita * prezzo_unitario
                                 costo_totale = qta_vendita * costo_u
                                 margine = ricavo_totale - costo_totale
@@ -1178,7 +1196,6 @@ with tab6:
                                 """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Feriale Lotto {cod_lotto}", ts_giorno))
                 else:
                     if is_primo_sabato_mese:
-                        # SABATO SPECIALE DEL MESE (Posto specifico: vendite amplificate 50€ - 90€ e più clienti)
                         num_clienti_speciale = random.randint(4, 7)
                         for _ in range(num_clienti_speciale):
                             if not prod_ids:
@@ -1189,13 +1206,13 @@ with tab6:
 
                             if lotto_attivo:
                                 l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
-                                qta_vendita = random.choice([1.0, 2.0, 3.5])
+                                qta_vendita = 1.0
                                 qta_vendita = min(qta_disp, qta_vendita)
                                 
                                 if qta_vendita > 0:
-                                    prezzo_unitario = random.choice([50.0, 70.0, 90.0])
+                                    prezzo_unitario = 90.0
                                     ricavo_totale = qta_vendita * prezzo_unitario
-                                    costo_totale = qta_vendita * costo_u
+                                    costo_totale = 50.0
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
                                     data_comp = data_corrente if nuova_qta == 0 else None
@@ -1207,9 +1224,8 @@ with tab6:
                                     cursor.execute("""
                                         INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                                         VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                    """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Sabato Speciale Lotto {cod_lotto}", ts_giorno))
+                                    """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Sabato Speciale (Acquisto €50 -> €90)", ts_giorno))
                     else:
-                        # WEEKEND NORMALE: Circa 3 clienti in totale nel weekend per la fascia 50€-90€
                         num_clienti_weekend = random.choices([0, 1, 2], weights=[30, 50, 20])[0]
                         for _ in range(num_clienti_weekend):
                             if not prod_ids:
@@ -1220,13 +1236,13 @@ with tab6:
 
                             if lotto_attivo:
                                 l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
-                                qta_vendita = random.choice([0.5, 1.0, 2.0])
+                                qta_vendita = 1.0
                                 qta_vendita = min(qta_disp, qta_vendita)
                                 
                                 if qta_vendita > 0:
-                                    prezzo_unitario = random.choice([50.0, 70.0, 90.0])
+                                    prezzo_unitario = 40.0
                                     ricavo_totale = qta_vendita * prezzo_unitario
-                                    costo_totale = qta_vendita * costo_u
+                                    costo_totale = 20.0
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
                                     data_comp = data_corrente if nuova_qta == 0 else None
@@ -1238,7 +1254,7 @@ with tab6:
                                     cursor.execute("""
                                         INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                                         VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                    """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Weekend Lotto {cod_lotto}", ts_giorno))
+                                    """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Weekend (Acquisto €20 -> €40)", ts_giorno))
 
             st.session_state["giorni_simulati"] += 1
             
