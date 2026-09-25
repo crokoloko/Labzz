@@ -1168,7 +1168,7 @@ with tab6:
                     if prod_disponibili:
                         p_id_rif = random.choice(prod_disponibili)
                         qta_lotto = 80.0
-                         costo_base_lotto = qta_lotto * 4.50  # € 360 per 80g
+                        costo_base_lotto = qta_lotto * 4.50  # € 360 per 80g
                         
                         if cassa_attuale >= costo_base_lotto:
                             spesa_lotto = costo_base_lotto
@@ -1286,7 +1286,7 @@ with tab6:
                                     costo_totale = 50.0  # Costo specifico Hash
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nueva_qta == 0 else None
+                                    data_comp = data_corrente if nuova_qta == 0 else None
 
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                     cliente = random.choice(clienti_disponibili)
@@ -1317,7 +1317,7 @@ with tab6:
                                     costo_totale = 20.0  # Costo specifico Amnesia
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nueva_qta == 0 else None
+                                    data_comp = data_corrente if nuova_qta == 0 else None
 
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                     cliente = random.choice(clienti_disponibili)
