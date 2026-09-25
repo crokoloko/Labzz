@@ -12,7 +12,7 @@ import altair as alt
 # CONFIGURAZIONE PAGINA STREAMLIT
 # ==========================================
 st.set_page_config(
-    page_title="LaBzz - Gestione Magazzino",
+    page_title="LaBzz - Gestione Magazzino & Vita Reale",
     page_icon="📦",
     layout="wide"
 )
@@ -105,6 +105,10 @@ st.markdown("""
     .alert-banner.fun {
         border-left-color: #2ed573;
         background: linear-gradient(135deg, #112b1c 0%, #08110a 100%);
+    }
+    .alert-banner.love {
+        border-left-color: #ec4899;
+        background: linear-gradient(135deg, #311225 0%, #12070e 100%);
     }
 
     div[data-testid="stTabs"] {
@@ -530,31 +534,6 @@ def calcola_stato_magazzino(solo_disponibili=False):
 
     return pd.DataFrame(risultati)
 
-def storna_movimento(movimento_id):
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM movimenti WHERE id = ?", (movimento_id,))
-        mov = cursor.fetchone()
-        
-        if not mov:
-            return False, "Movimento non trovato."
-        
-        p_id, lotto_id, tipo, qta = mov[1], mov[2], mov[3], float(mov[4])
-        
-        if tipo in ['VENDITA', 'XME']:
-            if lotto_id:
-                cursor.execute("""
-                    UPDATE lotti 
-                    SET quantita_attuale = quantita_attuale + ?, data_completamento = NULL 
-                    WHERE id = ?
-                """, (qta, lotto_id))
-        elif tipo == 'CARICO':
-            if lotto_id:
-                cursor.execute("UPDATE lotti SET quantita_attuale = MAX(0, quantita_attuale - ?) WHERE id = ?", (qta, lotto_id))
-        
-        cursor.execute("DELETE FROM movimenti WHERE id = ?", (movimento_id,))
-        return True, "Movimento stornato con successo e giacenza del lotto ripristinata!"
-
 def elimina_lotto_db(lotto_id):
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -605,20 +584,23 @@ else:
         st.title("LaBzz")
 
 # ==========================================
-# CENTRO NOTIFICHE LIVE
+# CENTRO NOTIFICHE LIVE CON MESSAGGIO DI BENVENUTO
 # ==========================================
 if "ultime_notizie" not in st.session_state:
-    st.session_state["ultime_notizie"] = ["🤖 Bot pronto. Clicca su 'Avvia Simulazione' per vedere la cronaca in tempo reale!"]
+    st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
 if "scelta_in_sospeso" not in st.session_state:
     st.session_state["scelta_in_sospeso"] = None
+if "nome_protagonista" not in st.session_state:
+    st.session_state["nome_protagonista"] = "Alex"
 
 notizie_recenti = st.session_state["ultime_notizie"][-3:]
 for notif in reversed(notizie_recenti):
-    is_urgent = "⚠️" in notif or "DISASTRO" in notif or "DEBITO" in notif or "triste" in notif.lower() or "stanchezza" in notif.lower()
-    is_fun = "🎉" in notif or "birra" in notif.lower() or "musica" in notif.lower() or "risata" in notif.lower()
+    is_urgent = "⚠️" in notif or "DISASTRO" in notif or "DEBITO" in notif or "tossica" in notif.lower() or "scrocca" in notif.lower()
+    is_love = "💖" in notif or "ragazza" in notif.lower() or "amore" in notif.lower() or "scopamica" in notif.lower()
+    is_fun = "🎉" in notif or "birra" in notif.lower() or "tekno" in notif.lower() or "benvenuto" in notif.lower()
     
-    css_class = "alert-banner urgent" if is_urgent else ("alert-banner fun" if is_fun else "alert-banner")
-    st.markdown(f'<div class="{css_class}">🔔 <b>Bot Live Feed:</b> {notif}</div>', unsafe_allow_html=True)
+    css_class = "alert-banner urgent" if is_urgent else ("alert-banner love" if is_love else ("alert-banner fun" if is_fun else "alert-banner"))
+    st.markdown(f'<div class="{css_class}">🔔 <b>Cronaca in diretta ({st.session_state["nome_protagonista"]}):</b> {notif}</div>', unsafe_allow_html=True)
 
 # 6 Tabs configurate
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -1008,43 +990,56 @@ with tab5:
         st.download_button("📥 Scarica Report Storico in CSV", data=csv_data, file_name=f"report_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
 
 with tab6:
-    st.subheader("🤖 Bot Live: Simulazione in Tempo Reale")
-    st.markdown("Cronaca di vita vissuta: il turno in fabbrica da 9 ore, lo stipendio, i momenti di stanchezza, le risate, le sfighe di magazzino e le vendite di Hash & Amnesia.")
+    st.subheader("🤖 Bot Live: Vita, Fabbrica, Amori e Imprevisti")
+    st.markdown("Gestisci la vita di tutti i giorni del protagonista, scegli il suo nome, affronta relazioni folli, scopamiche scroccone, fidanzate che ti vogliono far mettere a posto o fidanzate tossiche!")
+
+    # INPUT NOME PROTAGONISTA
+    col_nome1, col_nome2 = st.columns([2, 1])
+    with col_nome1:
+        nuovo_nome = st.text_input("🏷️ Nome del Protagonista", value=st.session_state["nome_protagonista"])
+        if nuovo_nome.strip() != "" and nuovo_nome != st.session_state["nome_protagonista"]:
+            st.session_state["nome_protagonista"] = nuovo_nome.strip().capitalize()
+            st.rerun()
 
     # SEZIONE BIVIO DECISIONALE ATTIVO
     if st.session_state["scelta_in_sospeso"] is not None:
         bivio = st.session_state["scelta_in_sospeso"]
         with st.container(border=True):
-            st.markdown(f"### 🔀 BIVIO STRATEGICO: {bivio['titolo']}")
+            st.markdown(f"### 🔀 BIVIO RELAZIONALE E STRATEGICO: {bivio['titolo']}")
             st.write(bivio['descrizione'])
             
             col_b1, col_b2 = st.columns(2)
             with col_b1:
                 if st.button(f"👉 Opzione A: {bivio['opzione_a']['testo']}", use_container_width=True):
                     bivio['opzione_a']['azione']()
-                    st.session_state["ultime_notizie"].append(f"Scelta effettuata: {bivio['opzione_a']['testo']}")
+                    st.session_state["ultime_notizie"].append(f"Scelta fatta da {st.session_state['nome_protagonista']}: {bivio['opzione_a']['testo']}")
                     st.session_state["scelta_in_sospeso"] = None
                     st.rerun()
             with col_b2:
                 if st.button(f"👉 Opzione B: {bivio['opzione_b']['testo']}", use_container_width=True):
                     bivio['opzione_b']['azione']()
-                    st.session_state["ultime_notizie"].append(f"Scelta effettuata: {bivio['opzione_b']['testo']}")
+                    st.session_state["ultime_notizie"].append(f"Scelta fatta da {st.session_state['nome_protagonista']}: {bivio['opzione_b']['testo']}")
                     st.session_state["scelta_in_sospeso"] = None
                     st.rerun()
         st.markdown("---")
 
     if "simulazione_attiva" not in st.session_state:
         st.session_state["simulazione_attiva"] = False
+    if "simulazione_in_pausa" not in st.session_state:
+        st.session_state["simulazione_in_pausa"] = False
     if "giorni_simulati" not in st.session_state:
         st.session_state["giorni_simulati"] = 0
 
-    col_btn1, col_btn2 = st.columns(2)
+    col_btn1, col_btn2, col_btn3 = st.columns(3)
     with col_btn1:
         if not st.session_state["simulazione_attiva"]:
-            if st.button("🚀 Avvia Simulazione (3 Minuti)", use_container_width=True):
+            if st.button("🚀 Avvia Bot (Play)", use_container_width=True):
                 reset_database_totale()
-                st.session_state["ultime_notizie"] = ["🚀 Simulazione avviata! Sveglia all'alba, si parte con la fabbrica e l'inventario."]
+                p_name = st.session_state["nome_protagonista"]
+                st.session_state["ultime_notizie"] = [f"🚀 Bot avviato! {p_name} inizia la sua avventura tra fabbrica, musica e imprevisti."]
                 st.session_state["scelta_in_sospeso"] = None
+                st.session_state["simulazione_attiva"] = True
+                st.session_state["simulazione_in_pausa"] = False
                 
                 with get_connection() as conn:
                     cursor = conn.cursor()
@@ -1074,62 +1069,122 @@ with tab6:
                     ts_c = datetime.combine(data_inizio, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
                     cursor.execute("""
                         INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
-                        VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Lotto Hash Iniziale (€ 4,50/g)', ?)
+                        VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', f'Lotto Iniziale per {p_name}', ?)
                     """, (p_id_init, l_id_init, qta_init, costo_u_init, costo_tot_init, ts_c))
 
-                st.session_state["simulazione_attiva"] = True
-                st.session_state["giorni_simulati"] = 0
                 st.rerun()
         else:
-            if st.button("⏹️ Ferma Simulazione", use_container_width=True):
-                st.session_state["simulazione_attiva"] = False
-                st.rerun()
+            if not st.session_state["simulazione_in_pausa"]:
+                if st.button("⏸️ Metti in Pausa", use_container_width=True):
+                    st.session_state["simulazione_in_pausa"] = True
+                    st.session_state["ultime_notizie"].append("⏸️ Bot messo in pausa.")
+                    st.rerun()
+            else:
+                if st.button("▶️ Riprendi Bot (Play)", use_container_width=True):
+                    st.session_state["simulazione_in_pausa"] = False
+                    st.session_state["ultime_notizie"].append("▶️ Bot riattivato.")
+                    st.rerun()
 
     with col_btn2:
-        if st.button("🗑️ Reset Totale Dati Originali", use_container_width=True):
-            reset_database_totale()
+        if st.button("⏹️ Ferma Definitivamente", use_container_width=True):
             st.session_state["simulazione_attiva"] = False
-            st.session_state["giorni_simulati"] = 0
-            st.session_state["ultime_notizie"] = ["🗑️ Database pulito e formattato."]
-            st.session_state["scelta_in_sospeso"] = None
-            st.success("✅ Reset generale completato con successo!")
+            st.session_state["simulazione_in_pausa"] = False
+            # NOTIFICA RICHIESTA ALL'ARRESTO
+            st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
             st.rerun()
 
-    # Loop di esecuzione giornaliera con notifiche dinamiche potenziate
-    if st.session_state["simulazione_attiva"] and st.session_state["scelta_in_sospeso"] is None:
+    with col_btn3:
+        if st.button("🗑️ RESET TOTALE DATI", use_container_width=True):
+            reset_database_totale()
+            st.session_state["simulazione_attiva"] = False
+            st.session_state["simulazione_in_pausa"] = False
+            st.session_state["giorni_simulati"] = 0
+            # NOTIFICA RICHIESTA AL RESET
+            st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
+            st.session_state["scelta_in_sospeso"] = None
+            st.success("✅ Reset completato!")
+            st.rerun()
+
+    # Loop di esecuzione giornaliera controllato (Pausa / Play)
+    if st.session_state["simulazione_attiva"] and not st.session_state["simulazione_in_pausa"] and st.session_state["scelta_in_sospeso"] is None:
         giorni_totali = 365
         giorno_corrente_idx = st.session_state["giorni_simulati"]
+        p_name = st.session_state["nome_protagonista"]
         
         if giorno_corrente_idx < giorni_totali:
             data_corrente = (date.today() - timedelta(days=365)) + timedelta(days=giorno_corrente_idx)
             ts_giorno = datetime.combine(data_corrente, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
 
-            st.info(f"⏳ Simulazione in corso... Giorno {giorno_corrente_idx + 1} di {giorni_totali} ({data_corrente.strftime('%d %B %Y')} - {'Weekend' if data_corrente.weekday() >= 5 else 'Feriale'})")
+            st.info(f"⏳ {p_name} in azione... Giorno {giorno_corrente_idx + 1} di {giorni_totali} ({data_corrente.strftime('%d %B %Y')} - {'Weekend' if data_corrente.weekday() >= 5 else 'Feriale'})")
 
             with get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # NOTIFICHE DI COSA STA FACENDO / FARÀ IL BOT
+                # NOTIFICHE AGGIORNATE OGNI 10-15 SEC
                 notizie_live_pool = [
-                    f"⚙️ [{data_corrente.strftime('%d %b')}] Controllo scorte in corso: il magazzino risponde bene.",
-                    f"🏭 [{data_corrente.strftime('%d %b')}] Turno in fabbrica di 9 ore iniziato: si montano ante e cassetti tra una pausa e l'altra.",
-                    f"🎵 [{data_corrente.strftime('%d %b')}] Pausa pranzo in fabbrica: si canticchia un pezzo Hard Techno in cuffia.",
-                    f"🚗 [{data_corrente.strftime('%d %b')}] Parcheggiato l'Alfa Giulietta fuori dal capannone, si entra a timbrare.",
-                    f"📦 [{data_corrente.strftime('%d %b')}] Il bot sta pianificando le prossime mosse per ottimizzare i guadagni della settimana.",
-                    f"💬 [{data_corrente.strftime('%d %b')}] Un amico ha mandato un messaggio: 'Ci si becca stasera?' Il bot sta calcolando il budget."
+                    f"⚙️ [{data_corrente.strftime('%d %b')}] {p_name} controlla l'inventario: tutto sotto controllo.",
+                    f"🏭 [{data_corrente.strftime('%d %b')}] 9 ore in fabbrica: {p_name} sposta pannelli di legno e pensa alla prossima traccia.",
+                    f"🎵 [{data_corrente.strftime('%d %b')}] Pausa in fabbrica: cuffie nelle orecchie, si ascolta un mix Hard Techno.",
+                    f"🚗 [{data_corrente.strftime('%d %b')}] {p_name} sale sulla sua Alfa Giulietta dopo il turno.",
+                    f"📦 [{data_corrente.strftime('%d %b')}] Il bot sta pianificando le vendite e i prossimi contatti per {p_name}.",
                 ]
                 
-                # Eventi tristi, divertenti o imprevisti occasionali
-                if random.random() < 0.25:
-                    evento_divertente_o_triste = random.choice([
-                        "😢 Tristezza infinita: l'ultimo grammo di Hash è finito nel narghilè ed è ora di rifornirsi.",
-                        "🎉 Serata epica incollati alle casse con la Tekno a 180 BPM: cassa in festa!",
-                        "🌧️ Piove a dirotto sulle colline, la voglia di uscire è sotto zero ma i pacchi da spedire no.",
-                        "🍕 Serata pizza e divano col Pinscher nano che russa forte sui piedi.",
-                        "💸 Momento di ristrettezza economica: tra poco arriva lo stipendio della fabbrica a salvare la situazione!",
-                        "😂 Risata generale in magazzino perché un collega ha montato un'anta al contrario."
+                # Eventi casuali divertenti, tristi o sentimentali (Ragazza, scopamica, tossica)
+                rand_val = random.random()
+                if rand_val < 0.015:
+                    # BIVIO 1: La scopamica scroccona
+                    st.session_state["scelta_in_sospeso"] = {
+                        "titolo": "La Scopamica Scroccona",
+                        "descrizione": f"💥 Colpo di scena! {p_name} frequenta una scopamica che si presenta a casa sua e gli svuota mezza scorta di Hash senza pagare un euro, ridendosela alla grande.",
+                        "opzione_a": {
+                            "testo": "Mandala a quel paese e chiudi i rapporti (Perdi quel materiale ma salvi il resto)",
+                            "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'XME', 10.0, 0, 45.0, -45.0, 'Scopamica', 'Subito', 'Materiale scroccato e scaricato', ?)", (ts_giorno,))
+                        },
+                        "opzione_b": {
+                            "testo": "Fai finta di nulla perché ti fa troppo ridere (Perdi 20g di merce)",
+                            "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'XME', 20.0, 0, 90.0, -90.0, 'Scopamica', 'Subito', 'Maxi scroccata', ?)", (ts_giorno,))
+                        }
+                    }
+                    st.rerun()
+                elif rand_val < 0.03:
+                    # BIVIO 2: La fidanzata tossica
+                    st.session_state["scelta_in_sospeso"] = {
+                        "titolo": "Drammi di Coppia (Fidanzata Tossica)",
+                        "descrizione": f"💔 {p_name} è finito in una relazione con una ragazza tossica che gli fa scenate incredibili ogni volta che esce con gli amici o lavora in fabbrica. C'è tensione alle stelle!",
+                        "opzione_a": {
+                            "testo": "Taglia i ponti immediatamente e riprendi in mano la tua libertà!",
+                            "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'VENDITA', 0, 0, 50, 0, 50, 'Uscita Amici', 'Subito', 'Regalo spensieratezza dopo la ex tossica', ?)", (ts_giorno,))
+                        },
+                        "opzione_b": {
+                            "testo": "Resisti e prova a cambiarla (Subisci stress e perdi tempo prezioso)",
+                            "azione": lambda: None
+                        }
+                    }
+                    st.rerun()
+                elif rand_val < 0.045:
+                    # BIVIO 3: La ragazza d'oro che vuole metterlo a posto
+                    st.session_state["scelta_in_sospeso"] = {
+                        "titolo": "L'Incontro con la Ragazza d'Oro",
+                        "descrizione": f"💖 {p_name} ha conosciuto una ragazza fantastica, dolce e con la testa sulle spalle. Gli dice: 'Voglio che molli questa vita da strada e che ti concentri solo sul tuo lavoro in fabbrica e sulla musica'. Che fai?",
+                        "opzione_a": {
+                            "testo": "Segui il suo consiglio: metti la testa a posto, molla i traffici e vivi felice!",
+                            "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'VENDITA', 0, 0, 200, 0, 200, 'Nuova Vita', 'Subito', 'Premio stabilità sentimentale', ?)", (ts_giorno,))
+                        },
+                        "opzione_b": {
+                            "testo": "Rifiuti l'ultimatum: 'Io sono fatto così, la mia libertà prima di tutto!'",
+                            "azione": lambda: None
+                        }
+                    }
+                    st.rerun()
+                elif random.random() < 0.28:
+                    evento_speciale = random.choice([
+                        f"😢 Momento no per {p_name}: la scorta è bassa e le bollette della luce pesano.",
+                        f"🎉 Serata epica: {p_name} si spara una sessione musicale a 180 BPM con l'Elektron Digitakt!",
+                        f"🌧️ Pioggia battente: {p_name} è stanco morto dopo il turno in fabbrica.",
+                        f"🐶 Il Pinscher nano di {p_name} ha rosicchiato una pantofola, risate generali in casa.",
+                        f"💸 Per fortuna lo stipendio della fabbrica di {p_name} fa da paracadute alle spese!"
                     ])
-                    st.session_state["ultime_notizie"].append(evento_divertente_o_triste)
+                    st.session_state["ultime_notizie"].append(evento_speciale)
                 else:
                     st.session_state["ultime_notizie"].append(random.choice(notizie_live_pool))
 
@@ -1140,7 +1195,7 @@ with tab6:
                         INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                         VALUES (1, 'VENDITA', 0, 0, ?, 0, ?, 'Fabbrica', 'Subito', 'Accredito Stipendio Mensile', ?)
                     """, (stipendio_netto, stipendio_netto, ts_giorno))
-                    st.session_state["ultime_notizie"].append(f"💶 STIPENDIO DI FABBRICA: Bonifico accreditato di € {stipendio_netto:,.2f}! Il morale sale alle stelle.")
+                    st.session_state["ultime_notizie"].append(f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato a {p_name}!")
 
                 # TREDICESIMA A DICEMBRE
                 if data_corrente.month == 12 and data_corrente.day == 15:
@@ -1149,7 +1204,7 @@ with tab6:
                         INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                         VALUES (1, 'VENDITA', 0, 0, ?, 0, ?, 'Fabbrica', 'Subito', 'Accredito Tredicesima', ?)
                     """, (tredicesima, tredicesima, ts_giorno))
-                    st.session_state["ultime_notizie"].append(f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f}! Festa grande.")
+                    st.session_state["ultime_notizie"].append(f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f} per {p_name}!")
 
                 # 1. DISASTRO MAGAZZINO (0.4%)
                 if random.random() < 0.004:
@@ -1158,25 +1213,9 @@ with tab6:
                     if lotti_attivi_ids:
                         for l_id_err in lotti_attivi_ids:
                             cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (data_corrente, l_id_err))
-                        st.session_state["ultime_notizie"].append(f"⚠️ DISASTRO TOTALE: Un pacco dimenticato si è bagnato in magazzino il {data_corrente.strftime('%d %b')}. Merce buttata tra le imprecazioni!")
+                        st.session_state["ultime_notizie"].append(f"⚠️ DISASTRO: Merce rovinata in magazzino per {p_name}. Perdita secca!")
 
-                # 2. BIVIO STRATEGICO CASUALE (1%)
-                if random.random() < 0.01:
-                    st.session_state["scelta_in_sospeso"] = {
-                        "titolo": "Premio Produzione in Fabbrica o Offerta Speciale",
-                        "descrizione": f"Al giorno {data_corrente.strftime('%d %b')}, il capo in fabbrica riconosce l'impegno: ti offrono un premio produzione extra di € 500 oppure un buono spesa.",
-                        "opzione_a": {
-                            "testo": "Investi il premio produzione nel progetto (+€500 in cassa)",
-                            "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'VENDITA', 0, 0, 500, 0, 500, 'Premio Produzione', 'Subito', 'Investimento premio in cassa', ?)", (ts_giorno,))
-                        },
-                        "opzione_b": {
-                            "testo": "Tienilo per le spese personali (Nessun impatto sul magazzino)",
-                            "azione": lambda: None
-                        }
-                    }
-                    st.rerun()
-
-                # 3. RIFORNIMENTO AUTOMATICO
+                # 2. RIFORNIMENTO AUTOMATICO
                 cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
                 giacenza_totale = cursor.fetchone()[0] or 0.0
 
@@ -1205,7 +1244,7 @@ with tab6:
                         else:
                             spesa_lotto = costo_base_lotto * 1.27  # Maggiorazione +27% a debito
                             nota_rifornimento = "Rifornimento Hash a DEBITO (+27% maggiorazione)"
-                            st.session_state["ultime_notizie"].append(f"💳 ATTENZIONE DEBITO: Cassa stretta, rifornimento acquistato a debito (+27%: € {spesa_lotto:,.2f}).")
+                            st.session_state["ultime_notizie"].append(f"💳 DEBITO ATTIVATO: Rifornimento acquistato a debito per {p_name} (€ {spesa_lotto:,.2f}).")
 
                         costo_u = spesa_lotto / qta_lotto
                         codice_l = genera_codice_lotto_automatico(data_corrente)
@@ -1221,14 +1260,14 @@ with tab6:
                             VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
                         """, (p_id_rif, l_id_rif, qta_lotto, costo_u, spesa_lotto, nota_rifornimento, ts_giorno))
 
-                # 4. NUOVI CONTATTI (1%)
+                # 3. NUOVI CONTATTI (1%)
                 if random.random() < 0.01:
                     nomi_nuovi = ["Davide N.", "Simone P.", "Federico R.", "Mattia B.", "Alessio M."]
                     nuovo_contatto = random.choice(nomi_nuovi) + f" ({data_corrente.strftime('%b')})"
                     cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (nuovo_contatto,))
-                    st.session_state["ultime_notizie"].append(f"🤝 Contatto acquisito: conosciuto {nuovo_contatto} durante una serata tra amici!")
+                    st.session_state["ultime_notizie"].append(f"🤝 {p_name} ha conosciuto un nuovo contatto: {nuovo_contatto}!")
 
-                # 5. CONSUMI PERSONALI (30%)
+                # 4. CONSUMI PERSONALI (30%)
                 if random.random() < 0.30:
                     cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE quantita_attuale > 0 LIMIT 1")
                     lotto_attivo_xme = cursor.fetchone()
@@ -1251,7 +1290,7 @@ with tab6:
                                 VALUES (?, ?, 'XME', ?, 0, ?, ?, 'XME', 'Subito', 'Consumo Personale', ?)
                             """, (p_id_xme, l_id_xme, qta_consumo, costo_perdita, -costo_perdita, ts_giorno))
 
-                # 6. VENDITE CON MARGINI SPECIFICI
+                # 5. VENDITE CON MARGINI SPECIFICI
                 is_weekend = data_corrente.weekday() >= 5
                 cursor.execute("SELECT nome FROM clienti")
                 clienti_disponibili = [r[0] for r in cursor.fetchall()]
@@ -1283,7 +1322,7 @@ with tab6:
                                 costo_totale = qta_vendita * costo_u
                                 margine = ricavo_totale - costo_totale
                                 nuova_qta = qta_disp - qta_vendita
-                                data_comp = data_corrente if nuova_qta == 0 else None
+                                data_comp = data_corrente if nueva_qta == 0 else None
 
                                 cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                 cliente = random.choice(clienti_disponibili)
@@ -1314,7 +1353,7 @@ with tab6:
                                     costo_totale = 50.0  # Costo specifico Hash
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nuova_qta == 0 else None
+                                    data_comp = data_corrente if nueva_qta == 0 else None
 
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                     cliente = random.choice(clienti_disponibili)
@@ -1344,7 +1383,7 @@ with tab6:
                                     costo_totale = 20.0  # Costo specifico Amnesia
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nuova_qta == 0 else None
+                                    data_comp = data_corrente if nueva_qta == 0 else None
 
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                     cliente = random.choice(clienti_disponibili)
@@ -1357,13 +1396,12 @@ with tab6:
 
             st.session_state["giorni_simulati"] += 1
             
-            # Intervallo temporale regolato a 10-15 secondi totali suddivisi nei cicli della simulazione
             time.sleep(12 / giorni_totali)
             st.rerun()
         else:
             st.session_state["simulazione_attiva"] = False
             spara_fuochi_d_artificio()
-            st.success("🎉 Anno di simulazione completato con successo!")
+            st.success("🎉 Simulazione completata con successo!")
 
     st.markdown("---")
     st.markdown("### 🛠️ Gestione Dati e Ripristino")
@@ -1372,8 +1410,9 @@ with tab6:
     if st.button("🗑️ ESEGUI RESET GENERALE DI TUTTI I DATI", use_container_width=True):
         reset_database_totale()
         st.session_state["simulazione_attiva"] = False
+        st.session_state["simulazione_in_pausa"] = False
         st.session_state["giorni_simulati"] = 0
-        st.session_state["ultime_notizie"] = ["🗑️ Database azzerato."]
+        st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
         st.session_state["scelta_in_sospeso"] = None
         st.success("✅ Reset generale completato con successo!")
         st.rerun()
