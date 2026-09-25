@@ -12,14 +12,11 @@ import altair as alt
 # CONFIGURAZIONE PAGINA STREAMLIT
 # ==========================================
 st.set_page_config(
-    page_title="LaBzz - Life & Business Simulator",
+    page_title="LaBzz - Idle Business RPG",
     page_icon="🕹️",
     layout="wide"
 )
 
-# ==========================================
-# FUNZIONE GENERAZIONE CODICE LOTTO
-# ==========================================
 def genera_codice_lotto_automatico(data_riferimento=None):
     if data_riferimento is None:
         data_riferimento = date.today()
@@ -29,15 +26,8 @@ def genera_codice_lotto_automatico(data_riferimento=None):
     anno_2_cifre = data_riferimento.strftime("%y")
     return f"{giorno}{iniziale_mese}{anno_2_cifre}"
 
-def get_video_base64(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
-            data = f.read()
-        return base64.b64encode(data).decode('utf-8')
-    return None
-
 # ==========================================
-# INIEZIONE CSS CUSTOM (STILE VIDEOGIOCO HUD)
+# INIEZIONE CSS CUSTOM (STILE VIDEOGIOCO ARCADE)
 # ==========================================
 st.markdown("""
 <style>
@@ -62,7 +52,6 @@ st.markdown("""
         padding-right: 1rem !important;
     }
 
-    /* HUD DI GIOCO (BARRA DI STATO SUPERIORE) */
     .game-hud {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -115,15 +104,6 @@ st.markdown("""
         text-align: center !important;
         letter-spacing: 1px;
         text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.7);
-    }
-
-    .game-card {
-        background: rgba(15, 23, 42, 0.7);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 16px;
-        padding: 18px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-        margin-bottom: 15px;
     }
 
     .stTabs [data-baseweb="tab-list"] {
@@ -235,23 +215,26 @@ def init_db():
         """)
 
         cursor.execute("""
-        CREATE TABLE IF NOT EXISTS abilita (
+        CREATE TABLE IF NOT EXISTS upgrades (
             id TEXT PRIMARY KEY,
             nome TEXT NOT NULL,
             livello INTEGER DEFAULT 0,
-            max_livello INTEGER DEFAULT 3,
+            costo_base REAL NOT NULL,
+            moltiplicatore_costo REAL DEFAULT 1.5,
             descrizione TEXT
         )
         """)
         
-        skills_base = [
-            ("logistica", "Efficienza Logistica", 0, 3, "Riduce i costi di acquisto lotti del 5% per livello."),
-            ("carisma", "Carisma & Vendite", 0, 3, "Aumenta i prezzi di vendita del 5% per livello."),
-            ("resistenza", "Resistenza & Focus", 0, 3, "Aumenta l'energia giornaliera e riduce lo stress da lavoro.")
+        upgrades_iniziali = [
+            ("sconto_fornitore", "Sconti Fornitore Ingrosso", 0, 150.0, 1.6, "Riduce il costo di acquisto dei lotti del 10% per livello."),
+            ("prezzo_vendita", "Marketing & Hype Club", 0, 200.0, 1.7, "Aumenta il prezzo di vendita del 15% per livello."),
+            ("velocita_bot", "Automazione Bot Telegram", 0, 300.0, 2.0, "Aumenta la frequenza e la quantità delle vendite automatiche.")
         ]
-        for sk_id, sk_nome, sk_lvl, sk_max, sk_desc in skills_base:
-            cursor.execute("INSERT OR IGNORE INTO abilita (id, nome, livello, max_livello, descrizione) VALUES (?, ?, ?, ?, ?)", 
-                           (sk_id, sk_nome, sk_lvl, sk_max, sk_desc))
+        for up_id, up_nome, up_lvl, up_costo, up_molt, up_desc in upgrades_iniziali:
+            cursor.execute("""
+                INSERT OR IGNORE INTO upgrades (id, nome, livello, costo_base, moltiplicatore_costo, descrizione) 
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (up_id, up_nome, up_lvl, up_costo, up_molt, up_desc))
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS impostazioni (
@@ -259,15 +242,11 @@ def init_db():
             valore TEXT NOT NULL
         )
         """)
-        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('soglia_esaurimento', '10.0')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('simulazione_eseguita', '0')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('nome_protagonista', 'Hassan')")
-        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('personalita_bot', 'Influente (Max 7g/giorno)')")
-        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('log_strategico_finale', '')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('energia', '100')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('stress', '15')")
-        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('reputazione', '50')")
-        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('evento_attivo', '')")
+        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('log_strategico_finale', '')")
 
 init_db()
 
@@ -300,68 +279,139 @@ def reset_database_totale():
         cursor.execute("DELETE FROM prodotti")
         cursor.execute("DELETE FROM clienti")
         cursor.execute("DELETE FROM log_narrativi")
-        cursor.execute("UPDATE abilita SET livello = 0")
+        cursor.execute("UPDATE upgrades SET livello = 0")
     set_impostazione('simulazione_eseguita', '0')
     set_impostazione('log_strategico_finale', '')
     set_impostazione('energia', '100')
     set_impostazione('stress', '15')
-    set_impostazione('reputazione', '50')
-    set_impostazione('evento_attivo', '')
 
 def get_prodotti_disponibili_df():
-    query = """
-        SELECT DISTINCT p.id, p.nome, p.valore_mercato_unitario
-        FROM prodotti p
-        JOIN lotti l ON p.id = l.prodotto_id
-        WHERE l.quantita_attuale > 0
-        ORDER BY p.nome ASC
-    """
     with get_connection() as conn:
-        return pd.read_sql_query(query, conn)
-
-def get_prodotti_tutti_df():
-    with get_connection() as conn:
-        return pd.read_sql_query("SELECT * FROM prodotti ORDER BY nome ASC", conn)
+        try:
+            return pd.read_sql_query("""
+                SELECT DISTINCT p.id, p.nome, p.valore_mercato_unitario
+                FROM prodotti p
+                JOIN lotti l ON p.id = l.prodotto_id
+                WHERE l.quantita_attuale > 0
+                ORDER BY p.nome ASC
+            """, conn)
+        except:
+            return pd.DataFrame()
 
 def get_lotti_attivi_df():
-    query = """
-        SELECT l.id, p.nome AS prodotto, l.codice_lotto, l.quantita_iniziale, l.quantita_attuale, 
-               'g' AS unita_misura, l.costo_acquisto_unitario, l.data_acquisto, l.data_carico
-        FROM lotti l
-        JOIN prodotti p ON l.prodotto_id = p.id
-        WHERE l.quantita_attuale > 0
-        ORDER BY l.data_carico ASC, l.id ASC
-    """
     with get_connection() as conn:
-        return pd.read_sql_query(query, conn)
+        try:
+            return pd.read_sql_query("""
+                SELECT l.id, p.nome AS prodotto, l.codice_lotto, l.quantita_iniziale, l.quantita_attuale, 
+                       l.costo_acquisto_unitario, l.data_carico
+                FROM lotti l
+                JOIN prodotti p ON l.prodotto_id = p.id
+                WHERE l.quantita_attuale > 0
+                ORDER BY l.data_carico ASC, l.id ASC
+            """, conn)
+        except:
+            return pd.DataFrame()
 
 def get_movimenti_dettagliati_df():
-    query = """
-        SELECT 
-            m.id, m.data, p.nome AS prodotto, COALESCE(l.codice_lotto, 'N/D') AS codice_lotto,
-            m.tipo, m.quantita, 'g' AS unita_misura, m.prezzo_unitario, m.ricavo_totale, m.costo_totale, 
-            m.margine, COALESCE(m.cliente, 'Anonimo') AS cliente, COALESCE(m.pagamento, 'Subito') AS pagamento,
-            m.note, m.lotto_id
-        FROM movimenti m
-        JOIN prodotti p ON m.prodotto_id = p.id
-        LEFT JOIN lotti l ON m.lotto_id = l.id
-        ORDER BY m.data DESC
-    """
     with get_connection() as conn:
-        return pd.read_sql_query(query, conn)
+        try:
+            return pd.read_sql_query("""
+                SELECT m.id, m.data, p.nome AS prodotto, COALESCE(l.codice_lotto, 'N/D') AS codice_lotto,
+                       m.tipo, m.quantita, m.prezzo_unitario, m.ricavo_totale, m.costo_totale, 
+                       m.margine, COALESCE(m.cliente, 'Anonimo') AS cliente, COALESCE(m.pagamento, 'Subito') AS pagamento
+                FROM movimenti m
+                JOIN prodotti p ON m.prodotto_id = p.id
+                LEFT JOIN lotti l ON m.lotto_id = l.id
+                ORDER BY m.data DESC
+            """, conn)
+        except:
+            return pd.DataFrame()
 
 # ==========================================
-# HEADER / HUD DI GIOCO FISSO IN CIMA
+# SIMULAZIONE BOT AUTOMATICA DELL'ANNO
+# ==========================================
+def esegui_simulazione_bot():
+    reset_database_totale()
+    p_name = get_impostazione('nome_protagonista', 'Hassan')
+    
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        prodotti_info = [
+            ("Hash Base", 10.0, 15.0),
+            ("Amnesia Haze", 15.0, 22.0),
+            ("Super Skunk", 12.0, 18.0)
+        ]
+        for p_nome, scorta_m, val_m in prodotti_info:
+            cursor.execute("INSERT OR IGNORE INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) VALUES (?, 'g', ?, ?)", (p_nome, val_m, scorta_m))
+        
+        clienti_fittizi = ["Mario Rossi", "Luca Bianchi", "Giulia Verdi", "Sara Neri", "Marco Gialli"]
+        for c in clienti_fittizi:
+            cursor.execute("INSERT OR IGNORE INTO clienti (nome, fiducia) VALUES (?, 60)", (c,))
+
+        # Lotto iniziale
+        data_inizio = date.today() - timedelta(days=365)
+        cursor.execute("SELECT id FROM prodotti WHERE nome = 'Hash Base'")
+        p_id_init = cursor.fetchone()[0]
+        qta_init = 100.0
+        costo_u_init = 4.50
+        costo_tot_init = qta_init * costo_u_init
+        codice_l_init = genera_codice_lotto_automatico(data_inizio)
+        
+        cursor.execute("""
+            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) 
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (p_id_init, codice_l_init, qta_init, qta_init, costo_u_init, data_inizio, data_inizio))
+        l_id_init = cursor.lastrowid
+        ts_c = datetime.combine(data_inizio, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("""
+            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
+            VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
+        """, (p_id_init, l_id_init, qta_init, costo_u_init, costo_tot_init, f"Lotto Iniziale", ts_c))
+
+    # Simulazione rapida di 30 giorni di transazioni automatiche del bot
+    for giorno_idx in range(30):
+        data_corrente = (date.today() - timedelta(days=30)) + timedelta(days=giorno_idx)
+        ts_giorno = datetime.combine(data_corrente, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+        
+        with get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto, prodotto_id FROM lotti WHERE quantita_attuale > 0 LIMIT 1")
+            lotto_attivo = cursor.fetchone()
+            if lotto_attivo:
+                l_id, qta_disp, costo_u, cod_lotto, p_id = lotto_attivo
+                qta_vendita = min(qta_disp, random.uniform(5.0, 15.0))
+                prezzo_unitario = 15.0
+                ricavo_totale = qta_vendita * prezzo_unitario
+                costo_totale = qta_vendita * costo_u
+                margine = ricavo_totale - costo_totale
+                nuova_qta = qta_disp - qta_vendita
+                data_comp = data_corrente if nuova_qta == 0 else None
+
+                cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
+                cursor.execute("""
+                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
+                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, 'Bot Cliente', 'Subito', ?, ?)
+                """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, f"Vendita Automatica {cod_lotto}", ts_giorno))
+                aggiungi_log_db(cursor, f"🤖 Bot Telegram [{data_corrente.strftime('%d %b')}]: Venduti {qta_vendita:.1f}g per € {ricavo_totale:,.2f}!")
+
+    set_impostazione('simulazione_eseguita', '1')
+    set_impostazione('log_strategico_finale', f"Simulazione Bot completata con successo per {p_name}! Tutti i flussi e i lotti sono sincronizzati.")
+
+# ==========================================
+# HUD DI GIOCO FISSO IN CIMA
 # ==========================================
 p_name = get_impostazione('nome_protagonista', 'Hassan')
 energia_gioco = get_impostazione('energia', '100')
 stress_gioco = get_impostazione('stress', '15')
-reputazione_gioco = get_impostazione('reputazione', '50')
 
 with get_connection() as conn:
-    inc_tot = pd.read_sql_query("SELECT SUM(ricavo_totale) FROM movimenti WHERE tipo = 'VENDITA'", conn).iloc[0, 0] or 0.0
-    cost_tot = pd.read_sql_query("SELECT SUM(costo_totale) FROM movimenti WHERE tipo = 'CARICO'", conn).iloc[0, 0] or 0.0
-    xme_tot = pd.read_sql_query("SELECT SUM(costo_totale) FROM movimenti WHERE tipo = 'XME'", conn).iloc[0, 0] or 0.0
+    try:
+        inc_tot = pd.read_sql_query("SELECT SUM(ricavo_totale) FROM movimenti WHERE tipo = 'VENDITA'", conn).iloc[0, 0] or 0.0
+        cost_tot = pd.read_sql_query("SELECT SUM(costo_totale) FROM movimenti WHERE tipo = 'CARICO'", conn).iloc[0, 0] or 0.0
+        xme_tot = pd.read_sql_query("SELECT SUM(costo_totale) FROM movimenti WHERE tipo = 'XME'", conn).iloc[0, 0] or 0.0
+    except:
+        inc_tot, cost_tot, xme_tot = 0.0, 0.0, 0.0
+
 cassa_hud = 500.0 + inc_tot - cost_tot - xme_tot
 
 st.markdown(f"""
@@ -388,17 +438,18 @@ st.markdown(f"""
 placeholder_notifica = st.empty()
 tutti_log = get_tutti_log_db()
 if tutti_log:
-    placeholder_notifica.markdown(f'<div class="alert-banner">📡 <b>Ultimo Evento:</b> {tutti_log[-1]}</div>', unsafe_allow_html=True)
+    placeholder_notifica.markdown(f'<div class="alert-banner">📡 <b>Ultimo Evento Bot:</b> {tutti_log[-1]}</div>', unsafe_allow_html=True)
 else:
-    placeholder_notifica.markdown(f'<div class="alert-banner">📡 <b>Stato:</b> Gestione magazzino attiva. Pronto per iniziare!</div>', unsafe_allow_html=True)
+    placeholder_notifica.markdown(f'<div class="alert-banner">📡 <b>Stato:</b> Bot pronto. Avvia la simulazione nel tab apposito per iniziare i flussi automatici.</div>', unsafe_allow_html=True)
 
+# 6 Tabs di Gioco
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "💸 Cassa & Vendite", 
-    "📊 Progressi & Stats", 
+    "🚀 Upgrade & Shop", 
     "🚚 Magazzino & Lotti",
-    "📜 Storico",
+    "📊 Statistiche",
     "🎮 Skill & Vita",
-    "🤖 Simulatore Anno"
+    "🤖 Bot & Simulatore"
 ])
 
 with tab1:
@@ -407,7 +458,7 @@ with tab1:
     prodotti_disp_df = get_prodotti_disponibili_df()
     
     if prodotti_disp_df.empty:
-        st.warning("⚠️ Magazzino vuoto. Avvia la simulazione annuale o carica un lotto.")
+        st.warning("⚠️ Magazzino vuoto. Vai nel tab 'Bot & Simulatore' e avvia la simulazione per caricare i primi lotti.")
     else:
         if tipo_operazione == "Vendita Cliente":
             prod_nome = st.selectbox("Prodotto", prodotti_disp_df['nome'].tolist())
@@ -457,7 +508,7 @@ with tab1:
                                 VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """, (p_id, l_id, prelievo, prezzo_u, ricavo_q, costo_q, margine_q, cliente_nome.capitalize(), pagamento_modo, f"Lotto {lotto['codice_lotto']}", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
                         
-                        aggiungi_log_db(cursor, f"Vendita completata: {qta_v}g a {cliente_nome} per € {tot_euro:,.2f}")
+                        aggiungi_log_db(cursor, f"Vendita manuale completata: {qta_v}g a {cliente_nome} per € {tot_euro:,.2f}")
                     st.success("✅ Vendita registrata con successo!")
                     st.rerun()
 
@@ -480,7 +531,7 @@ with tab1:
                             cursor = conn.cursor()
                             nuova_q = float(row_l['quantita_attuale']) - qta_x
                             costo_p = qta_x * float(row_l['costo_acquisto_unitario'])
-                            p_id_x = int(get_prodotti_tutti_df()[get_prodotti_tutti_df()['nome'] == row_l['prodotto']].iloc[0]['id'])
+                            p_id_x = int(get_prodotti_disponibili_df()[get_prodotti_disponibili_df()['nome'] == row_l['prodotto']].iloc[0]['id'])
                             dt_c = date.today() if nuova_q == 0 else None
                             
                             cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_q, dt_c, l_id_scelto))
@@ -492,23 +543,52 @@ with tab1:
                         st.rerun()
 
 with tab2:
-    st.subheader("📊 Statistiche & Progresso di Gioco")
+    st.subheader("🚀 Shop Upgrade & Automazione Infinita")
+    st.markdown("Acquista miglioramenti permanenti per scalare il business più velocemente e aumentare i profitti!")
+    
+    with get_connection() as conn:
+        upgrades_df = pd.read_sql_query("SELECT * FROM upgrades", conn)
+        
+    for _, up in upgrades_df.iterrows():
+        up_id, up_nome, up_lvl, up_costo_base, up_molt, up_desc = up['id'], up['nome'], up['livello'], up['costo_base'], up['moltiplicatore_costo'], up['descrizione']
+        costo_attuale = up_costo_base * (up_molt ** up_lvl)
+        
+        col_u1, col_u2, col_u3 = st.columns([2, 2, 1])
+        col_u1.markdown(f"**{up_nome}** (Lv. {up_lvl})<br><small>{up_desc}</small>", unsafe_allow_html=True)
+        col_u2.metric("Costo Upgrade", f"€ {costo_attuale:,.2f}")
+        
+        if col_u3.button("Potenzia", key=f"buy_up_{up_id}", use_container_width=True):
+            if cassa_hud >= costo_attuale:
+                with get_connection() as conn:
+                    conn.execute("UPDATE upgrades SET livello = livello + 1 WHERE id = ?", (up_id,))
+                st.success(f"Upgrade '{up_nome}' acquistato con successo!")
+                st.rerun()
+            else:
+                st.error("Fondi insufficienti in cassa!")
+
+with tab3:
+    st.subheader("🚚 Stato Magazzino & Lotti Attivi")
+    lotti_attivi_df = get_lotti_attivi_df()
+    if lotti_attivi_df.empty:
+        st.info("Nessun lotto attivo in magazzino.")
+    else:
+        st.dataframe(lotti_attivi_df[['prodotto', 'codice_lotto', 'quantita_attuale', 'costo_acquisto_unitario', 'data_carico']], use_container_width=True, hide_index=True)
+
+with tab4:
+    st.subheader("📊 Statistiche & Andamento Finanziario")
     mov_df = get_movimenti_dettagliati_df()
     
     if mov_df.empty:
-        st.info("Nessuna statistica disponibile. Effettua vendite o avvia la simulazione.")
+        st.info("Nessuna statistica disponibile.")
     else:
         incasso_tot = mov_df[mov_df['tipo'] == 'VENDITA']['ricavo_totale'].sum()
         margine_tot = mov_df[mov_df['tipo'] == 'VENDITA']['margine'].sum()
-        spesa_lotti = mov_df[mov_df['tipo'] == 'CARICO']['costo_totale'].sum()
         
-        col_s1, col_s2, col_s3 = st.columns(3)
-        col_s1.metric("Incasso Totale Business", f"€ {incasso_tot:,.2f}")
+        col_s1, col_s2 = st.columns(2)
+        col_s1.metric("Incasso Totale", f"€ {incasso_tot:,.2f}")
         col_s2.metric("Margine Netto", f"€ {margine_tot:,.2f}")
-        col_s3.metric("Spesa Rifornimenti", f"€ {spesa_lotti:,.2f}")
         
         st.markdown("---")
-        st.markdown("##### 📈 Andamento Finanziario")
         df_chart = mov_df.copy()
         df_chart['Data'] = pd.to_datetime(df_chart['data'])
         df_chart = df_chart.sort_values('Data')
@@ -521,53 +601,24 @@ with tab2:
         ).properties(height=350).configure_view(strokeWidth=0).interactive()
         st.altair_chart(chart, use_container_width=True)
 
-with tab3:
-    st.subheader("🚚 Stato Magazzino & Lotti Attivi")
-    lotti_attivi_df = get_lotti_attivi_df()
-    if lotti_attivi_df.empty:
-        st.info("Nessun lotto attivo in magazzino.")
-    else:
-        st.dataframe(lotti_attivi_df[['prodotto', 'codice_lotto', 'quantita_attuale', 'costo_acquisto_unitario', 'data_carico']], use_container_width=True, hide_index=True)
-
-with tab4:
-    st.subheader("📜 Storico Operazioni")
-    mov_df = get_movimenti_dettagliati_df()
-    if not mov_df.empty:
-        st.dataframe(mov_df[['data', 'prodotto', 'tipo', 'quantita', 'ricavo_totale', 'cliente', 'pagamento']], use_container_width=True, hide_index=True)
-
 with tab5:
     st.subheader("🎮 Skill Tree & Attività Giornaliere")
-    
     col_a1, col_a2 = st.columns(2)
     with col_a1:
         if st.button("🎵 Studio Digitakt (Riduci Stress)", use_container_width=True):
             s_corr = max(0, int(stress_gioco) - 10)
             set_impostazione('stress', str(s_corr))
-            st.success("Sessione musicale completata! Stress diminuito.")
+            st.success("Stress ridotto.")
             st.rerun()
     with col_a2:
         if st.button("🪢 Allenamento Heavy Rope (Ricarica Energia)", use_container_width=True):
             e_corr = min(100, int(energia_gioco) + 15)
             set_impostazione('energia', str(e_corr))
-            st.success("Allenamento completato! Energia ricaricata.")
+            st.success("Energia ricaricata.")
             st.rerun()
 
-    st.markdown("##### Albero delle Abilità")
-    with get_connection() as conn:
-        skills = pd.read_sql_query("SELECT * FROM abilita", conn)
-    for _, sk in skills.iterrows():
-        c1, c2, c3 = st.columns([2, 2, 1])
-        c1.markdown(f"**{sk['nome']}** (Lv. {sk['livello']}/{sk['max_livello']})<br><small>{sk['descrizione']}</small>", unsafe_allow_html=True)
-        c2.progress(sk['livello'] / sk['max_livello'])
-        if sk['livello'] < sk['max_livello']:
-            if c3.button("Upgrade", key=f"up_{sk['id']}"):
-                with get_connection() as conn:
-                    conn.execute("UPDATE abilita SET livello = livello + 1 WHERE id = ?", (sk['id'],))
-                st.success("Abilità potenziata!")
-                st.rerun()
-
 with tab6:
-    st.subheader("🤖 Simulatore Anno & Story Log")
+    st.subheader("🤖 Bot Telegram & Simulatore Anno")
     p_name_input = st.text_input("Nome Protagonista", value=p_name)
     if p_name_input != p_name and p_name_input.strip():
         set_impostazione('nome_protagonista', p_name_input.strip().capitalize())
@@ -575,11 +626,11 @@ with tab6:
         
     c_b1, c_b2 = st.columns(2)
     with c_b1:
-        if st.button("🚀 Avvia Simulazione Anno", use_container_width=True):
-            with st.spinner("Simulazione in corso..."):
-                reset_database_totale()
+        if st.button("🚀 Avvia Bot & Simulazione", use_container_width=True):
+            with st.spinner("Il bot sta avviando la simulazione e i flussi automatici..."):
+                esegui_simulazione_bot()
                 time.sleep(1)
-            st.success("Simulazione completata!")
+            st.success("Simulazione del bot avviata e lotti caricati con successo!")
             st.rerun()
     with c_b2:
         if st.button("🗑️ Reset Totale Partita", use_container_width=True):
@@ -589,4 +640,4 @@ with tab6:
 
     log_finale = get_impostazione('log_strategico_finale', '')
     if log_finale:
-        st.text_area("Report Strategico Finale", value=log_finale, height=250)
+        st.text_area("Report Bot & Storico", value=log_finale, height=200)
