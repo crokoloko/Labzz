@@ -658,7 +658,6 @@ with tab1:
                     if suggerimenti:
                         cliente_selezionato_suggerito = st.selectbox("Suggerimenti Cliente", ["-- Seleziona o Continua a Scrivere --"] + suggerimenti, key="select_suggerimento_cliente")
 
-                # Selezione tempistica pagamento
                 st.markdown("##### Modalità Pagamento")
                 tipo_pagamento = st.radio("Quando ricevi i soldi?", ["Subito", "Dopo (Credito)"], horizontal=True)
 
@@ -700,7 +699,7 @@ with tab1:
                                 ricavo_quota = prelievo * prezzo_unitario_calc
                                 margine_quota = ricavo_quota - costo_quota
                                 
-                                if nuova_qta_lotto == 0:
+                                if nueva_qta_lotto == 0:
                                     cursor.execute("""
                                         UPDATE lotti 
                                         SET quantita_attuale = 0, data_completamento = ? 
@@ -1114,7 +1113,7 @@ with tab5:
     if vendite_df.empty:
         st.info("Nessuna vendita registrata. Effettua acquisti dalla Cassa per visualizzare i report dei clienti.")
     else:
-        st.markdown("#### 🏆 Classifica Clienti")
+        st.markdown("#### 🏆 Classifica e Percentuale Acquisti per Cliente")
         
         clienti_grouped = vendite_df.groupby('cliente').agg(
             Spesa_Totale=('ricavo_totale', 'sum'),
@@ -1122,63 +1121,35 @@ with tab5:
             Numero_Acquisti=('id', 'count')
         ).reset_index().sort_values(by='Spesa_Totale', ascending=False)
         
+        # Calcolo percentuali sul totale speso
+        totale_generale_spesa = clienti_grouped['Spesa_Totale'].sum()
+        clienti_grouped['Percentuale'] = (clienti_grouped['Spesa_Totale'] / totale_generale_spesa * 100) if totale_generale_spesa > 0 else 0
+        
+        # Grafico a torta con Altair e legenda con i nomi in parte
+        chart_pie_clienti = alt.Chart(clienti_grouped).mark_arc(innerRadius=50, outerRadius=110).encode(
+            theta=alt.Theta(field="Spesa_Totale", type="quantitative"),
+            color=alt.Color(field="cliente", type="nominal", legend=alt.Legend(title="Clienti", orient="right")),
+            tooltip=[
+                alt.Tooltip('cliente', title='Cliente'),
+                alt.Tooltip('Spesa_Totale', title='Spesa Totale (€)', format=',.2f'),
+                alt.Tooltip('Grammi_Totali', title='Grammi Totali (g)', format=',.1f'),
+                alt.Tooltip('Percentuale', title='% sul Totale', format=',.1f')
+            ]
+        ).properties(height=380).configure_view(strokeWidth=0)
+        
+        st.altair_chart(chart_pie_clienti, use_container_width=True)
+        
+        st.markdown("---")
+        
         st.dataframe(
             clienti_grouped,
             column_config={
                 "cliente": "Nome Cliente",
                 "Spesa_Totale": st.column_config.NumberColumn("Spesa Totale (€)", format="€ %.2f"),
                 "Grammi_Totali": st.column_config.NumberColumn("Grammi Acquistati", format="%.1f g"),
-                "Numero_Acquisti": st.column_config.NumberColumn("Transazioni / Acquisti", format="%d")
+                "Numero_Acquisti": st.column_config.NumberColumn("Transazioni", format="%d"),
+                "Percentuale": st.column_config.NumberColumn("% sul Totale", format="%.1f %%")
             },
             use_container_width=True,
             hide_index=True
         )
-        
-        st.markdown("---")
-        
-        st.markdown("#### 👤 Dettaglio e Preferenze Cliente")
-        lista_clienti = clienti_grouped['cliente'].tolist()
-        
-        cliente_scelto = st.selectbox("Seleziona Cliente da Analizzare", lista_clienti)
-        
-        if cliente_scelto:
-            v_cliente = vendite_df[vendite_df['cliente'] == cliente_scelto]
-            
-            c1, c2, c3 = st.columns(3)
-            tot_speso_c = v_cliente['ricavo_totale'].sum()
-            tot_g_c = v_cliente['quantita'].sum()
-            num_acq_c = len(v_cliente)
-            
-            c1.metric("Totale Speso", f"€ {tot_speso_c:,.2f}")
-            c2.metric("Totale Grammi", f"{tot_g_c:,.1f} g")
-            c3.metric("Acquisti Effettuati", f"{num_acq_c}")
-            
-            pref_prod = v_cliente.groupby('prodotto')['quantita'].sum().reset_index().sort_values('quantita', ascending=False)
-            top_prod_nome = pref_prod.iloc[0]['prodotto']
-            top_prod_g = pref_prod.iloc[0]['quantita']
-            perc_top = (top_prod_g / tot_g_c * 100) if tot_g_c > 0 else 0
-            
-            st.info(f"👑 **Prodotto Preferito**: **{top_prod_nome}** con **{top_prod_g:,.1f} g** acquistati ({perc_top:.1f}% del suo totale).")
-            
-            chart_pie = alt.Chart(pref_prod).mark_arc(innerRadius=40).encode(
-                theta=alt.Theta(field="quantita", type="quantitative"),
-                color=alt.Color(field="prodotto", type="nominal", legend=alt.Legend(title="Prodotto")),
-                tooltip=['prodotto', 'quantita']
-            ).properties(height=300).configure_view(strokeWidth=0)
-            
-            st.altair_chart(chart_pie, use_container_width=True)
-            
-            with st.expander(f"📜 Storico Acquisti di {cliente_scelto}", expanded=False):
-                st.dataframe(
-                    v_cliente[['data', 'pagamento', 'prodotto', 'quantita', 'ricavo_totale', 'prezzo_unitario']],
-                    column_config={
-                        "data": "Data/Ora",
-                        "pagamento": "Pagamento",
-                        "prodotto": "Prodotto",
-                        "quantita": st.column_config.NumberColumn("Quantità", format="%.1f g"),
-                        "ricavo_totale": st.column_config.NumberColumn("Spesa (€)", format="€ %.2f"),
-                        "prezzo_unitario": st.column_config.NumberColumn("Prezzo al Grammo", format="€ %.2f")
-                    },
-                    use_container_width=True,
-                    hide_index=True
-                )
