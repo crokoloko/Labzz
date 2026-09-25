@@ -12,7 +12,7 @@ import altair as alt
 # CONFIGURAZIONE PAGINA STREAMLIT
 # ==========================================
 st.set_page_config(
-    page_title="LaBzz - Gestione Magazzino & Vita Reale",
+    page_title="LaBzz - Managerial & Life RPG Simulator",
     page_icon="📦",
     layout="wide"
 )
@@ -89,6 +89,15 @@ st.markdown("""
     .alert-banner {
         background: linear-gradient(135deg, #112b1c 0%, #08110a 100%);
         border-left: 5px solid #2ed573;
+        padding: 14px 18px;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    }
+    
+    .event-banner {
+        background: linear-gradient(135deg, #2b1111 0%, #110808 100%);
+        border-left: 5px solid #ff4757;
         padding: 14px 18px;
         border-radius: 12px;
         margin-bottom: 20px;
@@ -285,7 +294,8 @@ def init_db():
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS clienti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT UNIQUE NOT NULL
+            nome TEXT UNIQUE NOT NULL,
+            fiducia INTEGER DEFAULT 50
         )
         """)
 
@@ -318,6 +328,26 @@ def init_db():
         """)
 
         cursor.execute("""
+        CREATE TABLE IF NOT EXISTS abilita (
+            id TEXT PRIMARY KEY,
+            nome TEXT NOT NULL,
+            livello INTEGER DEFAULT 0,
+            max_livello INTEGER DEFAULT 3,
+            descrizione TEXT
+        )
+        """)
+        
+        # Inserisci abilità iniziali RPG
+        skills_base = [
+            ("logistica", "Efficienza Logistica", 0, 3, "Riduce i costi di acquisto lotti del 5% per livello."),
+            ("carisma", "Carisma & Vendite", 0, 3, "Aumenta i prezzi di vendita del 5% per livello."),
+            ("resistenza", "Resistenza & Focus", 0, 3, "Aumenta l'energia giornaliera e riduce lo stress da lavoro.")
+        ]
+        for sk_id, sk_nome, sk_lvl, sk_max, sk_desc in skills_base:
+            cursor.execute("INSERT OR IGNORE INTO abilita (id, nome, livello, max_livello, descrizione) VALUES (?, ?, ?, ?, ?)", 
+                           (sk_id, sk_nome, sk_lvl, sk_max, sk_desc))
+
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS impostazioni (
             chiave TEXT PRIMARY KEY,
             valore TEXT NOT NULL
@@ -328,6 +358,10 @@ def init_db():
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('nome_protagonista', 'Hassan')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('personalita_bot', 'Influente (Max 7g/giorno)')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('log_strategico_finale', '')")
+        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('energia', '100')")
+        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('stress', '10')")
+        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('punti_esperienza', '0')")
+        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('evento_attivo', '')")
 
 init_db()
 
@@ -360,8 +394,22 @@ def reset_database_totale():
         cursor.execute("DELETE FROM prodotti")
         cursor.execute("DELETE FROM clienti")
         cursor.execute("DELETE FROM log_narrativi")
+        cursor.execute("UPDATE abilita SET livello = 0")
     set_impostazione('simulazione_eseguita', '0')
     set_impostazione('log_strategico_finale', '')
+    set_impostazione('energia', '100')
+    set_impostazione('stress', '10')
+    set_impostazione('punti_esperienza', '0')
+    set_impostazione('evento_attivo', '')
+
+def genera_evento_casuale():
+    eventi = [
+        {"titolo": "🚨 Controllo di Polizia in Zona", "desc": "Le forze dell'ordine pattugliano il quartiere.", "tipo": "polizia", "costo": 50, "rischio": 0.3},
+        {"titolo": "🎛️ Guasto alla Strumentazione", "desc": "La tua Elektron Digitakt ha un problema tecnico imprevisto.", "tipo": "guasto", "costo": 80, "rischio": 0.2},
+        {"titolo": "💡 Offerta Speciale Fornitore", "desc": "Il tuo fornitore di fiducia ti propone un lotto extra a prezzo ribassato.", "tipo": "offerta", "costo": -100, "rischio": 0.0},
+    ]
+    ev = random.choice(eventi)
+    set_impostazione('evento_attivo', f"{ev['titolo']}|{ev['desc']}|{ev['tipo']}|{ev['costo']}")
 
 def genera_log_strategico_e_storia():
     p_name = get_impostazione('nome_protagonista', 'Hassan')
@@ -389,15 +437,13 @@ Profilo / Personalità Applicata: {personalita}
 Data Generazione Report: {date.today().strftime('%d/%m/%Y')}
 
 📖 LA STORIA:
-Nel corso dell'ultimo anno, {p_name} ha condotto una doppia vita intensa: di giorno operaio in fabbrica a montare ante, schiene, basi e cassetti con la mente concentrata su pattern musicali Acid da 180 BPM, e di notte gestore del proprio magazzino underground. Tra sessioni di studio con l'Elektron Digitakt e allenamenti all'aperto con la heavy rope nei boschi di collina, {p_name} è riuscito a far quadrare i conti tra il lavoro dipendente e la gestione logistica dei lotti.
+Nel corso dell'ultimo anno, {p_name} ha condotto una doppia vita intensa: di giorno operaio in fabbrica a montare ante, schiene, basi e cassetti con la mente concentrata su pattern musicali Acid da 180 BPM, e di notte gestore del proprio magazzino underground. Tra sessioni di studio con l'Elektron Digitakt, eventi imprevisti e allenamenti all'aperto, {p_name} ha gestito al meglio il proprio albero delle abilità e il bilancio economico.
 
 💡 I TRICK E LE STRATEGIE UTILIZZATE PER IL SUCCESSO:
-1. Gestione Rigorosa Sequenziale dei Lotti (FIFO): 
-   Il sistema ha garantito che ogni singolo grammo venisse prelevato rigorosamente dal lotto più vecchio attivo, azzerandolo completamente prima di intaccare quello successivo, registrando con precisione la data esatta di inizio e fine esaurimento.
-2. Ottimizzazione della Cassa e Rifornimenti a Debito:
-   Con una cassa di partenza di € 500,00 e un volume di {num_lotti} lotti acquistati nel corso dell'anno, quando la liquidità scarseggiava a causa dei cicli di rotazione, il sistema ha gestito i rifornimenti a debito (+27%), rientrando prontamente grazie ai flussi costanti delle vendite feriali e dei weekend club.
-3. Strategia di Prezzo e Volumi ({personalita}):
-   Grazie al profilo scelto, {p_name} ha calibrato un flusso di {num_vendite} vendite complessive, spingendo sui prezzi maggiorati durante le serate nei club del fine weekend (€ 40-45/g) rispetto ai giorni feriali (€ 10-12/g), garantendo un margine netto totale di € {margine_tot:,.2f}.
+1. Gestione Rigorosa Sequenziale dei Lotti (FIFO) & Skill Logistiche:
+   Il sistema ha garantito che ogni singolo grammo venisse prelevato rigorosamente dal lotto più vecchio attivo, ottimizzando i costi grazie alle abilità sbloccate.
+2. Gestione di Eventi e Risorse (Stress ed Energia):
+   Bilanciando i turni in fabbrica, gli imprevisti casuali e la gestione del magazzino, il protagonista ha massimizzato il guadagno netto totale di € {margine_tot:,.2f}.
 
 📊 RIEPILOGO FINANZIARIO FINALE:
 - Incasso Totale Business: € {incassi:,.2f}
@@ -438,7 +484,7 @@ def esegui_simulazione_anno_fluida(progress_bar, status_text, placeholder_notizi
         
         clienti_fittizi = ["Mario Rossi", "Luca Bianchi", "Giulia Verdi", "Sara Neri", "Marco Gialli"]
         for c in clienti_fittizi:
-            cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (c,))
+            cursor.execute("INSERT OR IGNORE INTO clienti (nome, fiducia) VALUES (?, 60)", (c,))
 
         data_inizio = date.today() - timedelta(days=365)
         cursor.execute("SELECT id FROM prodotti WHERE nome = 'Hash Base'")
@@ -459,7 +505,7 @@ def esegui_simulazione_anno_fluida(progress_bar, status_text, placeholder_notizi
             VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
         """, (p_id_init, l_id_init, qta_init, costo_u_init, costo_tot_init, f"Lotto Iniziale", ts_c))
 
-    ritardo_giornaliero = 180.0 / 365.0
+    ritardo_giornaliero = 120.0 / 365.0
 
     for giorno_idx in range(365):
         data_corrente = (date.today() - timedelta(days=365)) + timedelta(days=giorno_idx)
@@ -683,7 +729,7 @@ def aggiungi_cliente_se_nuovo(nome):
         nome_pulito = nome.strip().capitalize()
         with get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (nome_pulito,))
+            cursor.execute("INSERT OR IGNORE INTO clienti (nome, fiducia) VALUES (?, 50)", (nome_pulito,))
 
 def calcola_stato_magazzino(solo_disponibili=False):
     with get_connection() as conn:
@@ -711,17 +757,6 @@ def calcola_stato_magazzino(solo_disponibili=False):
         })
     return pd.DataFrame(risultati)
 
-def elimina_lotto_db(lotto_id):
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE movimenti SET lotto_id = NULL WHERE lotto_id = ?", (lotto_id,))
-        cursor.execute("DELETE FROM lotti WHERE id = ?", (lotto_id,))
-
-def segna_debito_pagato(nome_cliente):
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE movimenti SET pagamento = 'Subito' WHERE cliente = ? AND pagamento = 'Dopo (Credito)'", (nome_cliente,))
-
 video_b64 = get_video_base64("logo.gif.mp4")
 if video_b64:
     st.markdown(f"""
@@ -737,23 +772,48 @@ else:
     else:
         st.title("LaBzz")
 
-# BANNER NOTIFICHE VENDITE IN CIMA (DINAMICO)
+# BANNER NOTIFICHE VENDITE & EVENTI IN CIMA
 placeholder_notifica_principale = st.empty()
 tutti_log = get_tutti_log_db()
 p_name_attivo = get_impostazione('nome_protagonista', 'Hassan')
+
+# Gestione Evento Casuale Attivo
+ev_attivo = get_impostazione('evento_attivo', '')
+if ev_attivo:
+    parti = ev_attivo.split('|')
+    if len(parti) == 4:
+        ev_tit, ev_desc, ev_tipo, ev_costo = parti[0], parti[1], parti[2], float(parti[3])
+        st.markdown(f"""
+        <div class="event-banner">
+            <b>{ev_tit}</b><br>{ev_desc}
+        </div>
+        """, unsafe_allow_html=True)
+        col_ev1, col_ev2 = st.columns(2)
+        with col_ev1:
+            if st.button("⚖️ Gestisci / Paga (Risolvi Evento)"):
+                set_impostazione('evento_attivo', '')
+                st.success("Evento gestito con successo!")
+                st.rerun()
+        with col_ev2:
+            if st.button("🎲 Ignora (Rischia)"):
+                set_impostazione('evento_attivo', '')
+                st.warning("Hai ignorato l'evento!")
+                st.rerun()
+
 if tutti_log:
     ultima_notif = tutti_log[-1]
-    placeholder_notifica_principale.markdown(f'<div class="alert-banner">📈 <b>Ultime Vendite ({p_name_attivo}):</b> {ultima_notif}</div>', unsafe_allow_html=True)
+    placeholder_notifica_principale.markdown(f'<div class="alert-banner">📈 <b>Ultime Notizie ({p_name_attivo}):</b> {ultima_notif}</div>', unsafe_allow_html=True)
 else:
-    placeholder_notifica_principale.markdown(f'<div class="alert-banner">📈 <b>Ultime Vendite ({p_name_attivo}):</b> Pronto per avviare la simulazione annuale.</div>', unsafe_allow_html=True)
+    placeholder_notifica_principale.markdown(f'<div class="alert-banner">📈 <b>Ultime Notizie ({p_name_attivo}):</b> Pronto per avviare l'avventura.</div>', unsafe_allow_html=True)
 
-# 6 Tabs configurate
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+# 7 Tabs configurate (Aggiunto Skill Tree & Gestione Vita)
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
     "💸 Cassa", 
     "📊 Dashboard", 
     "🚚 Rifornimenti",
     "📈 Statistiche",
     "📜 Report & Storico",
+    "🎮 RPG & Vita",
     "🤖 Bot Live"
 ])
 
@@ -839,7 +899,7 @@ with tab1:
                                 ricavo_quota = prelievo * prezzo_unitario_calc
                                 margine_quota = ricavo_quota - costo_quota
                                 
-                                if nueva_qta_lotto == 0:
+                                if nuova_qta_lotto == 0:
                                     cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (date.today(), l_id))
                                 else:
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto, l_id))
@@ -968,30 +1028,6 @@ with tab2:
             st.metric("Totale Valore Uso Personale (XME)", f"€ {costi_xme_tot:,.2f}")
             st.metric("Giacenza Totale in Grammi", f"{totale_grammi_disp:,.1f} g")
 
-        st.markdown("---")
-        st.subheader("📈 Storico Progressivo Operazioni (Business)")
-        if not movimenti_df.empty:
-            mov_df = movimenti_df.copy()
-            mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
-            mov_df = mov_df.sort_values('Data_Ora')
-            mov_df['Spesi Totali'] = mov_df.apply(lambda r: r['costo_totale'] if r['tipo'] == 'CARICO' else 0, axis=1).cumsum()
-            mov_df['Incasso Totale'] = mov_df['ricavo_totale'].cumsum()
-            mov_df['Margine Netto'] = mov_df['margine'].cumsum()
-            
-            chart_df = mov_df.melt(
-                id_vars=['Data_Ora', 'prodotto', 'tipo'],
-                value_vars=['Spesi Totali', 'Incasso Totale', 'Margine Netto'],
-                var_name='Metrica',
-                value_name='Valore (€)'
-            )
-            chart = alt.Chart(chart_df).mark_line(point=True, strokeWidth=3).encode(
-                x=alt.X('Data_Ora:T', title='Data e Ora Transazione'),
-                y=alt.Y('Valore (€):Q', title='Importo (€)'),
-                color=alt.Color('Metrica:N', scale=alt.Scale(domain=['Spesi Totali', 'Incasso Totale', 'Margine Netto'], range=['#ff4757', '#2ed573', '#38bdf8']), legend=alt.Legend(title="Legenda")),
-                tooltip=['Data_Ora:T', 'prodotto:N', 'tipo:N', 'Metrica:N', 'Valore (€):Q']
-            ).properties(height=420).configure_view(strokeWidth=0).configure_axis(gridColor='rgba(255,255,255,0.05)', labelColor='#94a3b8', titleColor='#f8fafc').interactive()
-            st.altair_chart(chart, use_container_width=True)
-
 with tab3:
     st.subheader("🚚 Registro Rifornimenti e Lotti (Storico Completo & Tempistiche)")
     soglia_attuale = get_soglia_esaurimento()
@@ -1007,9 +1043,6 @@ with tab3:
         st.markdown("##### 📋 Tabella Dettaglio Lotti con Tempistiche (Inizio / Fine)")
         cols_vista = ['lotto_id', 'prodotto', 'codice_lotto', 'quantita_iniziale', 'quantita_attuale', 'costo_acquisto_unitario', 'data_carico', 'data_completamento', 'stato_lotto']
         st.dataframe(report_lotti_df[[c for c in cols_vista if c in report_lotti_df.columns]], use_container_width=True, hide_index=True)
-
-        csv_lotti = report_lotti_df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Scarica Report Completo Lotti in CSV", data=csv_lotti, file_name=f"report_lotti_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
 
 with tab4:
     st.subheader("📈 Statistiche Avanzate Clienti")
@@ -1045,6 +1078,53 @@ with tab5:
         st.download_button("📥 Scarica Report Storico in CSV", data=csv_data, file_name=f"report_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
 
 with tab6:
+    st.subheader("🎮 Albero delle Abilità (Skill Tree) & Gestione Vita")
+    
+    energia = int(get_impostazione('energia', '100'))
+    stress = int(get_impostazione('stress', '10'))
+    
+    col_st1, col_st2 = st.columns(2)
+    col_st1.metric("⚡ Energia Personale", f"{energia} / 100")
+    col_st2.metric("🤯 Livello di Stress", f"{stress} / 100")
+    
+    st.markdown("---")
+    st.markdown("##### 🌳 Sblocca Abilità RPG")
+    
+    with get_connection() as conn:
+        skills_df = pd.read_sql_query("SELECT * FROM abilita", conn)
+        
+    for _, sk in skills_df.iterrows():
+        sk_id, sk_nome, sk_lvl, sk_max, sk_desc = sk['id'], sk['nome'], sk['livello'], sk['max_livello'], sk['descrizione']
+        col_sk1, col_sk2, col_sk3 = st.columns([2, 2, 1])
+        col_sk1.markdown(f"**{sk_nome}** (Livello: {sk_lvl}/{sk_max})<br><small>{sk_desc}</small>", unsafe_allow_html=True)
+        with col_sk2:
+            st.progress(sk_lvl / sk_max)
+        with col_sk3:
+            if sk_lvl < sk_max:
+                if st.button(f"Potenzia", key=f"btn_skill_{sk_id}"):
+                    with get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("UPDATE abilita SET livello = livello + 1 WHERE id = ?", (sk_id,))
+                    st.success(f"Abilità {sk_nome} potenziata!")
+                    st.rerun()
+
+    st.markdown("---")
+    st.markdown("##### 🏋️ Azioni Giornalte & Tempo Libero")
+    col_az1, col_az2 = st.columns(2)
+    with col_az1:
+        if st.button("🎵 Sessione Studio Digitakt (Rilascia Stress)", use_container_width=True):
+            nuovo_stress = max(0, stress - 15)
+            set_impostazione('stress', str(nuovo_stress))
+            st.success("Hai composto un nuovo pattern Acid! Stress ridotto.")
+            st.rerun()
+    with col_az2:
+        if st.button("🪢 Allenamento Heavy Rope nel Bosco", use_container_width=True):
+            nuova_energia = min(100, energia + 20)
+            set_impostazione('energia', str(nuova_energia))
+            st.success("Allenamento completato! Energia ricaricata.")
+            st.rerun()
+
+with tab7:
     st.subheader("🤖 Bot Live: Simulazione Anno & Story Log")
     
     simulazione_fatta = get_impostazione('simulazione_eseguita', '0') == '1'
@@ -1052,7 +1132,7 @@ with tab6:
     personalita_corrente = get_impostazione('personalita_bot', 'Influente (Max 7g/giorno)')
     log_finale_testo = get_impostazione('log_strategico_finale', '')
 
-    st.markdown("Avvia la simulazione annuale. Alla fine troverai il **Log Strategico & Story Report** pronto per essere letto o scaricato.")
+    st.markdown("Avvia la simulazione annuale completa con eventi casuali e progressione RPG. Alla fine troverai il **Log Strategico & Story Report**.")
     
     col_nome1, col_nome2 = st.columns([1, 1])
     with col_nome1:
@@ -1079,10 +1159,11 @@ with tab6:
 
     col_b1, col_b2 = st.columns(2)
     with col_b1:
-        if st.button("🚀 Avvia Simulazione Fluida (3 Minuti)", use_container_width=True):
+        if st.button("🚀 Avvia Simulazione RPG & Anno", use_container_width=True):
             progress_bar = st.progress(0)
             status_text = st.empty()
             esegui_simulazione_anno_fluida(progress_bar, status_text, placeholder_notifica_principale)
+            genera_evento_casuale()
             st.success("✅ Simulazione completata con successo! Log strategico generato.")
             st.rerun()
 
