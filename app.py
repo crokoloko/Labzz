@@ -19,7 +19,7 @@ st.set_page_config(
 st.markdown("""
 <style>
     /* 1. IMPORTAZIONE GOOGLE FONTS (TITAN ONE & FREDOKA) */
-    @import url('https://fonts.googleapis.com/css2?family=FredOKA:wght@500;600;700&family=Titan+One&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Titan+One&display=swap');
 
     /* 2. SFONDO GLOBALE DARK GRADIENTE E FONT BASE */
     .stApp {
@@ -29,21 +29,21 @@ st.markdown("""
         font-weight: 500;
     }
 
-    /* 3. AZZERAMENTO PADDING CONTAINER PER EVITARE TAGLI SU MOBILE */
+    /* 3. AZZERAMENTO PADDING CONTAINER PRINCIPALE */
     .block-container {
-        padding-top: 1.5rem !important;
+        padding-top: 1rem !important;
         padding-bottom: 2rem !important;
         padding-left: 1rem !important;
         padding-right: 1rem !important;
     }
 
-    /* 4. CENTRATURA E RESPONSIVENESS LOGO HEADER (NO COLONNE) */
+    /* 4. CENTRATURA LOGO E RIMOZIONE SPAZIO INFERIORE */
     div[data-testid="stImage"] {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
         width: 100% !important;
-        margin: 0 auto 1.5rem auto !important;
+        margin: 0 auto 0rem auto !important; /* Margine inferiore azzerato */
         padding: 0 !important;
     }
 
@@ -51,31 +51,47 @@ st.markdown("""
         display: block !important;
         margin: 0 auto !important;
         width: 100% !important;
-        max-width: 420px !important; /* Dimensione ideale su PC */
+        max-width: 420px !important;
         height: auto !important;
         object-fit: contain !important;
         filter: drop-shadow(0 0 20px rgba(56, 189, 248, 0.4));
     }
 
+    /* 5. AZZERAMENTO SPAZIO SOPRA I TAB (SCHEDE) */
+    div[data-testid="stTabs"] {
+        margin-top: -0.5rem !important; /* Elimina lo spazio tra il logo e le schede */
+        padding-top: 0rem !important;
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 12px !important;
+        background-color: transparent !important;
+        border-bottom: none !important;
+        padding: 0px 0 8px 0 !important;
+    }
+
     /* Regolazione specifica per Mobile */
     @media (max-width: 768px) {
         .block-container {
-            padding-top: 0.8rem !important;
+            padding-top: 0.5rem !important;
             padding-left: 0.5rem !important;
             padding-right: 0.5rem !important;
         }
         div[data-testid="stImage"] > img {
-            max-width: 92% !important; /* Sfrutta quasi tutta la larghezza dello schermo mobile */
+            max-width: 90% !important;
+        }
+        div[data-testid="stTabs"] {
+            margin-top: -0.8rem !important; /* Compressione ulteriore per schermi piccoli */
         }
     }
 
-    /* 5. TITOLI E INTESTAZIONI 3D CON TITAN ONE */
+    /* 6. TITOLI E INTESTAZIONI 3D CON TITAN ONE */
     h1 {
         font-family: 'Titan One', cursive, sans-serif !important;
         color: #ffffff !important;
         letter-spacing: 1px;
         text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.35) !important;
-        margin-bottom: 25px !important;
+        margin-bottom: 15px !important;
         text-align: center;
     }
     h2, h3, h4, h5 {
@@ -85,7 +101,7 @@ st.markdown("""
         text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5) !important;
     }
 
-    /* 6. CARD METRICHE STILE 3D GLASSMORPHISM */
+    /* 7. CARD METRICHE STILE 3D GLASSMORPHISM */
     div[data-testid="stMetric"] {
         background: rgba(30, 41, 59, 0.55) !important;
         backdrop-filter: blur(16px) !important;
@@ -119,13 +135,7 @@ st.markdown("""
         letter-spacing: 0.5px;
     }
 
-    /* 7. TAB OPERATIVI TATTILI 3D */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 12px !important;
-        background-color: transparent !important;
-        border-bottom: none !important;
-        padding: 8px 0 !important;
-    }
+    /* 8. TAB OPERATIVI TATTILI 3D */
     .stTabs [data-baseweb="tab"] {
         font-family: 'Fredoka', sans-serif !important;
         background: rgba(30, 41, 59, 0.6) !important;
@@ -149,7 +159,7 @@ st.markdown("""
         box-shadow: 0 8px 20px rgba(37, 99, 235, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3) !important;
     }
 
-    /* 8. CONTENITORI FORM ED EXPANDER GLASSMORPHISM */
+    /* 9. CONTENITORI FORM ED EXPANDER GLASSMORPHISM */
     div[data-testid="stForm"], div[data-testid="stExpander"] {
         background: rgba(15, 23, 42, 0.6) !important;
         backdrop-filter: blur(12px) !important;
@@ -164,7 +174,7 @@ st.markdown("""
         font-weight: 600 !important;
     }
 
-    /* 9. PULSANTI 3D ED EFFETTI HOVER */
+    /* 10. PULSANTI 3D ED EFFETTI HOVER */
     .stButton > button, button[kind="primary"] {
         font-family: 'Fredoka', sans-serif !important;
         background: linear-gradient(135deg, #0284c7 0%, #1d4ed8 100%) !important;
@@ -185,7 +195,7 @@ st.markdown("""
         box-shadow: 0 3px 10px rgba(2, 132, 199, 0.3) !important;
     }
 
-    /* 10. CONTROLLI INPUT, LABELS & SELECT */
+    /* 11. CONTROLLI INPUT, LABELS & SELECT */
     label, p, span, div {
         font-family: 'Fredoka', sans-serif !important;
     }
@@ -202,7 +212,7 @@ st.markdown("""
         box-shadow: 0 0 12px rgba(56, 189, 248, 0.3) !important;
     }
 
-    /* 11. TABELLE STYLING GLASS CON FREDOKA */
+    /* 12. TABELLE STYLING GLASS CON FREDOKA */
     div[data-testid="stDataFrame"] {
         font-family: 'Fredoka', sans-serif !important;
         background: rgba(15, 23, 42, 0.5) !important;
@@ -212,7 +222,7 @@ st.markdown("""
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
     }
 
-    /* 12. NOTIFICHE ED ALERT PERSONALIZZATI */
+    /* 13. NOTIFICHE ED ALERT PERSONALIZZATI */
     div[data-testid="stNotification"] {
         font-family: 'Fredoka', sans-serif !important;
         font-weight: 600 !important;
@@ -479,7 +489,7 @@ def elimina_lotto_db(lotto_id):
 # INTERFACCIA UTENTE (STREAMLIT)
 # ==========================================
 
-# HEADER LOGO CENTRATO PERFETTAMENTE SENZA COLONNE CHE CREANO TAGLI SU MOBILE
+# HEADER LOGO CENTRATO ADERENTE AI TAB
 try:
     st.image("logo.png", use_container_width=True)
 except Exception:
@@ -692,7 +702,7 @@ with tab2:
                 st.altair_chart(chart_lotti, use_container_width=True)
 
 # ------------------------------------------
-# TAB 3: RIFORNIMENTI
+# TAB 3: RIFORNI MENTI
 # ------------------------------------------
 with tab3:
     st.subheader("🚚 Registro Rifornimenti e Lotti")
