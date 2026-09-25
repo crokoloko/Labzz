@@ -87,11 +87,12 @@ st.markdown("""
     }
 
     .stTabs [data-baseweb="tab-list"] {
-        gap: 12px !important;
+        gap: 10px !important;
         background-color: transparent !important;
         border-bottom: none !important;
         padding: 0px 0 12px 0 !important;
         justify-content: center !important;
+        flex-wrap: wrap !important;
     }
 
     /* 7. TITOLI E INTESTAZIONI PRINCIPALI CENTRATI */
@@ -211,7 +212,7 @@ st.markdown("""
         border-radius: 14px !important;
         color: #94a3b8 !important;
         font-weight: 700 !important;
-        padding: 12px 20px !important;
+        padding: 10px 16px !important;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
     }
 
@@ -327,7 +328,7 @@ def init_db():
         if 'data_completamento' not in colonne_lotti:
             cursor.execute("ALTER TABLE lotti ADD COLUMN data_completamento DATE")
 
-        # 3. Registro movimenti
+        # 3. Registro movimenti (Aggiunta colonna cliente)
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS movimenti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -340,11 +341,18 @@ def init_db():
             costo_totale REAL DEFAULT 0,
             margine REAL DEFAULT 0,
             note TEXT,
+            cliente TEXT DEFAULT 'Anonimo',
             data TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (prodotto_id) REFERENCES prodotti (id) ON DELETE CASCADE,
             FOREIGN KEY (lotto_id) REFERENCES lotti (id) ON DELETE SET NULL
         )
         """)
+
+        # Migrazione colonna cliente se db esistente
+        cursor.execute("PRAGMA table_info(movimenti)")
+        colonne_mov = [column[1] for column in cursor.fetchall()]
+        if 'cliente' not in colonne_mov:
+            cursor.execute("ALTER TABLE movimenti ADD COLUMN cliente TEXT DEFAULT 'Anonimo'")
 
         # 4. Tabella Impostazioni (per la soglia alert permanente)
         cursor.execute("""
@@ -446,6 +454,7 @@ def get_movimenti_dettagliati_df():
             m.ricavo_totale, 
             m.costo_totale, 
             m.margine, 
+            COALESCE(m.cliente, 'Anonimo') AS cliente,
             m.note, 
             m.lotto_id
         FROM movimenti m
@@ -575,16 +584,17 @@ else:
     else:
         st.title("LaBzz")
 
-# SCHEDE DI NAVIGAZIONE CON "DASHBOARD" PULITO
-tab1, tab2, tab3, tab4 = st.tabs([
+# SCHEDE DI NAVIGAZIONE CON NUOVA SCHEDA STATISTICHE
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "💸 Cassa", 
     "📊 Dashboard", 
     "🚚 Rifornimenti",
-    "📜 Report & Storico"
+    "📜 Report & Storico",
+    "📈 Statistiche"
 ])
 
 # ------------------------------------------
-# TAB 1: CASSA (LOGICA DIRETTA GRAMMI -> EURO TOTALI)
+# TAB 1: CASSA (LOGICA CLIENTE + GRAMMI/EURO)
 # ------------------------------------------
 with tab1:
     st.subheader("💸 Cassa Operativa")
@@ -619,10 +629,9 @@ with tab1:
                     totale_incassato = st.number_input("Euro Ricevuti (€)", min_value=0.0, value=0.0, step=1.0, format="%.2f")
                 
                 with col2:
-                    # Calcolo automatico del prezzo unitario per le statistiche interne
                     prezzo_unitario_calc = (totale_incassato / quantita_vendita) if quantita_vendita > 0 else 0.0
                     st.metric("Prezzo al Grammo Calcolato", f"€ {prezzo_unitario_calc:,.2f} / g")
-                    note = st.text_input("Note (Opzionale)")
+                    nome_cliente = st.text_input("Nome Cliente", value="Anonimo", placeholder="Es. Marco, Luca...")
 
                 if st.button("Conferma Vendita", key="btn_conferma_v"):
                     if quantita_vendita <= 0:
@@ -632,6 +641,7 @@ with tab1:
                     elif quantita_vendita > qta_tot_disp:
                         st.error(f"Quantità inserita ({quantita_vendita:,.1f} g) superiore alla disponibilità ({qta_tot_disp:,.1f} g).")
                     else:
+                        cliente_pulito = nome_cliente.strip().capitalize() if nome_cliente.strip() != "" else "Anonimo"
                         with get_connection() as conn:
                             cursor = conn.cursor()
                             qta_da_scaricare = float(quantita_vendita)
@@ -663,12 +673,12 @@ with tab1:
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto, l_id))
                                 
                                 cursor.execute("""
-                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, note)
-                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?)
-                                """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, f"Lotto {cod_lotto} | {note}".strip(" |")))
+                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, note)
+                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?)
+                                """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, cliente_pulito, f"Lotto {cod_lotto}"))
                         
                         spara_fuochi_d_artificio()
-                        st.success("✅ Vendita registrata e coordinata con i lotti e report!")
+                        st.success(f"✅ Vendita a '{cliente_pulito}' registrata e coordinata con i lotti e report!")
 
         elif tipo_operazione == "XME":
             lotti_df = get_lotti_attivi_df()
@@ -702,8 +712,8 @@ with tab1:
                                 cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, lotto_id_scelto))
                                 
                             cursor.execute("""
-                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, note)
-                                VALUES (?, ?, 'XME', ?, 0, ?, ?, ?)
+                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, note)
+                                VALUES (?, ?, 'XME', ?, 0, ?, ?, 'XME', ?)
                             """, (p_id, lotto_id_scelto, qta_xme, costo_perdita, -costo_perdita, f"XME: {motivo}"))
                         
                         st.warning("Operazione XME registrata e sincronizzata col lotto!")
@@ -879,8 +889,8 @@ with tab3:
                         
                         lotto_id = cursor.lastrowid
                         cursor.execute("""
-                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, note)
-                            VALUES (?, ?, 'CARICO', ?, ?, ?, 'Nuovo Lotto Manuale')
+                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, note)
+                            VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Nuovo Lotto Manuale')
                         """, (p_id_m, lotto_id, qta_lotto_m, costo_u_lotto_m, qta_lotto_m * costo_u_lotto_m))
                     
                     st.success(f"✅ Lotto '{cod_lotto_m}' aggiunto con successo!")
@@ -936,8 +946,8 @@ with tab3:
                                 
                                 lotto_id = cursor.lastrowid
                                 cursor.execute("""
-                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, note)
-                                    VALUES (?, ?, 'CARICO', ?, ?, ?, 'Inizializzazione Prodotto')
+                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, note)
+                                    VALUES (?, ?, 'CARICO', ?, ?, ?, 'Iniziale', 'Inizializzazione Prodotto')
                                 """, (p_id, lotto_id, qta_iniziale, costo_u_init, qta_iniziale * costo_u_init))
                                 
                         st.success(f"Prodotto '{nome_nuovo}' salvato con successo!")
@@ -946,7 +956,7 @@ with tab3:
                         st.error("Un prodotto con questo nome esiste già.")
 
 # ------------------------------------------
-# TAB 4: REPORT & STORICO
+# TAB 4: REPORT & STORICO (INCLUSO CLIENTE)
 # ------------------------------------------
 with tab4:
     st.subheader("📜 Registro Storico Transazioni")
@@ -969,12 +979,13 @@ with tab4:
 
         st.dataframe(
             df_filtrato[[
-                'id', 'data', 'prodotto', 'codice_lotto', 'tipo', 'quantita', 'unita_misura',
+                'id', 'data', 'cliente', 'prodotto', 'codice_lotto', 'tipo', 'quantita', 'unita_misura',
                 'prezzo_unitario', 'ricavo_totale', 'costo_totale', 'margine', 'note'
             ]],
             column_config={
                 "id": "ID",
                 "data": "Data/Ora",
+                "cliente": "Cliente / Origine",
                 "prodotto": "Prodotto",
                 "codice_lotto": "Codice Lotto Origine",
                 "tipo": "Tipo Operazione",
@@ -1006,7 +1017,7 @@ with tab4:
             st.write("Selezionando una transazione, l'operazione verrà stornata e la quantità verrà restituita al lotto di origine.")
             
             opzioni_movimenti = {
-                f"ID {r['id']} | {r['data']} | {r['prodotto']} (Lotto: {r['codice_lotto']}) | {r['tipo']} ({r['quantita']} g)": r['id']
+                f"ID {r['id']} | {r['data']} | Cliente: {r['cliente']} | {r['prodotto']} ({r['quantita']} g)": r['id']
                 for _, r in df_filtrato.iterrows()
             }
             
@@ -1050,3 +1061,89 @@ with tab4:
                 if st.button("❌ Annulla"):
                     st.session_state["conferma_reset"] = False
                     st.rerun()
+
+# ------------------------------------------
+# TAB 5: STATISTICHE CLIENTI & PREFERENZE
+# ------------------------------------------
+with tab5:
+    st.subheader("📈 Statistiche Avanzate Clienti")
+    
+    movimenti_df = get_movimenti_dettagliati_df()
+    vendite_df = movimenti_df[movimenti_df['tipo'] == 'VENDITA'].copy() if not movimenti_df.empty else pd.DataFrame()
+    
+    if vendite_df.empty:
+        st.info("Nessuna vendita registrata. Effettua acquisti dalla Cassa per visualizzare i report dei clienti.")
+    else:
+        # 1. RIEPILOGO GENERALE TOP CLIENTI
+        st.markdown("#### 🏆 Classifica Clienti")
+        
+        clienti_grouped = vendite_df.groupby('cliente').agg(
+            Spesa_Totale=('ricavo_totale', 'sum'),
+            Grammi_Totali=('quantita', 'sum'),
+            Numero_Acquisti=('id', 'count')
+        ).reset_index().sort_values(by='Spesa_Totale', ascending=False)
+        
+        st.dataframe(
+            clienti_grouped,
+            column_config={
+                "cliente": "Nome Cliente",
+                "Spesa_Totale": st.column_config.NumberColumn("Spesa Totale (€)", format="€ %.2f"),
+                "Grammi_Totali": st.column_config.NumberColumn("Grammi Acquistati", format="%.1f g"),
+                "Numero_Acquisti": st.column_config.NumberColumn("Transazioni / Acquisti", format="%d")
+            },
+            use_container_width=True,
+            hide_index=True
+        )
+        
+        st.markdown("---")
+        
+        # 2. ANALISI PREFERENZE E DETTAGLI SINGOLO CLIENTE
+        st.markdown("#### 👤 Dettaglio e Preferenze Cliente")
+        lista_clienti = clienti_grouped['cliente'].tolist()
+        
+        cliente_scelto = st.selectbox("Seleziona Cliente da Analizzare", lista_clienti)
+        
+        if cliente_scelto:
+            v_cliente = vendite_df[vendite_df['cliente'] == cliente_scelto]
+            
+            # KPI SPECIFICI CLIENTE
+            c1, c2, c3 = st.columns(3)
+            tot_speso_c = v_cliente['ricavo_totale'].sum()
+            tot_g_c = v_cliente['quantita'].sum()
+            num_acq_c = len(v_cliente)
+            
+            c1.metric("Totale Speso", f"€ {tot_speso_c:,.2f}")
+            c2.metric("Totale Grammi", f"{tot_g_c:,.1f} g")
+            c3.metric("Acquisti Effettuati", f"{num_acq_c}")
+            
+            # CALCOLO PRODOTTO PREFERITO
+            pref_prod = v_cliente.groupby('prodotto')['quantita'].sum().reset_index().sort_values('quantita', ascending=False)
+            top_prod_nome = pref_prod.iloc[0]['prodotto']
+            top_prod_g = pref_prod.iloc[0]['quantita']
+            perc_top = (top_prod_g / tot_g_c * 100) if tot_g_c > 0 else 0
+            
+            st.info(f"👑 **Prodotto Preferito**: **{top_prod_nome}** con **{top_prod_g:,.1f} g** acquistati ({perc_top:.1f}% del suo totale).")
+            
+            # GRAFICO PREFERENZE PRODOTTO (GRAFICO A TORTA/DONUT)
+            chart_pie = alt.Chart(pref_prod).mark_arc(innerRadius=40).encode(
+                theta=alt.Theta(field="quantita", type="quantitative"),
+                color=alt.Color(field="prodotto", type="nominal", legend=alt.Legend(title="Prodotto")),
+                tooltip=['prodotto', 'quantita']
+            ).properties(height=300).configure_view(strokeWidth=0)
+            
+            st.altair_chart(chart_pie, use_container_width=True)
+            
+            # STORICO DEL CLIENTE SELEZIONATO
+            with st.expander(f"📜 Storico Acquisti di {cliente_scelto}", expanded=False):
+                st.dataframe(
+                    v_cliente[['data', 'prodotto', 'quantita', 'ricavo_totale', 'prezzo_unitario']],
+                    column_config={
+                        "data": "Data/Ora",
+                        "prodotto": "Prodotto",
+                        "quantita": st.column_config.NumberColumn("Quantità", format="%.1f g"),
+                        "ricavo_totale": st.column_config.NumberColumn("Spesa (€)", format="€ %.2f"),
+                        "prezzo_unitario": st.column_config.NumberColumn("Prezzo al Grammo", format="€ %.2f")
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
