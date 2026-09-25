@@ -1130,7 +1130,7 @@ with tab6:
             st.success("✅ Reset generale completato con successo!")
             st.rerun()
 
-    # Loop di esecuzione giornaliera controllato (Pausa / Play) - Tempi differenziati (Azione principale = 7s, Storia/Secondarie = 2s)
+    # Loop di esecuzione giornaliera controllato (Pausa / Play) - Tempi differenziati
     if st.session_state["simulazione_attiva"] and not st.session_state["simulazione_in_pausa"] and st.session_state["scelta_in_sospeso"] is None:
         giorni_totali = 365
         giorno_corrente_idx = st.session_state["giorni_simulati"]
@@ -1142,7 +1142,6 @@ with tab6:
 
             st.info(f"⏳ {p_name} in azione... Giorno {giorno_corrente_idx + 1} di {giorni_totali} ({data_corrente.strftime('%d %B %Y')} - {'Weekend' if data_corrente.weekday() >= 5 else 'Feriale'})")
 
-            # Variabile per decidere se questo giorno contiene eventi principali o secondari
             azione_principale_avvenuta = False
 
             with get_connection() as conn:
@@ -1158,7 +1157,6 @@ with tab6:
                 
                 rand_val = random.random()
                 if rand_val < 0.015:
-                    # BIVIO 1
                     azione_principale_avvenuta = True
                     st.session_state["scelta_in_sospeso"] = {
                         "titolo": "La Scopamica Scroccona",
@@ -1174,7 +1172,6 @@ with tab6:
                     }
                     st.rerun()
                 elif rand_val < 0.03:
-                    # BIVIO 2
                     azione_principale_avvenuta = True
                     st.session_state["scelta_in_sospeso"] = {
                         "titolo": "Drammi di Coppia (Fidanzata Tossica)",
@@ -1190,7 +1187,6 @@ with tab6:
                     }
                     st.rerun()
                 elif rand_val < 0.045:
-                    # BIVIO 3
                     azione_principale_avvenuta = True
                     st.session_state["scelta_in_sospeso"] = {
                         "titolo": "L'Incontro con la Ragazza d'Oro",
@@ -1239,7 +1235,7 @@ with tab6:
                     trigger_tiktok_effect("#38bdf8")
                     st.session_state["ultime_notizie"].append(f"🎄 TREDICESIMA: Arrivata la tanto attesa tredicesima di € {tredicesima:,.2f} per {p_name}!")
 
-                # DISASTRO MAGAZZINO (0.4%)
+                # DISASTRO MAGAZZINO
                 if random.random() < 0.004:
                     cursor.execute("SELECT id FROM lotti WHERE quantita_attuale > 0")
                     lotti_attivi_ids = [r[0] for r in cursor.fetchall()]
@@ -1396,7 +1392,7 @@ with tab6:
                                     costo_totale = 20.0
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nueva_qta == 0 else None
+                                    data_comp = data_corrente if nuova_qta == 0 else None
 
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                     cliente = random.choice(clienti_disponibili)
@@ -1405,12 +1401,12 @@ with tab6:
                                     cursor.execute("""
                                         INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                                         VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                                    """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Weekend Amnesia (€20 -> (€40)", ts_giorno))
+                                    """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Weekend Amnesia (€20 -> €40)", ts_giorno))
                                     trigger_tiktok_effect("#2ed573" if pagamento == "Subito" else "#ff4757")
 
             st.session_state["giorni_simulati"] += 1
             
-            # TEMPO DINAMICO: 7 secondi se è successo qualcosa di principale (transazioni, stipendio, rifornimenti), 2 secondi per le cose secondarie o di puro racconto.
+            # Tempo dinamico: 7 secondi per transazioni/eventi principali, 2 secondi per le fasi di sola narrazione
             tempo_pausa = 7 if azione_principale_avvenuta else 2
             time.sleep(tempo_pausa)
             st.rerun()
