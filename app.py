@@ -254,7 +254,7 @@ st.markdown("""
         font-family: 'Comic Sans MS', 'Chalkboard SE', 'Fira Code', cursive, sans-serif !important;
         font-style: italic;
         font-weight: 700;
-        font-size: 1.15rem;
+        font-size: 1.25rem;
         background: linear-gradient(270deg, #ff4757, #ffa502, #ff6b81, #eccc68, #ff4757);
         background-size: 300% 300%;
         -webkit-background-clip: text;
@@ -904,25 +904,46 @@ with tab5:
     if vendite_df.empty:
         st.info("Nessuna vendita registrata.")
     else:
-        # SEZIONE DEBITI IN FILA ORIZZONTALE PERFETTA SENZA RETTANGOLI
+        # GESTIONE SESSIONE PER IL POPUP A SCOMPARSA AL CLIC SUL NOME
+        if "cliente_selezionato_debito" not in st.session_state:
+            st.session_state["cliente_selezionato_debito"] = None
+
         clienti_debito = vendite_df[vendite_df['pagamento'] == 'Dopo (Credito)']
         if not clienti_debito.empty:
             debito_per_cliente = clienti_debito.groupby('cliente')['ricavo_totale'].sum().reset_index()
             
-            for _, row_d in debito_per_cliente.iterrows():
+            # Mostriamo i nomi in fila orizzontale in modo elegante e pulito
+            cols = st.columns(len(debito_per_cliente))
+            for idx, row_d in debito_per_cliente.iterrows():
                 c_nome = row_d['cliente']
                 c_importo = row_d['ricavo_totale']
                 
-                col_d1, col_d2, col_d3 = st.columns([3, 2, 3])
-                with col_d1:
-                    st.markdown(f'<span class="debt-name">{c_nome}</span>', unsafe_allow_html=True)
-                with col_d2:
-                    st.markdown(f'<div style="font-weight: 700; color: #ef4444; font-size: 1.1rem; padding-top: 4px;">€ {c_importo:,.2f}</div>', unsafe_allow_html=True)
-                with col_d3:
-                    if st.button("💳 Segna come Pagato", key=f"btn_paga_{c_nome}"):
-                        segna_debito_pagato(c_nome)
-                        st.success(f"Debito di {c_nome} saldato!")
-                        st.rerun()
+                with cols[idx]:
+                    if st.button(f"✨ {c_nome}", key=f"btn_nome_{c_nome}", use_container_width=True):
+                        st.session_state["cliente_selezionato_debito"] = c_nome
+
+            # Se l'utente ha cliccato su un nome, compare il riquadro con l'importo e la conferma
+            cli_selezionato = st.session_state["cliente_selezionato_debito"]
+            if cli_selezionato:
+                importo_selezionato = debito_per_cliente[debito_per_cliente['cliente'] == cli_selezionato]['ricavo_totale'].values
+                if len(importo_selezionato) > 0:
+                    importo_val = importo_selezionato[0]
+                    
+                    with st.container(border=True):
+                        st.markdown(f"### 💳 Gestione Debito: **{cli_selezionato}**")
+                        st.markdown(f"**Importo da riscuotere:** <span style='color: #ef4444; font-size: 1.3rem;'>€ {importo_val:,.2f}</span>", unsafe_allow_html=True)
+                        
+                        col_p1, col_p2 = st.columns(2)
+                        with col_p1:
+                            if st.button("✅ Conferma Pagamento", key=f"conferma_pag_{cli_selezionato}", use_container_width=True):
+                                segna_debito_pagato(cli_selezionato)
+                                st.session_state["cliente_selezionato_debito"] = None
+                                st.success(f"Debito di {cli_selezionato} saldato con successo!")
+                                st.rerun()
+                        with col_p2:
+                            if st.button("❌ Chiudi", key=f"chiudi_pop_{cli_selezionato}", use_container_width=True):
+                                st.session_state["cliente_selezionato_debito"] = None
+                                st.rerun()
 
         clienti_grouped = vendite_df.groupby('cliente').agg(
             Spesa_Totale=('ricavo_totale', 'sum'),
