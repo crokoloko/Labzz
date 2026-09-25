@@ -27,7 +27,7 @@ def get_video_base64(file_path):
     return None
 
 # ==========================================
-# INIEZIONE CSS CUSTOM (SFONDO LOGO + ANIMAZIONI + CORREZIONI TESTO)
+# INIEZIONE CSS CUSTOM (CENTRATURA + CORREZIONI PARSING E MARGINI)
 # ==========================================
 st.markdown("""
 <style>
@@ -48,12 +48,12 @@ st.markdown("""
         display: none !important;
     }
 
-    /* 4. MARGINE SUPERIORE PER NON TAGLIARE IL LOGO */
+    /* 4. MARGINE SUPERIORE ED INFERIORE ESTESO PER EVITARE TAGLI IN FONDO */
     .block-container {
         padding-top: 2.8rem !important;
-        padding-bottom: 2rem !important;
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
+        padding-bottom: 6rem !important; /* Spazio extra in fondo per la leggibilità */
+        padding-left: 0.8rem !important;
+        padding-right: 0.8rem !important;
     }
 
     /* 5. CENTRATURA PERFETTA LOGO VIDEO SENZA BORDURA NÉ SFUMATURA */
@@ -63,7 +63,7 @@ st.markdown("""
         align-items: center !important;
         text-align: center !important;
         width: 100% !important;
-        margin: 0 auto 1rem auto !important;
+        margin: 0 auto 1.5rem auto !important;
         padding: 0 !important;
     }
 
@@ -80,7 +80,7 @@ st.markdown("""
         background-color: transparent !important;
     }
 
-    /* 6. SPAZIATURA TAB (SCHEDE) */
+    /* 6. SPAZIATURA E CENTRATURA TAB (SCHEDE) */
     div[data-testid="stTabs"] {
         margin-top: 0rem !important;
         padding-top: 0rem !important;
@@ -90,35 +90,46 @@ st.markdown("""
         gap: 12px !important;
         background-color: transparent !important;
         border-bottom: none !important;
-        padding: 0px 0 8px 0 !important;
+        padding: 0px 0 12px 0 !important;
+        justify-content: center !important;
     }
 
-    /* 7. TITOLI E INTESTAZIONI 3D CON TITAN ONE */
-    h1 {
+    /* 7. CENTRATURA DI TUTTI I TITOLI E INTESTAZIONI */
+    h1, h2, h3, h4, h5, h6 {
         font-family: 'Titan One', cursive, sans-serif !important;
         color: #ffffff !important;
+        text-align: center !important;
+        line-height: 1.5 !important;
+        margin-top: 15px !important;
+        margin-bottom: 15px !important;
+        word-break: break-word !important;
+    }
+
+    h1 {
         letter-spacing: 1px;
         text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.35) !important;
-        margin-bottom: 15px !important;
-        text-align: center;
     }
-    h2, h3, h4, h5 {
-        font-family: 'Titan One', cursive, sans-serif !important;
+
+    h2, h3, h4 {
         color: #f1f5f9 !important;
         letter-spacing: 0.5px;
         text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5) !important;
-        line-height: 1.4 !important;
-        margin-top: 10px !important;
-        margin-bottom: 10px !important;
     }
 
-    /* 8. CONTENITORE CUSTOM PER GRIGLIA 2x2 FORZATA IN HTML/CSS */
+    /* 8. CENTRATURA DI TESTI STANDARD, DIDASCALIE E SUBHEADER */
+    .stMarkdown, .stText, p, span, label, caption, div[data-testid="stCaptionContainer"] {
+        text-align: center !important;
+        font-family: 'Fredoka', sans-serif !important;
+        line-height: 1.5 !important;
+    }
+
+    /* 9. CONTENITORE CUSTOM PER GRIGLIA DASHBOARD */
     .dashboard-grid {
         display: grid !important;
         grid-template-columns: repeat(2, 1fr) !important;
         gap: 12px !important;
         width: 100% !important;
-        margin-bottom: 20px !important;
+        margin-bottom: 25px !important;
     }
 
     .custom-card {
@@ -127,11 +138,10 @@ st.markdown("""
         -webkit-backdrop-filter: blur(16px) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 16px !important;
-        padding: 12px 8px !important;
+        padding: 14px 8px !important;
         box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.5), 
                     inset 0 1px 1px 0 rgba(255, 255, 255, 0.1) !important;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        aspect-ratio: 1 / 1 !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;
@@ -141,70 +151,48 @@ st.markdown("""
         box-sizing: border-box !important;
     }
 
-    .custom-card:hover {
-        transform: translateY(-3px) !important;
-        border-color: rgba(56, 189, 248, 0.5) !important;
-        box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.7), 
-                    0 0 12px rgba(56, 189, 248, 0.25) !important;
-    }
-
     .card-label {
-        font-family: 'Fredoka', sans-serif !important;
         color: #94a3b8 !important;
-        font-size: 0.72rem !important;
+        font-size: 0.75rem !important;
         font-weight: 600 !important;
         text-transform: uppercase;
         letter-spacing: 0.3px;
-        line-height: 1.1 !important;
-        margin-bottom: 4px !important;
+        margin-bottom: 6px !important;
     }
 
     .card-value {
-        font-family: 'Fredoka', sans-serif !important;
-        font-size: 1.15rem !important;
+        font-size: 1.2rem !important;
         font-weight: 700 !important;
         color: #38bdf8 !important;
         text-shadow: 0 2px 6px rgba(56, 189, 248, 0.3);
-        word-break: break-word !important;
     }
 
-    /* FIX SOVRAPPOSIZIONE TESTI IN EXPANDER E SCHEDE */
+    /* 10. RISOLUZIONE TESTI SORMONTATI SU EXPANDER E FORM */
+    div[data-testid="stForm"], div[data-testid="stExpander"] {
+        background: rgba(15, 23, 42, 0.75) !important;
+        backdrop-filter: blur(12px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 16px !important;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4) !important;
+        padding: 20px !important;
+        margin-bottom: 25px !important;
+        height: auto !important; /* Garantisce che la scatola si espanda dinamicamente */
+        min-height: auto !important;
+        overflow: visible !important;
+    }
+
     div[data-testid="stExpander"] details summary {
-        font-family: 'Fredoka', sans-serif !important;
         color: #e2e8f0 !important;
         font-weight: 600 !important;
         font-size: 1rem !important;
-        padding-top: 8px !important;
-        padding-bottom: 8px !important;
-        line-height: 1.5 !important;
+        padding: 10px 5px !important;
+        text-align: center !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
     }
 
-    /* Regolazione specifica per Mobile */
-    @media (max-width: 768px) {
-        .block-container {
-            padding-top: 2.8rem !important;
-            padding-left: 0.3rem !important;
-            padding-right: 0.3rem !important;
-        }
-        .logo-container video {
-            max-width: 95% !important;
-        }
-        .dashboard-grid {
-            gap: 8px !important;
-        }
-        .custom-card {
-            padding: 8px 4px !important;
-            border-radius: 12px !important;
-        }
-        .card-label {
-            font-size: 0.65rem !important;
-        }
-        .card-value {
-            font-size: 0.98rem !important;
-        }
-    }
-
-    /* 9. TAB OPERATIVI TATTILI 3D */
+    /* 11. TAB OPERATIVI 3D */
     .stTabs [data-baseweb="tab"] {
         font-family: 'Fredoka', sans-serif !important;
         background: rgba(15, 23, 42, 0.7) !important;
@@ -212,34 +200,23 @@ st.markdown("""
         border-radius: 14px !important;
         color: #94a3b8 !important;
         font-weight: 700 !important;
-        padding: 12px 24px !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
-        transition: all 0.25s ease !important;
+        padding: 12px 20px !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
     }
-    .stTabs [data-baseweb="tab"]:hover {
-        background: rgba(30, 41, 59, 0.8) !important;
-        color: #f8fafc !important;
-        transform: translateY(-2px) !important;
-    }
+
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
         color: #ffffff !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        box-shadow: 0 8px 20px rgba(37, 99, 235, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3) !important;
     }
 
-    /* 10. CONTENITORI FORM ED EXPANDER GLASSMORPHISM */
-    div[data-testid="stForm"], div[data-testid="stExpander"] {
-        background: rgba(15, 23, 42, 0.7) !important;
-        backdrop-filter: blur(12px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 16px !important;
-        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4) !important;
-        padding: 20px !important;
-        margin-bottom: 15px !important;
+    /* 12. PULSANTI 3D ED EFFETTI HOVER */
+    .stButton {
+        display: flex !important;
+        justify-content: center !important;
+        margin: 10px 0 !important;
     }
 
-    /* 11. PULSANTI 3D ED EFFETTI HOVER */
     .stButton > button, button[kind="primary"] {
         font-family: 'Fredoka', sans-serif !important;
         background: linear-gradient(135deg, #0284c7 0%, #1d4ed8 100%) !important;
@@ -248,23 +225,16 @@ st.markdown("""
         border: none !important;
         border-radius: 12px !important;
         padding: 12px 28px !important;
-        box-shadow: 0 6px 20px rgba(2, 132, 199, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
-        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-    }
-    .stButton > button:hover {
-        transform: translateY(-3px) !important;
-        box-shadow: 0 10px 25px rgba(2, 132, 199, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
-    }
-    .stButton > button:active {
-        transform: translateY(1px) !important;
-        box-shadow: 0 3px 10px rgba(2, 132, 199, 0.3) !important;
+        box-shadow: 0 6px 20px rgba(2, 132, 199, 0.35) !important;
+        transition: all 0.2s ease !important;
     }
 
-    /* 12. CONTROLLI INPUT, LABELS & SELECT */
-    label, p, span, div {
-        font-family: 'Fredoka', sans-serif !important;
-        line-height: 1.4 !important;
+    .stButton > button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 10px 25px rgba(2, 132, 199, 0.5) !important;
     }
+
+    /* 13. CONTROLLI INPUT, LABELS & SELECT */
     .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
         font-family: 'Fredoka', sans-serif !important;
         font-weight: 600 !important;
@@ -272,28 +242,28 @@ st.markdown("""
         color: #f8fafc !important;
         border: 1px solid rgba(255, 255, 255, 0.12) !important;
         border-radius: 10px !important;
-    }
-    .stTextInput input:focus, .stNumberInput input:focus {
-        border-color: #38bdf8 !important;
-        box-shadow: 0 0 12px rgba(56, 189, 248, 0.3) !important;
+        text-align: center !important;
     }
 
-    /* 13. TABELLE STYLING GLASS CON FREDOKA */
+    /* 14. TABELLE STYLING GLASS CON MARGINE INFERIORE */
     div[data-testid="stDataFrame"] {
         font-family: 'Fredoka', sans-serif !important;
         background: rgba(15, 23, 42, 0.6) !important;
         border-radius: 14px !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         overflow: hidden !important;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+        margin-bottom: 25px !important;
     }
 
-    /* 14. NOTIFICHE ED ALERT PERSONALIZZATI */
-    div[data-testid="stNotification"] {
-        font-family: 'Fredoka', sans-serif !important;
-        font-weight: 600 !important;
-        border-radius: 12px !important;
-        backdrop-filter: blur(10px) !important;
+    /* MOBILE ADJUSTMENTS */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 2.5rem !important;
+            padding-bottom: 8rem !important; /* Spazio ampio per evitare sovrapposizioni in basso */
+        }
+        .logo-container video {
+            max-width: 95% !important;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -627,9 +597,9 @@ with tab1:
             qta_tot_disp = float(lotti_disponibili['quantita_attuale'].sum()) if not lotti_disponibili.empty else 0.0
             
             if qta_tot_disp <= 0:
-                st.error(f"⚠️ Nessuna scorta disponibile per **{prod_nome}**. Aggiungi prima un lotto dalla scheda 'Rifornimenti'.")
+                st.error(f"⚠️ Nessuna scorta disponibile per {prod_nome}. Aggiungi prima un lotto dalla scheda 'Rifornimenti'.")
             else:
-                st.info(f"Disponibilità totale: **{qta_tot_disp:,.1f} g**")
+                st.info(f"Disponibilità totale: {qta_tot_disp:,.1f} g")
                 
                 st.markdown("##### Registra Vendita")
                 col1, col2 = st.columns(2)
@@ -742,7 +712,7 @@ with tab2:
         incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
         margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
 
-        # GRIGLIA 2x2 PERFETTA E GARANTITA SU TUTTI I DISPOSITIVI IN HTML/CSS
+        # GRIGLIA KPI CENTRATA
         st.markdown(f"""
         <div class="dashboard-grid">
             <div class="custom-card">
@@ -766,7 +736,7 @@ with tab2:
 
         st.markdown("---")
 
-        # STORICO PROGRESSIVO A LARGHEZZA PIENA (RIMOSSO GUADAGNO PER LOTTO)
+        # STORICO PROGRESSIVO A LARGHEZZA PIENA
         st.subheader("📈 Storico Progressivo Operazioni")
         if movimenti_df.empty:
             st.info("Registra transazioni per generare il grafico.")
@@ -810,7 +780,7 @@ with tab3:
         lotti_warning = report_lotti_df[report_lotti_df['stato_lotto'].str.contains("⚠️")]
         if not lotti_warning.empty:
             for _, w_row in lotti_warning.iterrows():
-                st.warning(f"⚠️ **Lotto {w_row['codice_lotto']} ({w_row['prodotto']})** in esaurimento! Scorta residua: **{w_row['quantita_attuale']:,.1f} g**")
+                st.warning(f"⚠️ Lotto {w_row['codice_lotto']} ({w_row['prodotto']}) in esaurimento! Scorta residua: {w_row['quantita_attuale']:,.1f} g")
 
         col_m1, col_m2, col_m3 = st.columns(3)
         costo_tot_lotti = report_lotti_df['costo_totale_lotto'].sum()
@@ -850,8 +820,10 @@ with tab3:
         )
 
     st.markdown("---")
-    col_cfg1, col_cfg2 = st.columns([1, 2])
-    with col_cfg1:
+    
+    # CONFIGURAZIONE SOGLIA ALERT CENTRATA
+    col_cfg1, col_cfg2, col_cfg3 = st.columns([1, 2, 1])
+    with col_cfg2:
         nuova_soglia = st.number_input(
             "⚙️ Soglia Alert In Esaurimento (g)", 
             min_value=1.0, 
@@ -866,11 +838,10 @@ with tab3:
 
     st.markdown("---")
     
-    # SEZIONE GESTIONE LOTTI E ANAGRAFICA SENZA SOVRAPPOSIZIONI
-    st.markdown("### ⚙️ Gestione Lotti e Anagrafica")
-    st.write("Usa i pannelli sottostanti per gestire le scorte dei lotti e aggiungere nuovi prodotti:")
+    # SEZIONE GESTIONE LOTTI E ANAGRAFICA SENZA SOVRAPPOSIZIONI E CON TESTI CENTRATI
+    st.subheader("⚙️ Gestione Lotti e Anagrafica")
+    st.write("Apri i pannelli sottostanti per inserire nuovi rifornimenti, eliminare lotti o aggiungere un nuovo prodotto:")
     
-    # OPZIONI VISUALIZZATE IN BLOCCHI SEPARATI SPAZIOSI
     with st.expander("➕ **Aggiungi un Nuovo Lotto / Rifornimento**", expanded=False):
         if prodotti_tutti_df.empty:
             st.warning("Crea prima un prodotto in anagrafica nel pannello dedicato.")
@@ -965,7 +936,7 @@ with tab3:
 # TAB 4: REPORT & STORICO
 # ------------------------------------------
 with tab4:
-    st.subheader("📜 Registro Storico Transazioni e Dettaglio Lotti")
+    st.subheader("📜 Registro Storico Transazioni")
     
     movimenti_df = get_movimenti_dettagliati_df()
     
@@ -1016,7 +987,8 @@ with tab4:
 
         st.markdown("---")
         
-        st.subheader("🔄 Storno Movimento (Ripristino Scorta Lotto)")
+        # BLOCCO STORNO CON MARGINI CORRETTI E SPAZIATI
+        st.subheader("🔄 Storno Movimento")
         with st.expander("🛠️ **Annulla una transazione specifica**", expanded=False):
             st.write("Selezionando una transazione, l'operazione verrà stornata e la quantità verrà restituita al lotto di origine.")
             
@@ -1038,6 +1010,7 @@ with tab4:
 
     st.markdown("---")
     
+    # BLOCCO RESET FINALE SPAZIATO PER EVITARE TAGLI IN FONDO ALLA PAGINA
     st.subheader("⚙️ Reset Globale Database")
     with st.expander("🚨 **Pulsante di Reset Totale Storico Transazioni**", expanded=False):
         st.warning("Attenzione: l'operazione cancellerà definitivamente tutte le transazioni registrate nello storico.")
