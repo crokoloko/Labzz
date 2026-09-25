@@ -584,23 +584,24 @@ else:
         st.title("LaBzz")
 
 # ==========================================
-# CENTRO NOTIFICHE LIVE CON MESSAGGIO DI BENVENUTO
+# CENTRO NOTIFICHE LIVE (UNICA NOTIFICA ATTIVA)
 # ==========================================
 if "ultime_notizie" not in st.session_state:
     st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
 if "scelta_in_sospeso" not in st.session_state:
     st.session_state["scelta_in_sospeso"] = None
 if "nome_protagonista" not in st.session_state:
-    st.session_state["nome_protagonista"] = "Alex"
+    st.session_state["nome_protagonista"] = "Hassan"
 
-notizie_recenti = st.session_state["ultime_notizie"][-3:]
-for notif in reversed(notizie_recenti):
-    is_urgent = "⚠️" in notif or "DISASTRO" in notif or "DEBITO" in notif or "tossica" in notif.lower() or "scrocca" in notif.lower()
-    is_love = "💖" in notif or "ragazza" in notif.lower() or "amore" in notif.lower() or "scopamica" in notif.lower()
-    is_fun = "🎉" in notif or "birra" in notif.lower() or "tekno" in notif.lower() or "benvenuto" in notif.lower()
+# Mostriamo ESCLUSIVAMENTE l'ultima notifica in alto
+if st.session_state["ultime_notizie"]:
+    ultima_notif = st.session_state["ultime_notizie"][-1]
+    is_urgent = "⚠️" in ultima_notif or "DISASTRO" in ultima_notif or "DEBITO" in ultima_notif or "tossica" in ultima_notif.lower() or "scrocca" in ultima_notif.lower()
+    is_love = "💖" in ultima_notif or "ragazza" in ultima_notif.lower() or "amore" in ultima_notif.lower() or "scopamica" in ultima_notif.lower()
+    is_fun = "🎉" in ultima_notif or "birra" in ultima_notif.lower() or "tekno" in ultima_notif.lower() or "benvenuto" in ultima_notif.lower()
     
     css_class = "alert-banner urgent" if is_urgent else ("alert-banner love" if is_love else ("alert-banner fun" if is_fun else "alert-banner"))
-    st.markdown(f'<div class="{css_class}">🔔 <b>Cronaca in diretta ({st.session_state["nome_protagonista"]}):</b> {notif}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="{css_class}">🔔 <b>Cronaca in diretta ({st.session_state["nome_protagonista"]}):</b> {ultima_notif}</div>', unsafe_allow_html=True)
 
 # 6 Tabs configurate
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -609,7 +610,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🚚 Rifornimenti",
     "📈 Statistiche",
     "📜 Report & Storico",
-    "🤖 Bot Live (3 Min)"
+    "🤖 Bot Live (15 Sec)"
 ])
 
 with tab1:
@@ -696,7 +697,7 @@ with tab1:
                                 ricavo_quota = prelievo * prezzo_unitario_calc
                                 margine_quota = ricavo_quota - costo_quota
                                 
-                                if nuova_qta_lotto == 0:
+                                if nueva_qta_lotto == 0:
                                     cursor.execute("""
                                         UPDATE lotti 
                                         SET quantita_attuale = 0, data_completamento = ? 
@@ -1036,7 +1037,7 @@ with tab6:
             if st.button("🚀 Avvia Bot (Play)", use_container_width=True):
                 reset_database_totale()
                 p_name = st.session_state["nome_protagonista"]
-                st.session_state["ultime_notizie"] = [f"🚀 Bot avviato! {p_name} inizia la sua avventura tra fabbrica, musica e imprevisti."]
+                st.session_state["ultime_notizie"] = [f"🚀 Bot avviato! {p_name} dà il via alla simulazione tra turni in fabbrica, produzioni musicali e situazioni al limite."]
                 st.session_state["scelta_in_sospeso"] = None
                 st.session_state["simulazione_attiva"] = True
                 st.session_state["simulazione_in_pausa"] = False
@@ -1104,7 +1105,7 @@ with tab6:
             st.success("✅ Reset generale completato con successo!")
             st.rerun()
 
-    # Loop di esecuzione giornaliera controllato (Pausa / Play)
+    # Loop di esecuzione giornaliera controllato (Pausa / Play) - 15 secondi netti
     if st.session_state["simulazione_attiva"] and not st.session_state["simulazione_in_pausa"] and st.session_state["scelta_in_sospeso"] is None:
         giorni_totali = 365
         giorno_corrente_idx = st.session_state["giorni_simulati"]
@@ -1119,24 +1120,24 @@ with tab6:
             with get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # NOTIFICHE AGGIORNATE OGNI 10-15 SEC
+                # NOTIFICHE PIÙ LUNGHE, DETTAGLIATE E DAL TONO IRONICO/DIVERTENTE
                 notizie_live_pool = [
-                    f"⚙️ [{data_corrente.strftime('%d %b')}] {p_name} controlla l'inventario: tutto sotto controllo.",
-                    f"🏭 [{data_corrente.strftime('%d %b')}] 9 ore in fabbrica: {p_name} sposta pannelli di legno e pensa alla prossima traccia.",
-                    f"🎵 [{data_corrente.strftime('%d %b')}] Pausa in fabbrica: cuffie nelle orecchie, si ascolta un mix Hard Techno.",
-                    f"🚗 [{data_corrente.strftime('%d %b')}] {p_name} sale sulla sua Alfa Giulietta dopo il turno.",
-                    f"📦 [{data_corrente.strftime('%d %b')}] Il bot sta pianificando le vendite e i prossimi contatti per {p_name}.",
+                    f"⚙️ [{data_corrente.strftime('%d %b')}] Turno pesante in fabbrica per {p_name}: tra pannelli di legno da smistare e colle chimiche, la mente viaggia già sui bpm della prossima traccia tekno da chiudere in studio.",
+                    f"🏭 [{data_corrente.strftime('%d %b')}] 9 ore filate di assemblaggio mobili. {p_name} valuta seriamente se licenziarsi per vivere di sola musica o se continuare a soffrire per lo stipendio sicuro.",
+                    f"🎵 [{data_corrente.strftime('%d %b')}] Pausa pranzo strategica in fabbrica: cuffie isolanti calate al massimo, si studiano le automazioni sull'Elektron Digitakt per sbloccare quel groove acido perfetto.",
+                    f"🚗 [{data_corrente.strftime('%d %b')}] Salito a bordo della sua fedele Alfa Giulietta, {p_name} affronta le curve della collina locale con lo stereo a palla e la soddisfazione di aver superato un'altra giornata lavorativa.",
+                    f"📦 [{data_corrente.strftime('%d %b')}] Controllo scorte in corso: {p_name} analizza i movimenti di magazzino e pianifica le prossime mosse per mantenere i conti in perfetto equilibrio.",
                 ]
                 
-                # Eventi casuali divertenti, tristi o sentimentali (Ragazza, scopamica, tossica)
+                # Eventi casuali dettagliati e divertenti
                 rand_val = random.random()
                 if rand_val < 0.015:
                     # BIVIO 1: La scopamica scroccona
                     st.session_state["scelta_in_sospeso"] = {
                         "titolo": "La Scopamica Scroccona",
-                        "descrizione": f"💥 Colpo di scena! {p_name} frequenta una scopamica che si presenta a casa sua e gli svuota mezza scorta di Hash senza pagare un euro, ridendosela alla grande.",
+                        "descrizione": f"💥 Colpo di scena! La scopamica di {p_name} si presenta a casa senza preavviso, svuota mezza scorta di Hash ridendosela e lo tratta pure male. Che fai?",
                         "opzione_a": {
-                            "testo": "Mandala a quel paese e chiudi i rapporti (Perdi quel materiale ma salvi il resto)",
+                            "testo": "Mandala a quel paese e chiudi i rapporti (Perdi quel materiale ma salvi la dignità)",
                             "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'XME', 10.0, 0, 45.0, -45.0, 'Scopamica', 'Subito', 'Materiale scroccato e scaricato', ?)", (ts_giorno,))
                         },
                         "opzione_b": {
@@ -1149,13 +1150,13 @@ with tab6:
                     # BIVIO 2: La fidanzata tossica
                     st.session_state["scelta_in_sospeso"] = {
                         "titolo": "Drammi di Coppia (Fidanzata Tossica)",
-                        "descrizione": f"💔 {p_name} è finito in una relazione con una ragazza tossica che gli fa scenate incredibili ogni volta che esce con gli amici o lavora in fabbrica. C'è tensione alle stelle!",
+                        "descrizione": f"💔 Relazione al capolinea: la ragazza di {p_name} gli fa scenate isteriche ogni volta che accende il mixer o va a lavorare in fabbrica. Clima irrespirabile!",
                         "opzione_a": {
-                            "testo": "Taglia i ponti immediatamente e riprendi in mano la tua libertà!",
-                            "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'VENDITA', 0, 0, 50, 0, 50, 'Uscita Amici', 'Subito', 'Regalo spensieratezza dopo la ex tossica', ?)", (ts_giorno,))
+                            "testo": "Molla la tizia tossica all'istante e torna a goderti la libertà e la musica!",
+                            "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'VENDITA', 0, 0, 50, 0, 50, 'Uscita Amici', 'Subito', 'Festeggiamento fine relazione tossica', ?)", (ts_giorno,))
                         },
                         "opzione_b": {
-                            "testo": "Resisti e prova a cambiarla (Subisci stress e perdi tempo prezioso)",
+                            "testo": "Tieni duro e prova a mediare (Subisci stress accumulato e perdi tempo)",
                             "azione": lambda: None
                         }
                     }
@@ -1164,24 +1165,24 @@ with tab6:
                     # BIVIO 3: La ragazza d'oro che vuole metterlo a posto
                     st.session_state["scelta_in_sospeso"] = {
                         "titolo": "L'Incontro con la Ragazza d'Oro",
-                        "descrizione": f"💖 {p_name} ha conosciuto una ragazza fantastica, dolce e con la testa sulle spalle. Gli dice: 'Voglio che molli questa vita da strada e che ti concentri solo sul tuo lavoro in fabbrica e sulla musica'. Che fai?",
+                        "descrizione": f"💖 Svolta inaspettata: {p_name} conosce una ragazza d'oro, assennata e dolce, che gli propone di mettere la testa a posto e concentrarsi solo su fabbrica e studio.",
                         "opzione_a": {
-                            "testo": "Segui il suo consiglio: metti la testa a posto, molla i traffici e vivi felice!",
-                            "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'VENDITA', 0, 0, 200, 0, 200, 'Nuova Vita', 'Subito', 'Premio stabilità sentimentale', ?)", (ts_giorno,))
+                            "testo": "Accetta il consiglio: molla i traffici loschi e vivi una vita tranquilla e felice!",
+                            "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'VENDITA', 0, 0, 200, 0, 200, 'Nuova Vita', 'Subito', 'Premio stabilità emotiva', ?)", (ts_giorno,))
                         },
                         "opzione_b": {
-                            "testo": "Rifiuti l'ultimatum: 'Io sono fatto così, la mia libertà prima di tutto!'",
+                            "testo": "Rifiuta con fermezza: 'La mia indipendenza e i miei progetti vengono prima di tutto!'",
                             "azione": lambda: None
                         }
                     }
                     st.rerun()
                 elif random.random() < 0.28:
                     evento_speciale = random.choice([
-                        f"😢 Momento no per {p_name}: la scorta è bassa e le bollette della luce pesano.",
-                        f"🎉 Serata epica: {p_name} si spara una sessione musicale a 180 BPM con l'Elektron Digitakt!",
-                        f"🌧️ Pioggia battente: {p_name} è stanco morto dopo il turno in fabbrica.",
-                        f"🐶 Il Pinscher nano di {p_name} ha rosicchiato una pantofola, risate generali in casa.",
-                        f"💸 Per fortuna lo stipendio della fabbrica di {p_name} fa da paracadute alle spese!"
+                        f"😢 Momento no: bolletta della luce spropositata e scorte agli sgoccioli per {p_name}.",
+                        f"🎉 Sessione notturna memorabile: {p_name} sforna una traccia acid core da urlo a 180 BPM ininterrotti.",
+                        f"🌧️ Maltempo in collina: pioggia battente e umidità che mettono a dura prova l'umore di {p_name}.",
+                        f"🐶 Il Pinscher nano di {p_name} ha deciso di sgranocchiare l'ennesimo paio di scarpe nuove.",
+                        f"💸 Meno male che lo stipendio della fabbrica arriva puntuale a coprire le spese impreviste!"
                     ])
                     st.session_state["ultime_notizie"].append(evento_speciale)
                 else:
@@ -1194,7 +1195,7 @@ with tab6:
                         INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                         VALUES (1, 'VENDITA', 0, 0, ?, 0, ?, 'Fabbrica', 'Subito', 'Accredito Stipendio Mensile', ?)
                     """, (stipendio_netto, stipendio_netto, ts_giorno))
-                    st.session_state["ultime_notizie"].append(f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato a {p_name}!")
+                    st.session_state["ultime_notizie"].append(f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato sul conto di {p_name}!")
 
                 # TREDICESIMA A DICEMBRE
                 if data_corrente.month == 12 and data_corrente.day == 15:
@@ -1203,7 +1204,7 @@ with tab6:
                         INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                         VALUES (1, 'VENDITA', 0, 0, ?, 0, ?, 'Fabbrica', 'Subito', 'Accredito Tredicesima', ?)
                     """, (tredicesima, tredicesima, ts_giorno))
-                    st.session_state["ultime_notizie"].append(f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f} per {p_name}!")
+                    st.session_state["ultime_notizie"].append(f"🎄 TREDICESIMA: Arrivata la tanto attesa tredicesima di € {tredicesima:,.2f} per {p_name}!")
 
                 # 1. DISASTRO MAGAZZINO (0.4%)
                 if random.random() < 0.004:
@@ -1212,7 +1213,7 @@ with tab6:
                     if lotti_attivi_ids:
                         for l_id_err in lotti_attivi_ids:
                             cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (data_corrente, l_id_err))
-                        st.session_state["ultime_notizie"].append(f"⚠️ DISASTRO: Merce rovinata in magazzino per {p_name}. Perdita secca!")
+                        st.session_state["ultime_notizie"].append(f"⚠️ DISASTRO: Infiltrazioni d'acqua in magazzino rovinano la merce di {p_name}. Perdita secca!")
 
                 # 2. RIFORNIMENTO AUTOMATICO
                 cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
@@ -1235,13 +1236,13 @@ with tab6:
                     if prod_disponibili:
                         p_id_rif = random.choice(prod_disponibili)
                         qta_lotto = 80.0
-                        costo_base_lotto = qta_lotto * 4.50  # € 360 per 80g
+                        costo_base_lotto = qta_lotto * 4.50
                         
                         if cassa_attuale >= costo_base_lotto:
                             spesa_lotto = costo_base_lotto
                             nota_rifornimento = "Rifornimento Hash standard (€ 4,50/g)"
                         else:
-                            spesa_lotto = costo_base_lotto * 1.27  # Maggiorazione +27% a debito
+                            spesa_lotto = costo_base_lotto * 1.27
                             nota_rifornimento = "Rifornimento Hash a DEBITO (+27% maggiorazione)"
                             st.session_state["ultime_notizie"].append(f"💳 DEBITO ATTIVATO: Rifornimento acquistato a debito per {p_name} (€ {spesa_lotto:,.2f}).")
 
@@ -1264,7 +1265,7 @@ with tab6:
                     nomi_nuovi = ["Davide N.", "Simone P.", "Federico R.", "Mattia B.", "Alessio M."]
                     nuovo_contatto = random.choice(nomi_nuovi) + f" ({data_corrente.strftime('%b')})"
                     cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (nuovo_contatto,))
-                    st.session_state["ultime_notizie"].append(f"🤝 {p_name} ha conosciuto un nuovo contatto: {nuovo_contatto}!")
+                    st.session_state["ultime_notizie"].append(f"🤝 {p_name} amplia la rete: stretto un nuovo contatto con {nuovo_contatto}!")
 
                 # 4. CONSUMI PERSONALI (30%)
                 if random.random() < 0.30:
@@ -1349,7 +1350,7 @@ with tab6:
                                 if qta_vendita > 0:
                                     prezzo_unitario = 90.0
                                     ricavo_totale = qta_vendita * prezzo_unitario
-                                    costo_totale = 50.0  # Costo specifico Hash
+                                    costo_totale = 50.0
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
                                     data_comp = data_corrente if nuova_qta == 0 else None
@@ -1379,7 +1380,7 @@ with tab6:
                                 if qta_vendita > 0:
                                     prezzo_unitario = 40.0
                                     ricavo_totale = qta_vendita * prezzo_unitario
-                                    costo_totale = 20.0  # Costo specifico Amnesia
+                                    costo_totale = 20.0
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
                                     data_comp = data_corrente if nuova_qta == 0 else None
@@ -1395,7 +1396,8 @@ with tab6:
 
             st.session_state["giorni_simulati"] += 1
             
-            time.sleep(12 / giorni_totali)
+            # PAUSA DI 15 SECONDI NETTI TRA UN GIORNO E L'ALTRO
+            time.sleep(15)
             st.rerun()
         else:
             st.session_state["simulazione_attiva"] = False
