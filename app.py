@@ -331,7 +331,6 @@ def init_db():
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('soglia_esaurimento', '10.0')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('bot_attivo', '0')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('giorni_simulati', '0')")
-        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('timestamp_avvio', '')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('nome_protagonista', 'Hassan')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('ultima_vendita_id', '0')")
 
@@ -370,7 +369,6 @@ def reset_database_totale():
         cursor.execute("DELETE FROM log_narrativi")
     set_impostazione('bot_attivo', '0')
     set_impostazione('giorni_simulati', '0')
-    set_impostazione('timestamp_avvio', '')
     set_impostazione('ultima_vendita_id', '0')
     p_name = get_impostazione('nome_protagonista', 'Hassan')
     aggiungi_log_db(f"🚀 Inizio della saga: {p_name} timbra il cartellino in fabbrica mentre progetta il suo alter ego underground.")
@@ -380,15 +378,6 @@ def get_soglia_esaurimento():
 
 def set_soglia_esaurimento(valore):
     set_impostazione('soglia_esaurimento', str(valore))
-
-def genera_codice_lotto_automatico(data_riferimento=None):
-    if data_riferimento is None:
-        data_riferimento = date.today()
-    giorno = data_riferimento.strftime("%d").lstrip("0")
-    MESE_INIZIALI = ['g', 'f', 'm', 'a', 'm', 'g', 'l', 'a', 's', 'o', 'n', 'd']
-    iniziale_mese = MESE_INIZIALI[data_riferimento.month - 1]
-    anno_2_cifre = data_riferimento.strftime("%y")
-    return f"{giorno}{iniziale_mese}{anno_2_cifre}"
 
 def get_prodotti_disponibili_df():
     query = """
@@ -568,7 +557,7 @@ else:
         st.title("LaBzz")
 
 # ==========================================
-# MOTORE DI SIMULAZIONE BACKGROUND (3 SECONDI = 1 GIORNO)
+# MOTORE DI SIMULAZIONE LIVE (5 SECONDI = 1 GIORNO)
 # ==========================================
 def esegui_giorno_simulazione(giorno_idx, p_name):
     giorni_totali = 365
@@ -701,30 +690,17 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
                             VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Weekend Club", ts_giorno))
                         
-                        aggiungi_log_db(f"🔥 CLUB CLUB VENDITA: Serata weekend, {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}!")
+                        aggiungi_log_db(f"🔥 CLUB VENDITA: Serata weekend, {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}!")
 
     return True
 
-# RECUPERO BACKGROUND ALL'AVVIO (1 giorno ogni 3 secondi)
+# GESTIONE AVANZAMENTO GIORNALIERO SE BOT ATTIVO (SOLO MENTRE SEI SUL SITO)
 if get_impostazione('bot_attivo', '0') == '1':
-    timestamp_avvio_str = get_impostazione('timestamp_avvio', '')
-    if timestamp_avvio_str:
-        dt_avvio = datetime.fromisoformat(timestamp_avvio_str)
-        secondi_trascorsi = (datetime.now() - dt_avvio).total_seconds()
-        giorni_da_recuperare = int(secondi_trascorsi / 3)
-        
-        giorni_gia_simulati = int(get_impostazione('giorni_simulati', '0'))
-        nuovo_giorno_idx = giorni_gia_simulati + giorni_da_recuperare
+    giorni_gia_simulati = int(get_impostazione('giorni_simulati', '0'))
+    if giorni_gia_simulati < 365:
         p_name = get_impostazione('nome_protagonista', 'Hassan')
-        
-        for g in range(giorni_gia_simulati, min(nuovo_giorno_idx, 365)):
-            continuare = esegui_giorno_simulazione(g, p_name)
-            if not continuar:
-                break
-                
-        set_impostazione('giorni_simulati', str(min(nuovo_giorno_idx, 365)))
-        nuovo_dt_avvio = dt_avvio + timedelta(seconds=(min(giorni_da_recuperare, 365 - giorni_gia_simulati) * 3))
-        set_impostazione('timestamp_avvio', nuovo_dt_avvio.isoformat())
+        esegui_giorno_simulazione(giorni_gia_simulati, p_name)
+        set_impostazione('giorni_simulati', str(giorni_gia_simulati + 1))
 
 # CONTROLLO GLOBALE VENDITE PER EFFETTI VISIVI INDIPENDENTI DAL TAB
 with get_connection() as conn:
@@ -761,7 +737,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🚚 Rifornimenti",
     "📈 Statistiche",
     "📜 Report & Storico",
-    "🤖 Bot Live (Background)"
+    "🤖 Bot Live"
 ])
 
 with tab1:
@@ -1162,7 +1138,7 @@ with tab6:
     p_name_corrente = get_impostazione('nome_protagonista', 'Hassan')
 
     if not bot_attivo:
-        st.markdown("Avvia il bot in background persistente per attivare la narrazione continua in stile chat.")
+        st.markdown("Avvia il bot per attivare la narrazione continua e il timer live (1 giorno ogni 5 secondi).")
         
         col_nome1, col_nome2 = st.columns([2, 1])
         with col_nome1:
@@ -1173,7 +1149,7 @@ with tab6:
 
         col_b1, col_b2 = st.columns(2)
         with col_b1:
-            if st.button("🚀 Avvia Bot (Background)", use_container_width=True):
+            if st.button("🚀 Avvia Bot Live", use_container_width=True):
                 reset_database_totale()
                 p_name = get_impostazione('nome_protagonista', 'Hassan')
                 
@@ -1207,8 +1183,7 @@ with tab6:
 
                 set_impostazione('bot_attivo', '1')
                 set_impostazione('giorni_simulati', '0')
-                set_impostazione('timestamp_avvio', datetime.now().isoformat())
-                st.success("✅ Bot avviato in background persistente!")
+                st.success("✅ Bot avviato!")
                 st.rerun()
 
         with col_b2:
@@ -1220,19 +1195,19 @@ with tab6:
     else:
         col_t1, col_t2 = st.columns([3, 1])
         with col_t1:
-            st.markdown(f"🟢 **Bot attivo in background ({p_name_corrente})**")
+            st.markdown(f"🟢 **Bot Live attivo ({p_name_corrente})**")
         with col_t2:
             st.markdown(f"⏳ **Giorno {giorni_simulati_correnti} / 365**")
 
         st.progress(min(giorni_simulati_correnti / 365.0, 1.0))
         
-        if st.button("⏹️ Ferma Definitivamente il Bot", use_container_width=True):
+        if st.button("⏹️ Ferma il Bot", use_container_width=True):
             set_impostazione('bot_attivo', '0')
             st.warning("🛑 Bot arrestato.")
             st.rerun()
 
         st.markdown("---")
-        st.markdown("#### 💬 Cronaca e Flusso Narrativo Unificato")
+        st.markdown("#### 💬 Cronaca e Flusso Narrativo")
 
         chat_container = st.container(border=True)
         with chat_container:
@@ -1246,5 +1221,5 @@ with tab6:
 
         if giorni_simulati_correnti < 365:
             import time
-            time.sleep(3)
+            time.sleep(5)
             st.rerun()
