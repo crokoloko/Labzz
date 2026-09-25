@@ -98,7 +98,7 @@ st.markdown("""
                     inset 0 1px 1px 0 rgba(255, 255, 255, 0.1) !important;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
         
-        /* Forza la forma quadrata e compattata */
+        /* Forma quadrata e compattata */
         aspect-ratio: 1 / 1 !important;
         display: flex !important;
         flex-direction: column !important;
@@ -106,7 +106,7 @@ st.markdown("""
         align-items: center !important;
         text-align: center !important;
         margin: 0 auto !important;
-        max-width: 160px !important;
+        max-width: 150px !important;
         width: 100% !important;
     }
 
@@ -119,7 +119,7 @@ st.markdown("""
 
     div[data-testid="stMetricValue"] {
         font-family: 'Fredoka', sans-serif !important;
-        font-size: 1.35rem !important; /* Dimensione adeguata al quadratino */
+        font-size: 1.3rem !important;
         font-weight: 700 !important;
         color: #38bdf8 !important;
         text-shadow: 0 2px 8px rgba(56, 189, 248, 0.3);
@@ -130,7 +130,7 @@ st.markdown("""
     div[data-testid="stMetricLabel"] {
         font-family: 'Fredoka', sans-serif !important;
         color: #94a3b8 !important;
-        font-size: 0.75rem !important; /* Etichetta più piccola e compatta */
+        font-size: 0.75rem !important;
         font-weight: 600 !important;
         text-transform: uppercase;
         letter-spacing: 0.3px;
@@ -664,16 +664,25 @@ with tab2:
     if df_stato_disp.empty and movimenti_df.empty:
         st.info("Nessun dato di magazzino o movimento disponibile.")
     else:
-        col1, col2, col3, col4 = st.columns(4)
         val_costo = df_stato_disp['valore_totale_costo'].sum() if not df_stato_disp.empty else 0
         val_mercato = df_stato_disp['valore_totale_mercato'].sum() if not df_stato_disp.empty else 0
         incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
         margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
 
-        col1.metric("Valore (Costo)", f"€ {val_costo:,.2f}")
-        col2.metric("Valore (Vendita)", f"€ {val_mercato:,.2f}")
-        col3.metric("Incasso Totale", f"€ {incasso_tot:,.2f}")
-        col4.metric("Margine Netto", f"€ {margine_tot:,.2f}")
+        # GRIGLIA 2x2 PER QUADRATINI COMPATTI
+        riga1_col1, riga1_col2 = st.columns(2)
+        with riga1_col1:
+            st.metric("Valore (Costo)", f"€ {val_costo:,.2f}")
+        with riga1_col2:
+            st.metric("Valore (Vendita)", f"€ {val_mercato:,.2f}")
+
+        st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
+
+        riga2_col1, riga2_col2 = st.columns(2)
+        with riga2_col1:
+            st.metric("Incasso Totale", f"€ {incasso_tot:,.2f}")
+        with riga2_col2:
+            st.metric("Margine Netto", f"€ {margine_tot:,.2f}")
 
         st.markdown("---")
 
