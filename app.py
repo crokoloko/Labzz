@@ -153,7 +153,7 @@ st.markdown("""
 
     .dashboard-grid {
         display: grid !important;
-        grid-template-columns: repeat(2, 1fr) !important;
+        grid-template-columns: repeat(3, 1fr) !important;
         gap: 12px !important;
         width: 100% !important;
         margin-bottom: 25px !important;
@@ -274,6 +274,9 @@ st.markdown("""
         }
         .logo-container video {
             max-width: 95% !important;
+        }
+        .dashboard-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
         }
     }
 </style>
@@ -778,15 +781,17 @@ with tab1:
                         st.rerun()
 
 with tab2:
-    st.subheader("📊 Dashboard & Analytics")
+    st.subheader("📊 Dashboard & Analytics (Quadro Completo)")
     df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
     movimenti_df = get_movimenti_dettagliati_df()
 
     if df_stato_disp.empty and movimenti_df.empty:
         st.info("Nessun dato di magazzino o movimento disponibile.")
     else:
+        # Calcoli finanziari e di magazzino estesi
         val_costo = df_stato_disp['valore_totale_costo'].sum() if not df_stato_disp.empty else 0
         val_mercato = df_stato_disp['valore_totale_mercato'].sum() if not df_stato_disp.empty else 0
+        totale_grammi_disp = df_stato_disp['qta_disponibile'].sum() if not df_stato_disp.empty else 0
         
         incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
         costi_lotti_tot = movimenti_df[movimenti_df['tipo'] == 'CARICO']['costo_totale'].sum() if not movimenti_df.empty else 0
@@ -794,15 +799,23 @@ with tab2:
         
         cassa_reale = 500.0 + incasso_tot - costi_lotti_tot - costi_xme_tot
         margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
+        
+        # Calcolo crediti aperti
+        crediti_aperti = movimenti_df[(movimenti_df['tipo'] == 'VENDITA') & (movimenti_df['pagamento'] == 'Dopo (Credito)')]['ricavo_totale'].sum() if not movimenti_df.empty else 0
 
+        # Griglia KPI ampliata a 6 box (3x2) per tenere sotto occhio tutto
         st.markdown(f"""
         <div class="dashboard-grid">
             <div class="custom-card">
-                <div class="card-label">Cassa Attuale</div>
+                <div class="card-label">Cassa Reale (€)</div>
                 <div class="card-value">€ {cassa_reale:,.2f}</div>
             </div>
             <div class="custom-card">
-                <div class="card-label">Valore (Vendita)</div>
+                <div class="card-label">Valore Magazzino (Costo)</div>
+                <div class="card-value">€ {val_costo:,.2f}</div>
+            </div>
+            <div class="custom-card">
+                <div class="card-label">Valore di Mercato Atteso</div>
                 <div class="card-value">€ {val_mercato:,.2f}</div>
             </div>
             <div class="custom-card">
@@ -810,11 +823,30 @@ with tab2:
                 <div class="card-value">€ {incasso_tot:,.2f}</div>
             </div>
             <div class="custom-card">
-                <div class="card-label">Margine Netto</div>
+                <div class="card-label">Margine Netto Reale</div>
                 <div class="card-value">€ {margine_tot:,.2f}</div>
+            </div>
+            <div class="custom-card">
+                <div class="card-label">Crediti da Riscuotere</div>
+                <div class="card-value" style="color: #ef4444;">€ {crediti_aperti:,.2f}</div>
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+        # Sezione sintesi rapida delle giacenze per prodotto
+        col_s1, col_s2 = st.columns(2)
+        with col_s1:
+            st.markdown("##### 📦 Giacenze Attuali per Prodotto")
+            if not df_stato_disp.empty:
+                st.dataframe(df_stato_disp[['prodotto', 'qta_disponibile', 'valore_totale_mercato']], use_container_width=True, hide_index=True)
+            else:
+                st.info("Nessuna giacenza attiva.")
+                
+        with col_s2:
+            st.markdown("##### 🔍 Panoramica Spese & Consumi XME")
+            st.metric("Totale Speso in Rifornimenti (Lotti)", f"€ {costi_lotti_tot:,.2f}")
+            st.metric("Totale Valore Sprecato/Uso Personale (XME)", f"€ {costi_xme_tot:,.2f}")
+            st.metric("Giacenza Totale in Grammi", f"{totale_grammi_disp:,.1f} g")
 
         st.markdown("---")
         st.subheader("📈 Storico Progressivo Operazioni")
@@ -1065,7 +1097,6 @@ with tab6:
             st.session_state["nome_protagonista"] = nuovo_nome.strip().capitalize()
             st.rerun()
 
-    # BIVIO DECISIONALE COLLEGATO ALLA TRAMA (CORRETTO)
     if st.session_state["scelta_in_sospeso"] is not None:
         bivio = st.session_state["scelta_in_sospeso"]
         with st.container(border=True):
@@ -1164,7 +1195,6 @@ with tab6:
             st.success("✅ Reset generale completato con successo!")
             st.rerun()
 
-    # LOOP PRINCIPALE CON STORIA EVOLUTIVA E BIVI COLLEGATI
     if st.session_state["simulazione_attiva"] and not st.session_state["simulazione_in_pausa"] and st.session_state["scelta_in_sospeso"] is None:
         giorni_totali = 365
         giorno_corrente_idx = st.session_state["giorni_simulati"]
