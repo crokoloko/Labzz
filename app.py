@@ -17,21 +17,19 @@ st.set_page_config(
 )
 
 # ==========================================
-# FUNZIONE GENERAZIONE CODICE LOTTO PERSONALIZZATO
+# FUNZIONE GENERAZIONE CODICE LOTTO
 # ==========================================
 def genera_codice_lotto_automatico(data_riferimento=None):
     if data_riferimento is None:
         data_riferimento = date.today()
-    
     giorno = data_riferimento.strftime("%d").lstrip("0")
     MESE_INIZIALI = ['g', 'f', 'm', 'a', 'm', 'g', 'l', 'a', 's', 'o', 'n', 'd']
     iniziale_mese = MESE_INIZIALI[data_riferimento.month - 1]
     anno_2_cifre = data_riferimento.strftime("%y")
-    
     return f"{giorno}{iniziale_mese}{anno_2_cifre}"
 
 # ==========================================
-# FUNZIONE CARICAMENTO VIDEO BASE64 PER LOGO
+# FUNZIONE CARICAMENTO VIDEO BASE64
 # ==========================================
 def get_video_base64(file_path):
     if os.path.exists(file_path):
@@ -83,8 +81,6 @@ st.markdown("""
         width: 100% !important;
         height: auto !important;
         border-radius: 12px !important;
-        filter: none !important;
-        box-shadow: none !important;
         object-fit: contain !important;
         background-color: transparent !important;
     }
@@ -141,11 +137,6 @@ st.markdown("""
         text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5) !important;
     }
 
-    .stMarkdown p {
-        font-family: 'Fredoka', sans-serif !important;
-        line-height: 1.5 !important;
-    }
-
     .dashboard-grid {
         display: grid !important;
         grid-template-columns: repeat(3, 1fr) !important;
@@ -157,13 +148,11 @@ st.markdown("""
     .custom-card {
         background: rgba(15, 23, 42, 0.75) !important;
         backdrop-filter: blur(16px) !important;
-        -webkit-backdrop-filter: blur(16px) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 16px !important;
         padding: 14px 8px !important;
         box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.5), 
                     inset 0 1px 1px 0 rgba(255, 255, 255, 0.1) !important;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;
@@ -204,7 +193,6 @@ st.markdown("""
         font-weight: 600 !important;
         font-size: 0.98rem !important;
         padding: 14px 16px !important;
-        line-height: 1.4 !important;
     }
 
     div[data-testid="stExpanderDetails"] {
@@ -261,19 +249,6 @@ st.markdown("""
         overflow: hidden !important;
         margin-bottom: 25px !important;
     }
-
-    @media (max-width: 768px) {
-        .block-container {
-            padding-top: 2.5rem !important;
-            padding-bottom: 8rem !important;
-        }
-        .logo-container video {
-            max-width: 95% !important;
-        }
-        .dashboard-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-        }
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -312,13 +287,6 @@ def init_db():
         )
         """)
         
-        cursor.execute("PRAGMA table_info(lotti)")
-        colonne_lotti = [column[1] for column in cursor.fetchall()]
-        if 'data_acquisto' not in colonne_lotti:
-            cursor.execute("ALTER TABLE lotti ADD COLUMN data_acquisto DATE")
-        if 'data_completamento' not in colonne_lotti:
-            cursor.execute("ALTER TABLE lotti ADD COLUMN data_completamento DATE")
-
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS clienti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -346,10 +314,13 @@ def init_db():
         )
         """)
 
-        cursor.execute("PRAGMA table_info(movimenti)")
-        colonne_mov = [column[1] for column in cursor.fetchall()]
-        if 'pagamento' not in colonne_mov:
-            cursor.execute("ALTER TABLE movimenti ADD COLUMN pagamento TEXT DEFAULT 'Subito'")
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS log_narrativi (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            testo TEXT NOT NULL,
+            data_inserimento TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS impostazioni (
@@ -361,6 +332,8 @@ def init_db():
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('bot_attivo', '0')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('giorni_simulati', '0')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('timestamp_avvio', '')")
+        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('nome_protagonista', 'Hassan')")
+        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('ultima_vendita_id', '0')")
 
 init_db()
 
@@ -376,6 +349,17 @@ def set_impostazione(chiave, valore):
         cursor = conn.cursor()
         cursor.execute("INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?, ?)", (chiave, str(valore)))
 
+def aggiungi_log_db(testo):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO log_narrativi (testo) VALUES (?)", (testo,))
+
+def get_tutti_log_db():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT testo FROM log_narrativi ORDER BY id ASC")
+        return [row[0] for row in cursor.fetchall()]
+
 def reset_database_totale():
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -383,10 +367,13 @@ def reset_database_totale():
         cursor.execute("DELETE FROM lotti")
         cursor.execute("DELETE FROM prodotti")
         cursor.execute("DELETE FROM clienti")
+        cursor.execute("DELETE FROM log_narrativi")
     set_impostazione('bot_attivo', '0')
     set_impostazione('giorni_simulati', '0')
     set_impostazione('timestamp_avvio', '')
-    st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
+    set_impostazione('ultima_vendita_id', '0')
+    p_name = get_impostazione('nome_protagonista', 'Hassan')
+    aggiungi_log_db(f"🚀 Inizio della saga: {p_name} timbra il cartellino in fabbrica mentre progetta il suo alter ego underground.")
 
 def get_soglia_esaurimento():
     return float(get_impostazione('soglia_esaurimento', '10.0'))
@@ -581,21 +568,8 @@ else:
         st.title("LaBzz")
 
 # ==========================================
-# GESTIONE SIMULAZIONE IN BACKGROUND & LOG
+# MOTORE DI SIMULAZIONE BACKGROUND
 # ==========================================
-if "ultime_notizie" not in st.session_state:
-    st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
-if "nome_protagonista" not in st.session_state:
-    st.session_state["nome_protagonista"] = "Hassan"
-
-def aggiungi_notizia_persistente(testo):
-    if "ultime_notizie" not in st.session_state:
-        st.session_state["ultime_notizie"] = []
-    st.session_state["ultime_notizie"].append(testo)
-    # Mantiene massimo gli ultimi 100 log in memoria per pulizia
-    if len(st.session_state["ultime_notizie"]) > 100:
-        st.session_state["ultime_notizie"] = st.session_state["ultime_notizie"][-100:]
-
 def esegui_giorno_simulazione(giorno_idx, p_name):
     giorni_totali = 365
     if giorno_idx >= giorni_totali:
@@ -614,15 +588,15 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
             f"🧠 [{data_corrente.strftime('%d %b')}] Studio session: {p_name} collega l'Elektron Digitakt per una sessione notturna.",
             f"📦 [{data_corrente.strftime('%d %b')}] Turno di notte: gestione dei bancali di truciolato e pianificazione tracce."
         ]
-        aggiungi_notizia_persistente(random.choice(saga_pool))
+        aggiungi_log_db(random.choice(saga_pool))
 
         if data_corrente.day == 1:
             stipendio_netto = random.uniform(1650.0, 1800.0)
-            aggiungi_notizia_persistente(f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato sul conto di {p_name}.")
+            aggiungi_log_db(f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato sul conto di {p_name}.")
 
         if data_corrente.month == 12 and data_corrente.day == 15:
             tredicesima = random.uniform(1650.0, 1800.0)
-            aggiungi_notizia_persistente(f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f} per {p_name}.")
+            aggiungi_log_db(f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f} per {p_name}.")
 
         cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
         giacenza_totale = cursor.fetchone()[0] or 0.0
@@ -649,7 +623,7 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
                 else:
                     spesa_lotto = costo_base_lotto * 1.27
                     nota_rifornimento = "Rifornimento a DEBITO (+27%)"
-                    aggiungi_notizia_persistente(f"💳 Rifornimento a debito per {p_name} (€ {spesa_lotto:,.2f}).")
+                    aggiungi_log_db(f"💳 Rifornimento a debito per {p_name} (€ {spesa_lotto:,.2f}).")
 
                 costo_u = spesa_lotto / qta_lotto
                 codice_l = genera_codice_lotto_automatico(data_corrente)
@@ -698,6 +672,9 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
                             INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                             VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Feriale Lotto {cod_lotto}", ts_giorno))
+                        
+                        # Notifica di vendita automatica in background
+                        aggiungi_log_db(f"🎉 VENDITA AUTOMATICA: {qta_vendita:,.1f} g ceduti a {cliente} per € {ricavo_totale:,.2f}!")
         else:
             num_clienti_weekend = random.choices([0, 1, 2], weights=[50, 35, 15])[0]
             for _ in range(num_clienti_weekend):
@@ -724,10 +701,12 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
                             INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                             VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Weekend Club", ts_giorno))
+                        
+                        aggiungi_log_db(f"🔥 CLUB CLUB VENDITA: Serata weekend, {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}!")
 
     return True
 
-# CONTROLLO E RECUPERO BACKGROUND ALL'AVVIO/RICARICA
+# RECUPERO BACKGROUND ALL'AVVIO
 if get_impostazione('bot_attivo', '0') == '1':
     timestamp_avvio_str = get_impostazione('timestamp_avvio', '')
     if timestamp_avvio_str:
@@ -737,7 +716,7 @@ if get_impostazione('bot_attivo', '0') == '1':
         
         giorni_gia_simulati = int(get_impostazione('giorni_simulati', '0'))
         nuovo_giorno_idx = giorni_gia_simulati + giorni_da_recuperare
-        p_name = st.session_state["nome_protagonista"]
+        p_name = get_impostazione('nome_protagonista', 'Hassan')
         
         for g in range(giorni_gia_simulati, min(nuovo_giorno_idx, 365)):
             continuare = esegui_giorno_simulazione(g, p_name)
@@ -748,12 +727,34 @@ if get_impostazione('bot_attivo', '0') == '1':
         nuovo_dt_avvio = dt_avvio + timedelta(seconds=(min(giorni_da_recuperare, 365 - giorni_gia_simulati) * 2))
         set_impostazione('timestamp_avvio', nuovo_dt_avvio.isoformat())
 
-if st.session_state["ultime_notizie"]:
-    ultima_notif = st.session_state["ultime_notizie"][-1]
+# CONTROLLO GLOBALE VENDITE PER EFFETTI VISIVI INDIPENDENTI DAL TAB
+with get_connection() as conn:
+    cursor = conn.cursor()
+    cursor.execute("SELECT MAX(id), SUM(ricavo_totale) FROM movimenti WHERE tipo = 'VENDITA'")
+    row_v = cursor.fetchone()
+    ultimo_id_db = row_v[0] if row_v and row_v[0] else 0
+
+ultima_vendita_memorizzata = int(get_impostazione('ultima_vendita_id', '0'))
+if ultimo_id_db > ultima_vendita_memorizzata:
+    # C'è stata una nuova vendita (manuale o automatica), attiviamo i coriandoli globali!
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT ricavo_totale FROM movimenti WHERE id = ?", (ultimo_id_db,))
+        r_val = cursor.fetchone()
+        importo_ultima = r_val[0] if r_val else 50.0
+    
+    trigger_valore_vendita_effect(importo_ultima)
+    set_impostazione('ultima_vendita_id', str(ultimo_id_db))
+
+# Banner Notifica in cima
+tutti_log = get_tutti_log_db()
+if tutti_log:
+    ultima_notif = tutti_log[-1]
     is_urgent = "⚠️" in ultima_notif or "DISASTRO" in ultima_notif or "DEBITO" in ultima_notif
-    is_fun = "🎉" in ultima_notif or "birra" in ultima_notif.lower() or "tekno" in ultima_notif.lower() or "benvenuto" in ultima_notif.lower()
+    is_fun = "🎉" in ultima_notif or "VENDITA" in ultima_notif or "birra" in ultima_notif.lower() or "tekno" in ultima_notif.lower() or "Inizio" in ultima_notif
     css_class = "alert-banner urgent" if is_urgent else ("alert-banner fun" if is_fun else "alert-banner")
-    st.markdown(f'<div class="{css_class}">🔔 <b>Cronaca in diretta ({st.session_state["nome_protagonista"]}):</b> {ultima_notif}</div>', unsafe_allow_html=True)
+    p_name_attivo = get_impostazione('nome_protagonista', 'Hassan')
+    st.markdown(f'<div class="{css_class}">🔔 <b>Cronaca in diretta ({p_name_attivo}):</b> {ultima_notif}</div>', unsafe_allow_html=True)
 
 # 6 Tabs configurate
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -858,8 +859,9 @@ with tab1:
                                     VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, nome_finale_cliente, tipo_pagamento, f"Lotto {cod_lotto}", timestamp_attuale))
                         
-                        trigger_valore_vendita_effect(totale_incassato)
+                        aggiungi_log_db(f"💰 VENDITA MANUALE: {nome_finale_cliente} ha acquistato per € {totale_incassato:,.2f}!")
                         st.success(f"✅ Vendita a '{nome_finale_cliente}' registrata (Pagamento: {tipo_pagamento})!")
+                        st.rerun()
 
         elif tipo_operazione == "XME":
             lotti_df = get_lotti_attivi_df()
@@ -906,14 +908,13 @@ with tab2:
         st.info("Nessun dato di magazzino o movimento disponibile.")
     else:
         stipendi_totali_accumulati = 0.0
-        if "ultime_notizie" in st.session_state:
-            for notizia in st.session_state["ultime_notizie"]:
-                if "STIPENDIO DI FABBRICA" in notizia or "TREDICESIMA" in notizia:
-                    try:
-                        parte_euro = notizia.split("€ ")[1].split(" ")[0].replace(".", "").replace(",", ".")
-                        stipendi_totali_accumulati += float(parte_euro)
-                    except:
-                        pass
+        for notizia in tutti_log:
+            if "STIPENDIO DI FABBRICA" in notizia or "TREDICESIMA" in notizia:
+                try:
+                    parte_euro = notizia.split("€ ")[1].split(" ")[0].replace(".", "").replace(",", ".")
+                    stipendi_totali_accumulati += float(parte_euro)
+                except:
+                    pass
 
         totale_grammi_disp = df_stato_disp['qta_disponibile'].sum() if not df_stato_disp.empty else 0
         incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
@@ -1160,23 +1161,23 @@ with tab6:
     
     bot_attivo = get_impostazione('bot_attivo', '0') == '1'
     giorni_simulati_correnti = int(get_impostazione('giorni_simulati', '0'))
+    p_name_corrente = get_impostazione('nome_protagonista', 'Hassan')
 
     if not bot_attivo:
         st.markdown("Avvia il bot in background persistente per attivare la narrazione continua in stile chat.")
         
         col_nome1, col_nome2 = st.columns([2, 1])
         with col_nome1:
-            nuovo_nome = st.text_input("🏷️ Nome del Protagonista", value=st.session_state["nome_protagonista"])
-            if nuovo_nome.strip() != "" and nuovo_nome != st.session_state["nome_protagonista"]:
-                st.session_state["nome_protagonista"] = nuovo_nome.strip().capitalize()
+            nuovo_nome = st.text_input("🏷️ Nome del Protagonista", value=p_name_corrente)
+            if nuovo_nome.strip() != "" and nuovo_nome != p_name_corrente:
+                set_impostazione('nome_protagonista', nuovo_nome.strip().capitalize())
                 st.rerun()
 
         col_b1, col_b2 = st.columns(2)
         with col_b1:
             if st.button("🚀 Avvia Bot (Background)", use_container_width=True):
                 reset_database_totale()
-                p_name = st.session_state["nome_protagonista"]
-                aggiungi_notizia_persistente(f"🚀 Inizio della saga: {p_name} timbra il cartellino in fabbrica mentre progetta il suo alter ego underground.")
+                p_name = get_impostazione('nome_protagonista', 'Hassan')
                 
                 with get_connection() as conn:
                     cursor = conn.cursor()
@@ -1219,7 +1220,7 @@ with tab6:
                 st.rerun()
 
     else:
-        st.markdown(f"🟢 **Bot attivo in background ({st.session_state['nome_protagonista']})** — Progresso: **{giorni_simulati_correnti} / 365 giorni**")
+        st.markdown(f"🟢 **Bot attivo in background ({p_name_corrente})** — Progresso: **{giorni_simulati_correnti} / 365 giorni**")
         
         if st.button("⏹️ Ferma Definitivamente il Bot", use_container_width=True):
             set_impostazione('bot_attivo', '0')
@@ -1231,10 +1232,13 @@ with tab6:
 
         chat_container = st.container(border=True)
         with chat_container:
-            notizie = st.session_state.get("ultime_notizie", ["In attesa di eventi..."])
-            for notizia in notizie:
-                with st.chat_message("assistant", avatar="🤖"):
-                    st.write(notizia)
+            log_narrativi = get_tutti_log_db()
+            if not log_narrativi:
+                st.write("In attesa di eventi...")
+            else:
+                for log_testo in log_narrativi:
+                    with st.chat_message("assistant", avatar="🤖"):
+                        st.write(log_testo)
 
         if giorni_simulati_correnti < 365:
             import time
