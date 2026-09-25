@@ -333,6 +333,7 @@ def init_db():
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('soglia_esaurimento', '10.0')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('simulazione_eseguita', '0')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('nome_protagonista', 'Hassan')")
+        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('personalita_bot', 'Influente (Max 7g/giorno)')")
 
 init_db()
 
@@ -374,7 +375,22 @@ def reset_database_totale():
 def esegui_simulazione_anno_completo():
     reset_database_totale()
     p_name = get_impostazione('nome_protagonista', 'Hassan')
+    personalita = get_impostazione('personalita_bot', 'Influente (Max 7g/giorno)')
     
+    # Parametri in base alla personalità scelta
+    if "Tranquillo" in personalita:
+        max_vendita_giorno = 3.0
+        prob_vendita_feriale = [70, 30] # pesi per 0 o 1
+        pesi_weekend = [60, 30, 10]
+    elif "Famoso" in personalita:
+        max_vendita_giorno = 20.0
+        prob_vendita_feriale = [20, 80]
+        pesi_weekend = [10, 40, 50]
+    else: # Influente
+        max_vendita_giorno = 7.0
+        prob_vendita_feriale = [50, 50]
+        pesi_weekend = [40, 40, 20]
+
     with get_connection() as conn:
         cursor = conn.cursor()
         prodotti_info = [
@@ -392,7 +408,7 @@ def esegui_simulazione_anno_completo():
         data_inizio = date.today() - timedelta(days=365)
         cursor.execute("SELECT id FROM prodotti WHERE nome = 'Hash Base'")
         p_id_init = cursor.fetchone()[0]
-        qta_init = 80.0
+        qta_init = 100.0
         costo_u_init = 4.50
         costo_tot_init = qta_init * costo_u_init
         codice_l_init = genera_codice_lotto_automatico(data_inizio)
@@ -406,7 +422,7 @@ def esegui_simulazione_anno_completo():
         cursor.execute("""
             INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
             VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
-        """, (p_id_init, l_id_init, qta_init, costo_u_init, costo_tot_init, f"Lotto Iniziale per {p_name}", ts_c))
+        """, (p_id_init, l_id_init, qta_init, costo_u_init, costo_tot_init, f"Lotto Iniziale ({personalita})", ts_c))
 
         for giorno_idx in range(365):
             data_corrente = (date.today() - timedelta(days=365)) + timedelta(days=giorno_idx)
@@ -431,7 +447,6 @@ def esegui_simulazione_anno_completo():
                 tredicesima = random.uniform(1650.0, 1800.0)
                 aggiungi_log_db(cursor, f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f} per {p_name}.")
 
-            # Controllo giacenze totali e rifornimento in coda (rispetta la regola di finire il lotto corrente prima di toccare quello nuovo dello stesso tipo)
             cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
             giacenza_totale = cursor.fetchone()[0] or 0.0
 
@@ -444,13 +459,13 @@ def esegui_simulazione_anno_completo():
 
             cassa_attuale = 500.0 + incassi_totali - costi_lotti - costi_xme_tot
 
-            if giacenza_totale < 15.0:
+            if giacenza_totale < 20.0:
                 cursor.execute("SELECT id, nome FROM prodotti")
                 prodotti_disponibili = cursor.fetchall()
                 if prodotti_disponibili:
                     p_scelto = random.choice(prodotti_disponibili)
                     p_id_rif, p_nome_rif = p_scelto[0], p_scelto[1]
-                    qta_lotto = 80.0
+                    qta_lotto = 100.0
                     costo_base_lotto = qta_lotto * 4.50
                     
                     if cassa_attuale >= costo_base_lotto:
@@ -473,7 +488,7 @@ def esegui_simulazione_anno_completo():
                         INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
                         VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
                     """, (p_id_rif, l_id_rif, qta_lotto, costo_u, spesa_lotto, nota_rifornimento, ts_giorno))
-                    aggiungi_log_db(cursor, f"📦 MAGAZZINO: Ordinato nuovo lotto {codice_l} per {p_nome_rif}.")
+                    aggiungi_log_db(cursor, f"📦 MAGAZZINO: Ordinato nuovo lotto {codice_l} ({p_nome_rif}) in coda.")
 
             is_weekend = data_corrente.weekday() >= 5
             cursor.execute("SELECT nome FROM clienti")
@@ -485,38 +500,37 @@ def esegui_simulazione_anno_completo():
             prod_ids = [r[0] for r in cursor.fetchall()]
 
             if not is_weekend:
-                num_clienti = random.choices([0, 1], weights=[60, 40])[0]
-                for _ in range(num_clienti):
+                num_transazioni = random.choices([0, 1], weights=prob_vendita_feriale)[0]
+                for _ in range(num_transazioni):
                     if not prod_ids:
                         break
                     p_id = random.choice(prod_ids)
-                    # Consuma rigorosamente il lotto più vecchio attivo per primo
                     cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC, id ASC LIMIT 1", (p_id,))
                     lotto_attivo = cursor.fetchone()
                     if lotto_attivo:
                         l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
-                        qta_vendita = min(qta_disp, random.choice([1.0, 2.0]))
+                        limite_trans = min(qta_disp, max_vendita_giorno)
+                        qta_vendita = round(random.uniform(1.0, limite_trans), 1)
                         if qta_vendita > 0:
-                            prezzo_unitario = 10.0
+                            prezzo_unitario = 12.0 if "Famoso" in personalita else 10.0
                             ricavo_totale = qta_vendita * prezzo_unitario
                             costo_totale = qta_vendita * costo_u
                             margine = ricavo_totale - costo_totale
                             nuova_qta = qta_disp - qta_vendita
-                            # Assegna la data di completamento esatta se il lotto arriva a 0
                             data_comp = data_corrente if nuova_qta == 0 else None
 
                             cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                             cliente = random.choice(clienti_disponibili)
-                            pagamento = "Subito" if random.random() < 0.70 else "Dopo (Credito)"
+                            pagamento = "Subito" if random.random() < 0.75 else "Dopo (Credito)"
                             cursor.execute("""
                                 INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                                 VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Feriale Lotto {cod_lotto}", ts_giorno))
+                            """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Lotto {cod_lotto}", ts_giorno))
                             
                             aggiungi_log_db(cursor, f"🎉 VENDITA: {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}.")
             else:
-                num_clienti_weekend = random.choices([0, 1, 2], weights=[50, 35, 15])[0]
-                for _ in range(num_clienti_weekend):
+                num_transazioni_wk = random.choices([0, 1, 2], weights=pesi_weekend)[0]
+                for _ in range(num_transazioni_wk):
                     if not prod_ids:
                         break
                     cursor.execute("SELECT p.id FROM prodotti p JOIN lotti l ON p.id = l.prodotto_id WHERE l.quantita_attuale > 0 ORDER BY RANDOM() LIMIT 1")
@@ -527,18 +541,18 @@ def esegui_simulazione_anno_completo():
                     lotto_attivo = cursor.fetchone()
                     if lotto_attivo:
                         l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
-                        qta_vendita = min(qta_disp, 1.0)
+                        qta_vendita = min(qta_disp, max_vendita_giorno if max_vendita_giorno < 5 else 5.0)
                         if qta_vendita > 0:
-                            prezzo_unitario = 40.0
+                            prezzo_unitario = 45.0 if "Famoso" in personalita else 40.0
                             ricavo_totale = qta_vendita * prezzo_unitario
-                            costo_totale = 20.0
+                            costo_totale = qta_vendita * costo_u
                             margine = ricavo_totale - costo_totale
                             nuova_qta = qta_disp - qta_vendita
                             data_comp = data_corrente if nuova_qta == 0 else None
 
                             cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                             cliente = random.choice(clienti_disponibili)
-                            pagamento = "Subito" if random.random() < 0.80 else "Dopo (Credito)"
+                            pagamento = "Subito" if random.random() < 0.85 else "Dopo (Credito)"
                             cursor.execute("""
                                 INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                                 VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -971,7 +985,6 @@ with tab3:
         col_m3.metric("Guadagno Netto Reale Lotti", f"€ {report_lotti_df['guadagno_netto_lotto'].sum():,.2f}")
         st.markdown("---")
         
-        # Tabella dettagliata con date di inizio (carico) e fine (completamento)
         st.markdown("##### 📋 Tabella Dettaglio Lotti con Tempistiche (Inizio / Fine)")
         cols_vista = ['lotto_id', 'prodotto', 'codice_lotto', 'quantita_iniziale', 'quantita_attuale', 'costo_acquisto_unitario', 'data_carico', 'data_completamento', 'stato_lotto']
         st.dataframe(report_lotti_df[[c for c in cols_vista if c in report_lotti_df.columns]], use_container_width=True, hide_index=True)
@@ -1124,20 +1137,37 @@ with tab6:
     
     simulazione_fatta = get_impostazione('simulazione_eseguita', '0') == '1'
     p_name_corrente = get_impostazione('nome_protagonista', 'Hassan')
+    personalita_corrente = get_impostazione('personalita_bot', 'Influente (Max 7g/giorno)')
 
-    st.markdown("Premi il pulsante qui sotto per simulare istantaneamente **tutti i 365 giorni dell'anno**: il bot gestirà vendite, stipendi di fabbrica, rifornimenti sequenziali per lotto, debiti e serate weekend in un solo click.")
+    st.markdown("Scegli la personalità del bot e avvia la simulazione di tutti i 365 giorni in un solo click:")
     
-    col_nome1, col_nome2 = st.columns([2, 1])
+    col_nome1, col_nome2 = st.columns([1, 1])
     with col_nome1:
         nuovo_nome = st.text_input("🏷️ Nome del Protagonista", value=p_name_corrente)
         if nuovo_nome.strip() != "" and nuovo_nome != p_name_corrente:
             set_impostazione('nome_protagonista', nuovo_nome.strip().capitalize())
             st.rerun()
 
+    with col_nome2:
+        lista_personalita = [
+            "Tranquillo (Max 3g/giorno)", 
+            "Influente (Max 7g/giorno)", 
+            "Famoso (Max 20g/giorno)"
+        ]
+        try:
+            idx_pers = lista_personalita.index(personalita_corrente)
+        except ValueError:
+            idx_pers = 1
+
+        nuova_pers = st.selectbox("🎭 Personalità / Stile di Vendita", lista_personalita, index=idx_pers)
+        if nuova_pers != personalita_corrente:
+            set_impostazione('personalita_bot', nuova_pers)
+            st.rerun()
+
     col_b1, col_b2 = st.columns(2)
     with col_b1:
         if st.button("🚀 Avvia Simulazione Anno", use_container_width=True):
-            with st.spinner("Elaborazione di 365 giorni in corso..."):
+            with st.spinner(f"Elaborazione anno in corso con profilo '{nuova_pers}'..."):
                 esegui_simulazione_anno_completo()
             st.success("✅ Simulazione completata con successo! Guarda la Dashboard e la Cassa.")
             st.rerun()
@@ -1150,4 +1180,4 @@ with tab6:
 
     if simulazione_fatta:
         st.markdown("---")
-        st.success("🟢 **Stato:** Anno simulato correttamente. Tutti i dati finanziari e storici sono disponibili nelle sezioni dedicate.")
+        st.success(f"🟢 **Stato:** Anno simulato correttamente con profilo **{personalita_corrente}**. Tutti i dati sono aggiornati.")
