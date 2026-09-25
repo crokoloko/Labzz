@@ -968,7 +968,7 @@ with tab5:
 
 with tab6:
     st.subheader("🤖 Bot Live: Simulazione Anno in 3 Minuti")
-    st.markdown("Questa pagina dedicata ti permette di lanciare la simulazione interattiva in tempo reale. Il bot coprirà **1 anno intero in 3 minuti** (180 secondi), suddividendolo in blocchi temporali mensili. Vedrai i conti oscillare e la dashboard aggiornarsi mese dopo mese sotto i tuoi occhi!")
+    st.markdown("Avvia la simulazione interattiva: vedrai i conti e i grafici generali muoversi in tempo reale mese dopo mese per la durata esatta di **3 minuti**.")
 
     col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
     with col_l2:
@@ -978,13 +978,14 @@ with tab6:
         progress_bar = st.progress(0, text="Inizializzazione simulazione live...")
         status_text = st.empty()
         
-        # Placeholder per metriche live dinamiche
-        metric_placeholder = st.empty()
+        # Container dedicati per le statistiche live in tempo reale
+        st.markdown("### 📊 Monitoraggio Statistiche in Diretta")
+        live_metrics_placeholder = st.empty()
+        live_chart_placeholder = st.empty()
 
         with get_connection() as conn:
             cursor = conn.cursor()
             
-            # Crea prodotti di test
             prodotti_nomi = ["Super Skunk", "Amnesia Haze", "OG Kush", "Lemon Haze", "Gelato #33"]
             prodotti_ids = []
             for p_nome in prodotti_nomi:
@@ -999,7 +1000,6 @@ with tab6:
 
             data_inizio = date.today() - timedelta(days=365)
             
-            # Carico iniziale
             for p_id in prodotti_ids:
                 qta_lotto = 500.0
                 costo_u = random.choice([2.0, 2.5, 3.0])
@@ -1015,7 +1015,6 @@ with tab6:
                     VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Carico Iniziale Live', ?)
                 """, (p_id, l_id, qta_lotto, costo_u, qta_lotto * costo_u, ts_c))
 
-        # 12 mesi totali, circa 15 secondi per mese per arrivare a 3 minuti esatti (180 secondi)
         tot_mesi = 12
         secondi_per_mese = 180 / tot_mesi
 
@@ -1025,7 +1024,6 @@ with tab6:
             
             status_text.markdown(f"### ⏳ Simulo il periodo: **{giorno_inizio_mese.strftime('%B %Y')}**...")
             
-            # Genera transazioni per questo mese
             current_day = giorno_inizio_mese
             while current_day <= min(giorno_fine_mese, date.today()):
                 ts_giorno = datetime.combine(current_day, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
@@ -1033,7 +1031,6 @@ with tab6:
                 with get_connection() as conn:
                     cursor = conn.cursor()
                     
-                    # Controllo rifornimento intelligente
                     cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
                     giacenza_totale = cursor.fetchone()[0] or 0.0
                     if giacenza_totale < 300.0 or random.random() < 0.15:
@@ -1051,7 +1048,6 @@ with tab6:
                             VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Rifornimento Live', ?)
                         """, (p_id_rif, l_id_rif, qta_lotto, costo_u, qta_lotto * costo_u, ts_giorno))
 
-                    # Vendite giornaliere con logica prezzi al grammo
                     for _ in range(random.randint(1, 4)):
                         p_id = random.choice(prodotti_ids)
                         cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC LIMIT 1", (p_id,))
@@ -1060,7 +1056,6 @@ with tab6:
                         if lotto_attivo:
                             l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
 
-                            # 60% a 10€/g, 25% a 50€/g, 15% a 90€/g
                             rand_tier = random.random()
                             if rand_tier < 0.60:
                                 prezzo_unitario = 10.0
@@ -1093,29 +1088,66 @@ with tab6:
 
                 current_day += timedelta(days=1)
 
-            # Calcolo metriche live aggiornate del mese corrente
+            # AGGIORNAMENTO LIVE DEI DATI (Metriche e Grafici generali in tempo reale)
             df_s = calcola_stato_magazzino(solo_disponibili=True)
             mov_s = get_movimenti_dettagliati_df()
-            v_incasso = mov_s[mov_s['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not mov_s.empty else 0
-            v_margine = mov_s[mov_s['tipo'] == 'VENDITA']['margine'].sum() if not mov_s.empty else 0
+            
+            val_costo = df_s['valore_totale_costo'].sum() if not df_s.empty else 0
+            val_mercato = df_s['valore_totale_mercato'].sum() if not df_s.empty else 0
+            incasso_tot = mov_s[mov_s['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not mov_s.empty else 0
+            margine_tot = mov_s[mov_s['tipo'] == 'VENDITA']['margine'].sum() if not mov_s.empty else 0
 
-            with metric_placeholder.container():
+            with live_metrics_placeholder.container():
                 st.markdown(f"""
                 <div class="dashboard-grid">
                     <div class="custom-card">
-                        <div class="card-label">Incasso Aggiornato (Live)</div>
-                        <div class="card-value">€ {v_incasso:,.2f}</div>
+                        <div class="card-label">Valore Magazzino (Costo)</div>
+                        <div class="card-value">€ {val_costo:,.2f}</div>
                     </div>
                     <div class="custom-card">
-                        <div class="card-label">Margine Netto (Live)</div>
-                        <div class="card-value">€ {v_margine:,.2f}</div>
+                        <div class="card-label">Valore di Mercato</div>
+                        <div class="card-value">€ {val_mercato:,.2f}</div>
+                    </div>
+                    <div class="custom-card">
+                        <div class="card-label">Incasso Totale</div>
+                        <div class="card-value">€ {incasso_tot:,.2f}</div>
+                    </div>
+                    <div class="custom-card">
+                        <div class="card-label">Margine Netto</div>
+                        <div class="card-value">€ {margine_tot:,.2f}</div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-            # Avanza la progress bar e attendi la frazione di tempo calibrata per coprire i 3 minuti
+            # Ridisegna il grafico generale in tempo reale
+            if not mov_s.empty:
+                mov_df = mov_s.copy()
+                mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
+                mov_df = mov_df.sort_values('Data_Ora')
+                
+                mov_df['Spesi Totali'] = mov_df.apply(lambda r: r['costo_totale'] if r['tipo'] == 'CARICO' else 0, axis=1).cumsum()
+                mov_df['Incasso Totale'] = mov_df['ricavo_totale'].cumsum()
+                mov_df['Margine Netto'] = mov_df['margine'].cumsum()
+                
+                chart_df = mov_df.melt(
+                    id_vars=['Data_Ora', 'prodotto', 'tipo'],
+                    value_vars=['Spesi Totali', 'Incasso Totale', 'Margine Netto'],
+                    var_name='Metrica',
+                    value_name='Valore (€)'
+                )
+
+                chart = alt.Chart(chart_df).mark_line(point=True, strokeWidth=3).encode(
+                    x=alt.X('Data_Ora:T', title='Data e Ora Transazione'),
+                    y=alt.Y('Valore (€):Q', title='Importo (€)'),
+                    color=alt.Color('Metrica:N', scale=alt.Scale(domain=['Spesi Totali', 'Incasso Totale', 'Margine Netto'], range=['#ff4757', '#2ed573', '#38bdf8']), legend=alt.Legend(title="Legenda")),
+                    tooltip=['Data_Ora:T', 'prodotto:N', 'tipo:N', 'Metrica:N', 'Valore (€):Q']
+                ).properties(height=380).configure_view(strokeWidth=0).configure_axis(gridColor='rgba(255,255,255,0.05)', labelColor='#94a3b8', titleColor='#f8fafc').interactive()
+
+                with live_chart_placeholder.container():
+                    st.altair_chart(chart, use_container_width=True)
+
             progress_bar.progress((mese_idx + 1) / tot_mesi, text=f"Progresso anno: Mese {mese_idx + 1} di 12 completato.")
             time.sleep(secondi_per_mese)
 
         spara_fuochi_d_artificio()
-        status_text.success("🎉 Simulazione Live completata con successo! Tutti i dati dell'anno sono stati registrati nei grafici e nella cassa.")
+        status_text.success("🎉 Simulazione Live completata! Ora puoi consultare liberamente tutte le schede Dashboard, Cassa e Statistiche con i dati completi.")
