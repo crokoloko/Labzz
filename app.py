@@ -1067,10 +1067,11 @@ with tab6:
                     l_id_init = cursor.lastrowid
                     
                     ts_c = datetime.combine(data_inizio, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+                    nota_iniziale = f"Lotto Iniziale per {p_name}"
                     cursor.execute("""
                         INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
-                        VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', f'Lotto Iniziale per {p_name}', ?)
-                    """, (p_id_init, l_id_init, qta_init, costo_u_init, costo_tot_init, ts_c))
+                        VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
+                    """, (p_id_init, l_id_init, qta_init, costo_u_init, costo_tot_init, nota_iniziale, ts_c))
 
                 st.rerun()
         else:
@@ -1089,7 +1090,6 @@ with tab6:
         if st.button("⏹️ Ferma Definitivamente", use_container_width=True):
             st.session_state["simulazione_attiva"] = False
             st.session_state["simulazione_in_pausa"] = False
-            # NOTIFICA RICHIESTA ALL'ARRESTO
             st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
             st.rerun()
 
@@ -1099,10 +1099,9 @@ with tab6:
             st.session_state["simulazione_attiva"] = False
             st.session_state["simulazione_in_pausa"] = False
             st.session_state["giorni_simulati"] = 0
-            # NOTIFICA RICHIESTA AL RESET
             st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
             st.session_state["scelta_in_sospeso"] = None
-            st.success("✅ Reset completato!")
+            st.success("✅ Reset generale completato con successo!")
             st.rerun()
 
     # Loop di esecuzione giornaliera controllato (Pausa / Play)
@@ -1353,7 +1352,7 @@ with tab6:
                                     costo_totale = 50.0  # Costo specifico Hash
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nueva_qta == 0 else None
+                                    data_comp = data_corrente if nuova_qta == 0 else None
 
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                     cliente = random.choice(clienti_disponibili)
@@ -1412,7 +1411,7 @@ with tab6:
         st.session_state["simulazione_attiva"] = False
         st.session_state["simulazione_in_pausa"] = False
         st.session_state["giorni_simulati"] = 0
-        st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
+        st.session_state["ultime_notizie"] = ["Benvenuto in este pazzo mondo del cazzo."]
         st.session_state["scelta_in_sospeso"] = None
         st.success("✅ Reset generale completato con successo!")
         st.rerun()
