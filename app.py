@@ -102,6 +102,10 @@ st.markdown("""
         border-left-color: #ef4444;
         background: linear-gradient(135deg, #2b1619 0%, #110809 100%);
     }
+    .alert-banner.fun {
+        border-left-color: #2ed573;
+        background: linear-gradient(135deg, #112b1c 0%, #08110a 100%);
+    }
 
     div[data-testid="stTabs"] {
         margin-top: 0rem !important;
@@ -601,18 +605,20 @@ else:
         st.title("LaBzz")
 
 # ==========================================
-# CENTRO NOTIFICHE IN CIMA ALLA PAGINA
+# CENTRO NOTIFICHE LIVE
 # ==========================================
 if "ultime_notizie" not in st.session_state:
-    st.session_state["ultime_notizie"] = ["Benvenuto in LaBzz! Prodotti: Hash (€ 4,50/g) e Amnesia. Stipendio di fabbrica attivo."]
+    st.session_state["ultime_notizie"] = ["🤖 Bot pronto. Clicca su 'Avvia Simulazione' per vedere la cronaca in tempo reale!"]
 if "scelta_in_sospeso" not in st.session_state:
     st.session_state["scelta_in_sospeso"] = None
 
 notizie_recenti = st.session_state["ultime_notizie"][-3:]
 for notif in reversed(notizie_recenti):
-    is_urgent = "⚠️" in notif or "DISASTRO" in notif or "DEBITO" in notif or "STIPENDIO" in notif
-    css_class = "alert-banner urgent" if is_urgent else "alert-banner"
-    st.markdown(f'<div class="{css_class}">🔔 <b>Notizia dal Campo:</b> {notif}</div>', unsafe_allow_html=True)
+    is_urgent = "⚠️" in notif or "DISASTRO" in notif or "DEBITO" in notif or "triste" in notif.lower() or "stanchezza" in notif.lower()
+    is_fun = "🎉" in notif or "birra" in notif.lower() or "musica" in notif.lower() or "risata" in notif.lower()
+    
+    css_class = "alert-banner urgent" if is_urgent else ("alert-banner fun" if is_fun else "alert-banner")
+    st.markdown(f'<div class="{css_class}">🔔 <b>Bot Live Feed:</b> {notif}</div>', unsafe_allow_html=True)
 
 # 6 Tabs configurate
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -1002,8 +1008,8 @@ with tab5:
         st.download_button("📥 Scarica Report Storico in CSV", data=csv_data, file_name=f"report_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
 
 with tab6:
-    st.subheader("🤖 Bot Live: Simulazione con Hash & Amnesia")
-    st.markdown("Simulazione avanzata: Hash (€ 4,50/g, speciale € 50->90) e Amnesia (speciale € 20->40), lavoro in fabbrica con stipendio (€ 1.650 - € 1.800), bivi decisionali e disastri di magazzino.")
+    st.subheader("🤖 Bot Live: Simulazione in Tempo Reale")
+    st.markdown("Cronaca di vita vissuta: il turno in fabbrica da 9 ore, lo stipendio, i momenti di stanchezza, le risate, le sfighe di magazzino e le vendite di Hash & Amnesia.")
 
     # SEZIONE BIVIO DECISIONALE ATTIVO
     if st.session_state["scelta_in_sospeso"] is not None:
@@ -1035,9 +1041,9 @@ with tab6:
     col_btn1, col_btn2 = st.columns(2)
     with col_btn1:
         if not st.session_state["simulazione_attiva"]:
-            if st.button("🚀 Avvia Simulazione Completa (3 Minuti)", use_container_width=True):
+            if st.button("🚀 Avvia Simulazione (3 Minuti)", use_container_width=True):
                 reset_database_totale()
-                st.session_state["ultime_notizie"] = ["Simulazione avviata! Prodotti Hash e Amnesia caricati."]
+                st.session_state["ultime_notizie"] = ["🚀 Simulazione avviata! Sveglia all'alba, si parte con la fabbrica e l'inventario."]
                 st.session_state["scelta_in_sospeso"] = None
                 
                 with get_connection() as conn:
@@ -1050,7 +1056,6 @@ with tab6:
                     for c in clienti_fittizi:
                         cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (c,))
 
-                    # CARICO INIZIALE HASH (80g a € 4,50/g = € 360)
                     data_inizio = date.today() - timedelta(days=365)
                     cursor.execute("SELECT id FROM prodotti WHERE nome = 'Hash'")
                     p_id_init = cursor.fetchone()[0]
@@ -1085,12 +1090,12 @@ with tab6:
             reset_database_totale()
             st.session_state["simulazione_attiva"] = False
             st.session_state["giorni_simulati"] = 0
-            st.session_state["ultime_notizie"] = ["Database azzerato."]
+            st.session_state["ultime_notizie"] = ["🗑️ Database pulito e formattato."]
             st.session_state["scelta_in_sospeso"] = None
             st.success("✅ Reset generale completato con successo!")
             st.rerun()
 
-    # Loop di esecuzione giornaliera
+    # Loop di esecuzione giornaliera con notifiche dinamiche potenziate
     if st.session_state["simulazione_attiva"] and st.session_state["scelta_in_sospeso"] is None:
         giorni_totali = 365
         giorno_corrente_idx = st.session_state["giorni_simulati"]
@@ -1104,6 +1109,30 @@ with tab6:
             with get_connection() as conn:
                 cursor = conn.cursor()
                 
+                # NOTIFICHE DI COSA STA FACENDO / FARÀ IL BOT
+                notizie_live_pool = [
+                    f"⚙️ [{data_corrente.strftime('%d %b')}] Controllo scorte in corso: il magazzino risponde bene.",
+                    f"🏭 [{data_corrente.strftime('%d %b')}] Turno in fabbrica di 9 ore iniziato: si montano ante e cassetti tra una pausa e l'altra.",
+                    f"🎵 [{data_corrente.strftime('%d %b')}] Pausa pranzo in fabbrica: si canticchia un pezzo Hard Techno in cuffia.",
+                    f"🚗 [{data_corrente.strftime('%d %b')}] Parcheggiato l'Alfa Giulietta fuori dal capannone, si entra a timbrare.",
+                    f"📦 [{data_corrente.strftime('%d %b')}] Il bot sta pianificando le prossime mosse per ottimizzare i guadagni della settimana.",
+                    f"💬 [{data_corrente.strftime('%d %b')}] Un amico ha mandato un messaggio: 'Ci si becca stasera?' Il bot sta calcolando il budget."
+                ]
+                
+                # Eventi tristi, divertenti o imprevisti occasionali
+                if random.random() < 0.25:
+                    evento_divertente_o_triste = random.choice([
+                        "😢 Tristezza infinita: l'ultimo grammo di Hash è finito nel narghilè ed è ora di rifornirsi.",
+                        "🎉 Serata epica incollati alle casse con la Tekno a 180 BPM: cassa in festa!",
+                        "🌧️ Piove a dirotto sulle colline, la voglia di uscire è sotto zero ma i pacchi da spedire no.",
+                        "🍕 Serata pizza e divano col Pinscher nano che russa forte sui piedi.",
+                        "💸 Momento di ristrettezza economica: tra poco arriva lo stipendio della fabbrica a salvare la situazione!",
+                        "😂 Risata generale in magazzino perché un collega ha montato un'anta al contrario."
+                    ])
+                    st.session_state["ultime_notizie"].append(evento_divertente_o_triste)
+                else:
+                    st.session_state["ultime_notizie"].append(random.choice(notizie_live_pool))
+
                 # ACCREDITO STIPENDIO MENSILE
                 if data_corrente.day == 1:
                     stipendio_netto = random.uniform(1650.0, 1800.0)
@@ -1111,7 +1140,7 @@ with tab6:
                         INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                         VALUES (1, 'VENDITA', 0, 0, ?, 0, ?, 'Fabbrica', 'Subito', 'Accredito Stipendio Mensile', ?)
                     """, (stipendio_netto, stipendio_netto, ts_giorno))
-                    st.session_state["ultime_notizie"].append(f"💶 STIPENDIO DI FABBRICA: Accredito di € {stipendio_netto:,.2f} registrato in cassa!")
+                    st.session_state["ultime_notizie"].append(f"💶 STIPENDIO DI FABBRICA: Bonifico accreditato di € {stipendio_netto:,.2f}! Il morale sale alle stelle.")
 
                 # TREDICESIMA A DICEMBRE
                 if data_corrente.month == 12 and data_corrente.day == 15:
@@ -1120,7 +1149,7 @@ with tab6:
                         INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
                         VALUES (1, 'VENDITA', 0, 0, ?, 0, ?, 'Fabbrica', 'Subito', 'Accredito Tredicesima', ?)
                     """, (tredicesima, tredicesima, ts_giorno))
-                    st.session_state["ultime_notizie"].append(f"🎄 TREDICESIMA: Accredito extra di € {tredicesima:,.2f}!")
+                    st.session_state["ultime_notizie"].append(f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f}! Festa grande.")
 
                 # 1. DISASTRO MAGAZZINO (0.4%)
                 if random.random() < 0.004:
@@ -1129,13 +1158,13 @@ with tab6:
                     if lotti_attivi_ids:
                         for l_id_err in lotti_attivi_ids:
                             cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (data_corrente, l_id_err))
-                        st.session_state["ultime_notizie"].append(f"⚠️ DISASTRO: Merce rovinata e buttata via per disordine il {data_corrente.strftime('%d %b')}!")
+                        st.session_state["ultime_notizie"].append(f"⚠️ DISASTRO TOTALE: Un pacco dimenticato si è bagnato in magazzino il {data_corrente.strftime('%d %b')}. Merce buttata tra le imprecazioni!")
 
                 # 2. BIVIO STRATEGICO CASUALE (1%)
                 if random.random() < 0.01:
                     st.session_state["scelta_in_sospeso"] = {
-                        "titolo": "Gestione Premio Produzione / Scelta Strategica",
-                        "descrizione": f"Al giorno {data_corrente.strftime('%d %b')}, hai ricevuto un premio produzione straordinario di € 500 oppure un'offerta speciale per un nuovo lotto di Amnesia.",
+                        "titolo": "Premio Produzione in Fabbrica o Offerta Speciale",
+                        "descrizione": f"Al giorno {data_corrente.strftime('%d %b')}, il capo in fabbrica riconosce l'impegno: ti offrono un premio produzione extra di € 500 oppure un buono spesa.",
                         "opzione_a": {
                             "testo": "Investi il premio produzione nel progetto (+€500 in cassa)",
                             "azione": lambda: conn.execute("INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data) VALUES (1, 'VENDITA', 0, 0, 500, 0, 500, 'Premio Produzione', 'Subito', 'Investimento premio in cassa', ?)", (ts_giorno,))
@@ -1147,7 +1176,7 @@ with tab6:
                     }
                     st.rerun()
 
-                # 3. RIFORNIMENTO AUTOMATICO (Hash a € 4,50/g o debito +27%)
+                # 3. RIFORNIMENTO AUTOMATICO
                 cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
                 giacenza_totale = cursor.fetchone()[0] or 0.0
 
@@ -1176,7 +1205,7 @@ with tab6:
                         else:
                             spesa_lotto = costo_base_lotto * 1.27  # Maggiorazione +27% a debito
                             nota_rifornimento = "Rifornimento Hash a DEBITO (+27% maggiorazione)"
-                            st.session_state["ultime_notizie"].append(f"💳 DEBITO ATTIVATO: Rifornimento acquistato a debito col +27% di ricarico (€ {spesa_lotto:,.2f}).")
+                            st.session_state["ultime_notizie"].append(f"💳 ATTENZIONE DEBITO: Cassa stretta, rifornimento acquistato a debito (+27%: € {spesa_lotto:,.2f}).")
 
                         costo_u = spesa_lotto / qta_lotto
                         codice_l = genera_codice_lotto_automatico(data_corrente)
@@ -1197,7 +1226,7 @@ with tab6:
                     nomi_nuovi = ["Davide N.", "Simone P.", "Federico R.", "Mattia B.", "Alessio M."]
                     nuovo_contatto = random.choice(nomi_nuovi) + f" ({data_corrente.strftime('%b')})"
                     cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (nuovo_contatto,))
-                    st.session_state["ultime_notizie"].append(f"🤝 Conosciuto un nuovo contatto: {nuovo_contatto}!")
+                    st.session_state["ultime_notizie"].append(f"🤝 Contatto acquisito: conosciuto {nuovo_contatto} durante una serata tra amici!")
 
                 # 5. CONSUMI PERSONALI (30%)
                 if random.random() < 0.30:
@@ -1222,7 +1251,7 @@ with tab6:
                                 VALUES (?, ?, 'XME', ?, 0, ?, ?, 'XME', 'Subito', 'Consumo Personale', ?)
                             """, (p_id_xme, l_id_xme, qta_consumo, costo_perdita, -costo_perdita, ts_giorno))
 
-                # 6. VENDITE DIFFICILI CON MARGINI SPECIFICI (Hash € 50->90 o Amnesia € 20->40)
+                # 6. VENDITE CON MARGINI SPECIFICI
                 is_weekend = data_corrente.weekday() >= 5
                 cursor.execute("SELECT nome FROM clienti")
                 clienti_disponibili = [r[0] for r in cursor.fetchall()]
@@ -1266,7 +1295,6 @@ with tab6:
                                 """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Feriale Lotto {cod_lotto}", ts_giorno))
                 else:
                     if is_primo_sabato_mese:
-                        # SABATO SPECIALE HASH (€ 50 -> € 90)
                         num_clienti_speciale = random.randint(2, 4)
                         for _ in range(num_clienti_speciale):
                             if not prod_ids:
@@ -1297,7 +1325,6 @@ with tab6:
                                         VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                     """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Sabato Speciale Hash (€50 -> €90)", ts_giorno))
                     else:
-                        # WEEKEND AMNESIA (€ 20 -> € 40)
                         num_clienti_weekend = random.choices([0, 1, 2, 3], weights=[40, 40, 15, 5])[0]
                         for _ in range(num_clienti_weekend):
                             if not prod_ids:
@@ -1330,14 +1357,14 @@ with tab6:
 
             st.session_state["giorni_simulati"] += 1
             
-            time.sleep(180 / giorni_totali)
+            # Intervallo temporale regolato a 10-15 secondi totali suddivisi nei cicli della simulazione
+            time.sleep(12 / giorni_totali)
             st.rerun()
         else:
             st.session_state["simulazione_attiva"] = False
             spara_fuochi_d_artificio()
-            st.success("🎉 Simulazione Aziendale completata con successo!")
+            st.success("🎉 Anno di simulazione completato con successo!")
 
-    # Sezione di Reset in fondo alla pagina
     st.markdown("---")
     st.markdown("### 🛠️ Gestione Dati e Ripristino")
     st.write("Usa il pulsante sottostante per cancellare completamente qualsiasi dato e azzerare l'applicazione.")
@@ -1346,7 +1373,7 @@ with tab6:
         reset_database_totale()
         st.session_state["simulazione_attiva"] = False
         st.session_state["giorni_simulati"] = 0
-        st.session_state["ultime_notizie"] = ["Database azzerato."]
+        st.session_state["ultime_notizie"] = ["🗑️ Database azzerato."]
         st.session_state["scelta_in_sospeso"] = None
         st.success("✅ Reset generale completato con successo!")
         st.rerun()
