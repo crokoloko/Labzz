@@ -327,8 +327,6 @@ def init_db():
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('simulazione_eseguita', '0')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('nome_protagonista', 'Hassan')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('personalita_bot', 'Influente (Max 7g/giorno)')")
-        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('giorno_simulazione_corrente', '0')")
-        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('simulazione_in_corso', '0')")
 
 init_db()
 
@@ -362,13 +360,25 @@ def reset_database_totale():
         cursor.execute("DELETE FROM clienti")
         cursor.execute("DELETE FROM log_narrativi")
     set_impostazione('simulazione_eseguita', '0')
-    set_impostazione('giorno_simulazione_corrente', '0')
-    set_impostazione('simulazione_in_corso', '0')
 
-def avvia_simulazione_step_per_step():
+def esegui_simulazione_anno_fluida(progress_bar, status_text, placeholder_notizia):
     reset_database_totale()
     p_name = get_impostazione('nome_protagonista', 'Hassan')
+    personalita = get_impostazione('personalita_bot', 'Influente (Max 7g/giorno)')
     
+    if "Tranquillo" in personalita:
+        max_vendita_giorno = 3.0
+        prob_vendita_feriale = [70, 30]
+        pesi_weekend = [60, 30, 10]
+    elif "Famoso" in personalita:
+        max_vendita_giorno = 20.0
+        prob_vendita_feriale = [20, 80]
+        pesi_weekend = [10, 40, 50]
+    else:
+        max_vendita_giorno = 7.0
+        prob_vendita_feriale = [50, 50]
+        pesi_weekend = [40, 40, 20]
+
     with get_connection() as conn:
         cursor = conn.cursor()
         prodotti_info = [
@@ -402,133 +412,131 @@ def avvia_simulazione_step_per_step():
             VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
         """, (p_id_init, l_id_init, qta_init, costo_u_init, costo_tot_init, f"Lotto Iniziale", ts_c))
 
-    set_impostazione('giorno_simulazione_corrente', '0')
-    set_impostazione('simulazione_in_corso', '1')
+    # 180 secondi totali per 365 giorni (~0.49 secondi per giorno)
+    ritardo_giornaliero = 180.0 / 365.0
 
-def esegui_singolo_giorno_chunk(giorno_idx):
-    personalita = get_impostazione('personalita_bot', 'Influente (Max 7g/giorno)')
-    if "Tranquillo" in personalita:
-        max_vendita_giorno = 3.0
-        prob_vendita_feriale = [70, 30]
-        pesi_weekend = [60, 30, 10]
-    elif "Famoso" in personalita:
-        max_vendita_giorno = 20.0
-        prob_vendita_feriale = [20, 80]
-        pesi_weekend = [10, 40, 50]
-    else:
-        max_vendita_giorno = 7.0
-        prob_vendita_feriale = [50, 50]
-        pesi_weekend = [40, 40, 20]
+    for giorno_idx in range(365):
+        data_corrente = (date.today() - timedelta(days=365)) + timedelta(days=giorno_idx)
+        ts_giorno = datetime.combine(data_corrente, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+        ultima_vendita_testo = ""
 
-    data_corrente = (date.today() - timedelta(days=365)) + timedelta(days=giorno_idx)
-    ts_giorno = datetime.combine(data_corrente, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+        with get_connection() as conn:
+            cursor = conn.cursor()
 
-    with get_connection() as conn:
-        cursor = conn.cursor()
+            cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
+            giacenza_totale = cursor.fetchone()[0] or 0.0
 
-        cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
-        giacenza_totale = cursor.fetchone()[0] or 0.0
+            cursor.execute("SELECT SUM(ricavo_totale) FROM movimenti WHERE tipo = 'VENDITA'")
+            incassi_totali = cursor.fetchone()[0] or 0.0
+            cursor.execute("SELECT SUM(costo_totale) FROM movimenti WHERE tipo = 'CARICO'")
+            costi_lotti = cursor.fetchone()[0] or 0.0
+            cursor.execute("SELECT SUM(costo_totale) FROM movimenti WHERE tipo = 'XME'")
+            costi_xme_tot = cursor.fetchone()[0] or 0.0
 
-        cursor.execute("SELECT SUM(ricavo_totale) FROM movimenti WHERE tipo = 'VENDITA'")
-        incassi_totali = cursor.fetchone()[0] or 0.0
-        cursor.execute("SELECT SUM(costo_totale) FROM movimenti WHERE tipo = 'CARICO'")
-        costi_lotti = cursor.fetchone()[0] or 0.0
-        cursor.execute("SELECT SUM(costo_totale) FROM movimenti WHERE tipo = 'XME'")
-        costi_xme_tot = cursor.fetchone()[0] or 0.0
+            cassa_attuale = 500.0 + incassi_totali - costi_lotti - costi_xme_tot
 
-        cassa_attuale = 500.0 + incassi_totali - costi_lotti - costi_xme_tot
+            if giacenza_totale < 20.0:
+                cursor.execute("SELECT id, nome FROM prodotti")
+                prodotti_disponibili = cursor.fetchall()
+                if prodotti_disponibili:
+                    p_scelto = random.choice(prodotti_disponibili)
+                    p_id_rif, p_nome_rif = p_scelto[0], p_scelto[1]
+                    qta_lotto = 100.0
+                    costo_base_lotto = qta_lotto * 4.50
+                    spesa_lotto = costo_base_lotto if cassa_attuale >= costo_base_lotto else costo_base_lotto * 1.27
+                    costo_u = spesa_lotto / qta_lotto
+                    codice_l = genera_codice_lotto_automatico(data_corrente)
+                    
+                    cursor.execute("""
+                        INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (p_id_rif, codice_l, qta_lotto, qta_lotto, costo_u, data_corrente, data_corrente))
+                    l_id_rif = cursor.lastrowid
+                    cursor.execute("""
+                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
+                        VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
+                    """, (p_id_rif, l_id_rif, qta_lotto, costo_u, spesa_lotto, f"Rifornimento ({p_nome_rif})", ts_giorno))
 
-        if giacenza_totale < 20.0:
-            cursor.execute("SELECT id, nome FROM prodotti")
-            prodotti_disponibili = cursor.fetchall()
-            if prodotti_disponibili:
-                p_scelto = random.choice(prodotti_disponibili)
-                p_id_rif, p_nome_rif = p_scelto[0], p_scelto[1]
-                qta_lotto = 100.0
-                costo_base_lotto = qta_lotto * 4.50
-                spesa_lotto = costo_base_lotto if cassa_attuale >= costo_base_lotto else costo_base_lotto * 1.27
-                costo_u = spesa_lotto / qta_lotto
-                codice_l = genera_codice_lotto_automatico(data_corrente)
-                
-                cursor.execute("""
-                    INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (p_id_rif, codice_l, qta_lotto, qta_lotto, costo_u, data_corrente, data_corrente))
-                l_id_rif = cursor.lastrowid
-                cursor.execute("""
-                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
-                    VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
-                """, (p_id_rif, l_id_rif, qta_lotto, costo_u, spesa_lotto, f"Rifornimento ({p_nome_rif})", ts_giorno))
+            is_weekend = data_corrente.weekday() >= 5
+            cursor.execute("SELECT nome FROM clienti")
+            clienti_disponibili = [r[0] for r in cursor.fetchall()]
+            if not clienti_disponibili:
+                clienti_disponibili = ["Anonimo"]
 
-        is_weekend = data_corrente.weekday() >= 5
-        cursor.execute("SELECT nome FROM clienti")
-        clienti_disponibili = [r[0] for r in cursor.fetchall()]
-        if not clienti_disponibili:
-            clienti_disponibili = ["Anonimo"]
+            cursor.execute("SELECT id FROM prodotti")
+            prod_ids = [r[0] for r in cursor.fetchall()]
 
-        cursor.execute("SELECT id FROM prodotti")
-        prod_ids = [r[0] for r in cursor.fetchall()]
+            if not is_weekend:
+                num_transazioni = random.choices([0, 1], weights=prob_vendita_feriale)[0]
+                for _ in range(num_transazioni):
+                    if not prod_ids:
+                        break
+                    p_id = random.choice(prod_ids)
+                    cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC, id ASC LIMIT 1", (p_id,))
+                    lotto_attivo = cursor.fetchone()
+                    if lotto_attivo:
+                        l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
+                        limite_trans = min(qta_disp, max_vendita_giorno)
+                        qta_vendita = round(random.uniform(1.0, limite_trans), 1)
+                        if qta_vendita > 0:
+                            prezzo_unitario = 12.0 if "Famoso" in personalita else 10.0
+                            ricavo_totale = qta_vendita * prezzo_unitario
+                            costo_totale = qta_vendita * costo_u
+                            margine = ricavo_totale - costo_totale
+                            nuova_qta = qta_disp - qta_vendita
+                            data_comp = data_corrente if nuova_qta == 0 else None
 
-        if not is_weekend:
-            num_transazioni = random.choices([0, 1], weights=prob_vendita_feriale)[0]
-            for _ in range(num_transazioni):
-                if not prod_ids:
-                    break
-                p_id = random.choice(prod_ids)
-                cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC, id ASC LIMIT 1", (p_id,))
-                lotto_attivo = cursor.fetchone()
-                if lotto_attivo:
-                    l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
-                    limite_trans = min(qta_disp, max_vendita_giorno)
-                    qta_vendita = round(random.uniform(1.0, limite_trans), 1)
-                    if qta_vendita > 0:
-                        prezzo_unitario = 12.0 if "Famoso" in personalita else 10.0
-                        ricavo_totale = qta_vendita * prezzo_unitario
-                        costo_totale = qta_vendita * costo_u
-                        margine = ricavo_totale - costo_totale
-                        nuova_qta = qta_disp - qta_vendita
-                        data_comp = data_corrente if nuova_qta == 0 else None
+                            cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
+                            cliente = random.choice(clienti_disponibili)
+                            pagamento = "Subito" if random.random() < 0.75 else "Dopo (Credito)"
+                            cursor.execute("""
+                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
+                                VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Lotto {cod_lotto}", ts_giorno))
+                            
+                            ultima_vendita_testo = f"🎉 VENDITA [{data_corrente.strftime('%d %b')}]: {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}."
+                            aggiungi_log_db(cursor, ultima_vendita_testo)
+            else:
+                num_transazioni_wk = random.choices([0, 1, 2], weights=pesi_weekend)[0]
+                for _ in range(num_transazioni_wk):
+                    if not prod_ids:
+                        break
+                    cursor.execute("SELECT p.id FROM prodotti p JOIN lotti l ON p.id = l.prodotto_id WHERE l.quantita_attuale > 0 ORDER BY RANDOM() LIMIT 1")
+                    res_speciale = cursor.fetchone()
+                    p_id = res_speciale[0] if res_speciale else random.choice(prod_ids)
 
-                        cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
-                        cliente = random.choice(clienti_disponibili)
-                        pagamento = "Subito" if random.random() < 0.75 else "Dopo (Credito)"
-                        cursor.execute("""
-                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
-                            VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Lotto {cod_lotto}", ts_giorno))
-                        
-                        aggiungi_log_db(cursor, f"🎉 VENDITA [{data_corrente.strftime('%d %b')}]: {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}.")
-        else:
-            num_transazioni_wk = random.choices([0, 1, 2], weights=pesi_weekend)[0]
-            for _ in range(num_transazioni_wk):
-                if not prod_ids:
-                    break
-                cursor.execute("SELECT p.id FROM prodotti p JOIN lotti l ON p.id = l.prodotto_id WHERE l.quantita_attuale > 0 ORDER BY RANDOM() LIMIT 1")
-                res_speciale = cursor.fetchone()
-                p_id = res_speciale[0] if res_speciale else random.choice(prod_ids)
+                    cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC, id ASC LIMIT 1", (p_id,))
+                    lotto_attivo = cursor.fetchone()
+                    if lotto_attivo:
+                        l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
+                        qta_vendita = min(qta_disp, max_vendita_giorno if max_vendita_giorno < 5 else 5.0)
+                        if qta_vendita > 0:
+                            prezzo_unitario = 45.0 if "Famoso" in personalita else 40.0
+                            ricavo_totale = qta_vendita * prezzo_unitario
+                            costo_totale = 20.0
+                            margine = ricavo_totale - costo_totale
+                            nuova_qta = qta_disp - qta_vendita
+                            data_comp = data_corrente if nuova_qta == 0 else None
 
-                cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC, id ASC LIMIT 1", (p_id,))
-                lotto_attivo = cursor.fetchone()
-                if lotto_attivo:
-                    l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
-                    qta_vendita = min(qta_disp, max_vendita_giorno if max_vendita_giorno < 5 else 5.0)
-                    if qta_vendita > 0:
-                        prezzo_unitario = 45.0 if "Famoso" in personalita else 40.0
-                        ricavo_totale = qta_vendita * prezzo_unitario
-                        costo_totale = 20.0
-                        margine = ricavo_totale - costo_totale
-                        nuova_qta = qta_disp - qta_vendita
-                        data_comp = data_corrente if nuova_qta == 0 else None
+                            cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
+                            cliente = random.choice(clienti_disponibili)
+                            pagamento = "Subito" if random.random() < 0.85 else "Dopo (Credito)"
+                            cursor.execute("""
+                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
+                                VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Weekend Club", ts_giorno))
+                            
+                            ultima_vendita_testo = f"🔥 SERATA CLUB [{data_corrente.strftime('%d %b')}]: {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}."
+                            aggiungi_log_db(cursor, ultima_vendita_testo)
 
-                        cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
-                        cliente = random.choice(clienti_disponibili)
-                        pagamento = "Subito" if random.random() < 0.85 else "Dopo (Credito)"
-                        cursor.execute("""
-                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
-                            VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Weekend Club", ts_giorno))
-                        
-                        aggiungi_log_db(cursor, f"🔥 SERATA CLUB [{data_corrente.strftime('%d %b')}]: {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}.")
+        progress_bar.progress((giorno_idx + 1) / 365)
+        status_text.text(f"Simulazione in corso: {data_corrente.strftime('%d %b %Y')} ({giorno_idx + 1}/365 giorni)")
+        if ultima_vendita_testo:
+            placeholder_notizia.markdown(f'<div class="alert-banner">📈 <b>Ultime Vendite ({p_name}):</b> {ultima_vendita_testo}</div>', unsafe_allow_html=True)
+        
+        time.sleep(ritardo_giornaliero)
+
+    set_impostazione('simulazione_eseguita', '1')
 
 def get_soglia_esaurimento():
     return float(get_impostazione('soglia_esaurimento', '10.0'))
@@ -682,25 +690,15 @@ else:
     else:
         st.title("LaBzz")
 
-# GESTIONE SIMULAZIONE IN BACKGROUND CHUNKED CON REFRESH AUTOMATICO
-simulazione_in_corso = get_impostazione('simulazione_in_corso', '0') == '1'
-if simulazione_in_corso:
-    giorno_corrente_idx = int(get_impostazione('giorno_simulazione_corrente', '0'))
-    if giorno_corrente_idx < 365:
-        esegui_singolo_giorno_chunk(giorno_corrente_idx)
-        set_impostazione('giorno_simulazione_corrente', str(giorno_corrente_idx + 1))
-        time.sleep(0.3) # Ritardo ottimizzato per fluidità e velocità
-        st.rerun()
-    else:
-        set_impostazione('simulazione_in_corso', '0')
-        set_impostazione('simulazione_eseguita', '1')
-
-# BANNER NOTIFICHE VENDITE IN CIMA
+# BANNER NOTIFICHE VENDITE IN CIMA (DINAMICO)
+placeholder_notifica_principale = st.empty()
 tutti_log = get_tutti_log_db()
+p_name_attivo = get_impostazione('nome_protagonista', 'Hassan')
 if tutti_log:
     ultima_notif = tutti_log[-1]
-    p_name_attivo = get_impostazione('nome_protagonista', 'Hassan')
-    st.markdown(f'<div class="alert-banner">📈 <b>Ultime Vendite ({p_name_attivo}):</b> {ultima_notif}</div>', unsafe_allow_html=True)
+    placeholder_notifica_principale.markdown(f'<div class="alert-banner">📈 <b>Ultime Vendite ({p_name_attivo}):</b> {ultima_notif}</div>', unsafe_allow_html=True)
+else:
+    placeholder_notifica_principale.markdown(f'<div class="alert-banner">📈 <b>Ultime Vendite ({p_name_attivo}):</b> Pronto per avviare la simulazione annuale.</div>', unsafe_allow_html=True)
 
 # 6 Tabs configurate
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -1000,14 +998,13 @@ with tab5:
         st.download_button("📥 Scarica Report Storico in CSV", data=csv_data, file_name=f"report_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
 
 with tab6:
-    st.subheader("🤖 Bot Live: Simulazione Progressiva")
+    st.subheader("🤖 Bot Live: Simulazione Anno Fluida (3 Minuti)")
     
     simulazione_fatta = get_impostazione('simulazione_eseguita', '0') == '1'
     p_name_corrente = get_impostazione('nome_protagonista', 'Hassan')
     personalita_corrente = get_impostazione('personalita_bot', 'Influente (Max 7g/giorno)')
-    giorno_corrente_idx = int(get_impostazione('giorno_simulazione_corrente', '0'))
 
-    st.markdown("Avvia la simulazione: la dashboard, i grafici e la cassa si aggiorneranno in tempo reale giorno dopo giorno.")
+    st.markdown("Scegli la personalità e avvia la simulazione della durata di circa 3 minuti: vedrai la barra avanzare e le notifiche di vendita aggiornarsi in tempo reale.")
     
     col_nome1, col_nome2 = st.columns([1, 1])
     with col_nome1:
@@ -1032,21 +1029,14 @@ with tab6:
             set_impostazione('personalita_bot', nuova_pers)
             st.rerun()
 
-    if simulazione_in_corso:
-        st.info(f"⏳ Simulazione in corso... Giorno {giorno_corrente_idx} di 365 elaborato.")
-        st.progress(giorno_corrente_idx / 365.0)
-    
     col_b1, col_b2 = st.columns(2)
     with col_b1:
-        if not simulazione_in_corso:
-            if st.button("🚀 Avvia Simulazione in Diretta", use_container_width=True):
-                avvia_simulazione_step_per_step()
-                st.rerun()
-        else:
-            if st.button("⏹️ Ferma Simulazione", use_container_width=True):
-                set_impostazione('simulazione_in_corso', '0')
-                st.warning("Simulazione interrotta.")
-                st.rerun()
+        if st.button("🚀 Avvia Simulazione Fluida (3 Minuti)", use_container_width=True):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            esegui_simulazione_anno_fluida(progress_bar, status_text, placeholder_notifica_principale)
+            st.success("✅ Simulazione completata con successo! Guarda i risultati aggiornati nella Dashboard e nelle Statistiche.")
+            st.rerun()
 
     with col_b2:
         if st.button("🗑️ RESET TOTALE DATI", use_container_width=True):
@@ -1056,4 +1046,4 @@ with tab6:
 
     if simulazione_fatta:
         st.markdown("---")
-        st.success(f"🟢 **Stato:** Simulazione completata con successo usando il profilo **{personalita_corrente}**.")
+        st.success(f"🟢 **Stato:** Simulazione completata con il profilo **{personalita_corrente}**.")
