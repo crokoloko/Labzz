@@ -571,21 +571,23 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
     with get_connection() as conn:
         cursor = conn.cursor()
         
+        # EVENTI NARRATIVI PURO RACCONTO
         saga_pool = [
-            f"🏭 [{data_corrente.strftime('%d %b')}] Fabbrica: {p_name} monta ante di armadi meditando su pattern acid da 180 BPM.",
-            f"🚗 [{data_corrente.strftime('%d %b')}] Alfa Giulietta: viaggio lungo i tornanti di collina tra lavoro e underground.",
-            f"🧠 [{data_corrente.strftime('%d %b')}] Studio session: {p_name} collega l'Elektron Digitakt per una sessione notturna.",
-            f"📦 [{data_corrente.strftime('%d %b')}] Turno di notte: gestione dei bancali di truciolato e pianificazione tracce."
+            f"🏭 [{data_corrente.strftime('%d %b')}] Turno in fabbrica: {p_name} monta ante e cassetti meditando su un nuovo pattern Acid a 180 BPM.",
+            f"🚗 [{data_corrente.strftime('%d %b')}] Alfa Giulietta: {p_name} sfreccia lungo i tornanti di collina tra il lavoro e le colline boschive.",
+            f"🧠 [{data_corrente.strftime('%d %b')}] Studio session notturna: {p_name} collega l'Elektron Digitakt e il Korg Electribe per scolpire acid mental core.",
+            f"📦 [{data_corrente.strftime('%d %b')}] Magazzino: {p_name} sposta bancali di truciolato mentre pensa al sound design della prossima traccia.",
+            f"🌲 [{data_corrente.strftime('%d %b')}] Allenamento con la heavy rope nei boschi di collina prima del tramonto per {p_name}."
         ]
         aggiungi_log_db(random.choice(saga_pool))
 
         if data_corrente.day == 1:
             stipendio_netto = random.uniform(1650.0, 1800.0)
-            aggiungi_log_db(f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato sul conto di {p_name}.")
+            aggiungi_log_db(f"💶 STIPENDIO DI FABBRICA: Bonifico accreditato di € {stipendio_netto:,.2f} per {p_name}. Mese protetto!")
 
         if data_corrente.month == 12 and data_corrente.day == 15:
             tredicesima = random.uniform(1650.0, 1800.0)
-            aggiungi_log_db(f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f} per {p_name}.")
+            aggiungi_log_db(f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f}! {p_name} festeggia in studio.")
 
         cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
         giacenza_totale = cursor.fetchone()[0] or 0.0
@@ -608,11 +610,11 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
                 costo_base_lotto = qta_lotto * 4.50
                 if cassa_attuale >= costo_base_lotto:
                     spesa_lotto = costo_base_lotto
-                    nota_rifornimento = "Rifornimento standard (€ 4,50/g)"
+                    nota_rifornimento = "Rifornimento standard"
                 else:
                     spesa_lotto = costo_base_lotto * 1.27
-                    nota_rifornimento = "Rifornimento a DEBITO (+27%)"
-                    aggiungi_log_db(f"💳 Rifornimento a debito per {p_name} (€ {spesa_lotto:,.2f}).")
+                    nota_rifornimento = "Rifornimento a debito"
+                    aggiungi_log_db(f"💳 {p_name} è a corto di cassa: scatta il rifornimento a debito (+27%) per il nuovo lotto.")
 
                 costo_u = spesa_lotto / qta_lotto
                 codice_l = genera_codice_lotto_automatico(data_corrente)
@@ -662,7 +664,7 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
                             VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Feriale Lotto {cod_lotto}", ts_giorno))
                         
-                        aggiungi_log_db(f"🎉 VENDITA AUTOMATICA: {qta_vendita:,.1f} g ceduti a {cliente} per € {ricavo_totale:,.2f}!")
+                        aggiungi_log_db(f"🎉 INCONTRO UNDERGROUND: {cliente} passa a trovare {p_name} e ritira {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}.")
         else:
             num_clienti_weekend = random.choices([0, 1, 2], weights=[50, 35, 15])[0]
             for _ in range(num_clienti_weekend):
@@ -690,7 +692,7 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
                             VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Weekend Club", ts_giorno))
                         
-                        aggiungi_log_db(f"🔥 CLUB VENDITA: Serata weekend, {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}!")
+                        aggiungi_log_db(f"🔥 SERATA WEEKEND: Tra casse che spingono e Tekno all'aperto, {cliente} prende {qta_vendita:,.1f} g da {p_name} per € {ricavo_totale:,.2f}.")
 
     return True
 
@@ -720,15 +722,15 @@ if ultimo_id_db > ultima_vendita_memorizzata:
     trigger_valore_vendita_effect(importo_ultima)
     set_impostazione('ultima_vendita_id', str(ultimo_id_db))
 
-# POP-UP / BANNER NOTIFICA IN CIMA
+# BANNER POP-UP NARRATIVO IN CIMA
 tutti_log = get_tutti_log_db()
 if tutti_log:
     ultima_notif = tutti_log[-1]
-    is_urgent = "⚠️" in ultima_notif or "DISASTRO" in ultima_notif or "DEBITO" in ultima_notif
-    is_fun = "🎉" in ultima_notif or "VENDITA" in ultima_notif or "birra" in ultima_notif.lower() or "tekno" in ultima_notif.lower() or "Inizio" in ultima_notif
+    is_urgent = "⚠️" in ultima_notif or "debito" in ultima_notif.lower()
+    is_fun = "🎉" in ultima_notif or "INCONTRO" in ultima_notif or "SERATA" in ultima_notif or "STIPENDIO" in ultima_notif or "Inizio" in ultima_notif
     css_class = "alert-banner urgent" if is_urgent else ("alert-banner fun" if is_fun else "alert-banner")
     p_name_attivo = get_impostazione('nome_protagonista', 'Hassan')
-    st.markdown(f'<div class="{css_class}">🔔 <b>Cronaca in diretta ({p_name_attivo}):</b> {ultima_notif}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="{css_class}">📖 <b>Cronaca della Storia ({p_name_attivo}):</b> {ultima_notif}</div>', unsafe_allow_html=True)
 
 # 6 Tabs configurate
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -822,7 +824,7 @@ with tab1:
                                 ricavo_quota = prelievo * prezzo_unitario_calc
                                 margine_quota = ricavo_quota - costo_quota
                                 
-                                if nuova_qta_lotto == 0:
+                                if nueva_qta_lotto == 0:
                                     cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (date.today(), l_id))
                                 else:
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto, l_id))
