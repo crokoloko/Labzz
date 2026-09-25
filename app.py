@@ -255,7 +255,9 @@ st.markdown("""
 DB_NAME = "magazzino.db"
 
 def get_connection():
-    return sqlite3.connect(DB_NAME, timeout=10)
+    conn = sqlite3.connect(DB_NAME, timeout=30)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    return conn
 
 def init_db():
     with get_connection() as conn:
@@ -346,10 +348,8 @@ def set_impostazione(chiave, valore):
         cursor = conn.cursor()
         cursor.execute("INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES (?, ?)", (chiave, str(valore)))
 
-def aggiungi_log_db(testo):
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO log_narrativi (testo) VALUES (?)", (testo,))
+def aggiungi_log_db(cursor, testo):
+    cursor.execute("INSERT INTO log_narrativi (testo) VALUES (?)", (testo,))
 
 def get_tutti_log_db():
     with get_connection() as conn:
@@ -367,7 +367,9 @@ def reset_database_totale():
         cursor.execute("DELETE FROM log_narrativi")
     set_impostazione('simulazione_eseguita', '0')
     p_name = get_impostazione('nome_protagonista', 'Hassan')
-    aggiungi_log_db(f"🚀 Inizio della saga: {p_name} timbra il cartellino in fabbrica mentre progetta il suo alter ego underground.")
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        aggiungi_log_db(cursor, f"🚀 Inizio della saga: {p_name} timbra il cartellino in fabbrica mentre progetta il suo alter ego underground.")
 
 def esegui_simulazione_anno_completo():
     reset_database_totale()
@@ -401,12 +403,9 @@ def esegui_simulazione_anno_completo():
             VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
         """, (p_id_init, l_id_init, qta_init, costo_u_init, costo_tot_init, f"Lotto Iniziale per {p_name}", ts_c))
 
-    for giorno_idx in range(365):
-        data_corrente = (date.today() - timedelta(days=365)) + timedelta(days=giorno_idx)
-        ts_giorno = datetime.combine(data_corrente, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
-
-        with get_connection() as conn:
-            cursor = conn.cursor()
+        for giorno_idx in range(365):
+            data_corrente = (date.today() - timedelta(days=365)) + timedelta(days=giorno_idx)
+            ts_giorno = datetime.combine(data_corrente, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
             
             saga_pool = [
                 f"🏭 [{data_corrente.strftime('%d %b')}] Fabbrica: {p_name} monta ante e cassetti pensando a pattern Acid da 180 BPM.",
@@ -417,15 +416,15 @@ def esegui_simulazione_anno_completo():
             ]
             
             if random.random() < 0.25:
-                aggiungi_log_db(random.choice(saga_pool))
+                aggiungi_log_db(cursor, random.choice(saga_pool))
 
             if data_corrente.day == 1:
                 stipendio_netto = random.uniform(1650.0, 1800.0)
-                aggiungi_log_db(f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato per {p_name}.")
+                aggiungi_log_db(cursor, f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato per {p_name}.")
 
             if data_corrente.month == 12 and data_corrente.day == 15:
                 tredicesima = random.uniform(1650.0, 1800.0)
-                aggiungi_log_db(f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f} per {p_name}.")
+                aggiungi_log_db(cursor, f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f} per {p_name}.")
 
             cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
             giacenza_totale = cursor.fetchone()[0] or 0.0
@@ -452,7 +451,7 @@ def esegui_simulazione_anno_completo():
                     else:
                         spesa_lotto = costo_base_lotto * 1.27
                         nota_rifornimento = "Rifornimento a debito"
-                        aggiungi_log_db(f"💳 {p_name} a corto di cassa: scatta il rifornimento a debito (+27%).")
+                        aggiungi_log_db(cursor, f"💳 {p_name} a corto di cassa: scatta il rifornimento a debito (+27%).")
 
                     costo_u = spesa_lotto / qta_lotto
                     codice_l = genera_codice_lotto_automatico(data_corrente)
@@ -502,7 +501,7 @@ def esegui_simulazione_anno_completo():
                                 VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Feriale Lotto {cod_lotto}", ts_giorno))
                             
-                            aggiungi_log_db(f"🎉 VENDITA: {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}.")
+                            aggiungi_log_db(cursor, f"🎉 VENDITA: {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}.")
             else:
                 num_clienti_weekend = random.choices([0, 1, 2], weights=[50, 35, 15])[0]
                 for _ in range(num_clienti_weekend):
@@ -530,7 +529,7 @@ def esegui_simulazione_anno_completo():
                                 VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Weekend Club", ts_giorno))
                             
-                            aggiungi_log_db(f"🔥 SERATA CLUB: {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}.")
+                            aggiungi_log_db(cursor, f"🔥 SERATA CLUB: {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}.")
 
     set_impostazione('simulazione_eseguita', '1')
 
@@ -712,7 +711,7 @@ with tab1:
     prodotti_disp_df = get_prodotti_disponibili_df()
     
     if prodotti_disp_df.empty:
-        st.warning("⚠️ Nessun prodotto disponibile con giacenza in magazzino. Avvia la simulazione dall'anno completo o aggiungi un lotto.")
+        st.warning("⚠️ Nessun prodotto disponibile con giacenza in magazzino. Avvia la simulazione dal tab 'Bot Live' o aggiungi un lotto.")
     else:
         if tipo_operazione == "Vendita":
             prod_nome = st.selectbox("Seleziona Prodotto da Vendere", prodotti_disp_df['nome'].tolist())
@@ -799,7 +798,9 @@ with tab1:
                                     VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, nome_finale_cliente, tipo_pagamento, f"Lotto {cod_lotto}", timestamp_attuale))
                         
-                        aggiungi_log_db(f"💰 VENDITA MANUALE: {nome_finale_cliente} ha acquistato per € {totale_incassato:,.2f}!")
+                        with get_connection() as conn_log:
+                            cursor_log = conn_log.cursor()
+                            aggiungi_log_db(cursor_log, f"💰 VENDITA MANUALE: {nome_finale_cliente} ha acquistato per € {totale_incassato:,.2f}!")
                         st.success(f"✅ Vendita a '{nome_finale_cliente}' registrata (Pagamento: {tipo_pagamento})!")
                         st.rerun()
 
