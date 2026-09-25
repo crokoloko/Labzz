@@ -1218,7 +1218,6 @@ with tab6:
                 st.rerun()
 
     else:
-        # TIMER VISIVO INTEGRATO NELLA FINESTRA BOT
         col_t1, col_t2 = st.columns([3, 1])
         with col_t1:
             st.markdown(f"🟢 **Bot attivo in background ({p_name_corrente})**")
