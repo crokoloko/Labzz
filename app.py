@@ -577,12 +577,13 @@ else:
     else:
         st.title("LaBzz")
 
+# Ordine tab modificato: Statistiche prima di Report & Storico
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "💸 Cassa", 
     "📊 Dashboard", 
     "🚚 Rifornimenti",
-    "📜 Report & Storico",
-    "📈 Statistiche"
+    "📈 Statistiche",
+    "📜 Report & Storico"
 ])
 
 with tab1:
@@ -875,26 +876,16 @@ with tab3:
                 st.rerun()
 
 with tab4:
-    st.subheader("📜 Registro Storico Transazioni")
-    movimenti_df = get_movimenti_dettagliati_df()
-    if not movimenti_df.empty:
-        st.dataframe(movimenti_df, use_container_width=True, hide_index=True)
-        csv_data = movimenti_df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Scarica Report Storico in CSV", data=csv_data, file_name=f"report_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
-
-with tab5:
     st.subheader("📈 Statistiche Avanzate Clienti")
     movimenti_df = get_movimenti_dettagliati_df()
     vendite_df = movimenti_df[movimenti_df['tipo'] == 'VENDITA'].copy() if not movimenti_df.empty else pd.DataFrame()
     
-    if vendite_df.empty:
-        st.info("Nessuna vendita registrata.")
-    else:
-        # GESTIONE SESSIONE PER IL POPUP A SCOMPARSA AL CLIC SUL NOME
-        if "cliente_selezionato_debito" not in st.session_state:
-            st.session_state["cliente_selezionato_debito"] = None
+    # GESTIONE SESSIONE PER IL POPUP A SCOMPARSA AL CLIC SUL NOME
+    if "cliente_selezionato_debito" not in st.session_state:
+        st.session_state["cliente_selezionato_debito"] = None
 
-        clienti_debito = vendite_df[vendite_df['pagamento'] == 'Dopo (Credito)']
+    if not movimenti_df.empty:
+        clienti_debito = movimenti_df[(movimenti_df['tipo'] == 'VENDITA') & (movimenti_df['pagamento'] == 'Dopo (Credito)')]
         if not clienti_debito.empty:
             debito_per_cliente = clienti_debito.groupby('cliente')['ricavo_totale'].sum().reset_index()
             
@@ -930,21 +921,48 @@ with tab5:
                                 st.session_state["cliente_selezionato_debito"] = None
                                 st.rerun()
 
+    if movimenti_df.empty:
+        st.info("Nessun movimento registrato per le statistiche temporali.")
+    else:
+        # NUOVO GRAFICO TEMPORALE A 3 COLORI (Blu: Lotto, Verde: Guadagnati, Rosso: Credito)
+        stat_df = movimenti_df.copy()
+        stat_df['Data_Ora'] = pd.to_datetime(stat_df['data'])
+        stat_df = stat_df.sort_values('Data_Ora')
+        
+        stat_df['Soldi Lotto (Blu)'] = stat_df.apply(lambda r: r['costo_totale'] if r['tipo'] == 'CARICO' else 0, axis=1).cumsum()
+        stat_df['Soldi Guadagnati (Verde)'] = stat_df.apply(lambda r: r['ricavo_totale'] if r['tipo'] == 'VENDITA' and r['pagamento'] == 'Subito' else 0, axis=1).cumsum()
+        stat_df['Soldi a Credito (Rosso)'] = stat_df.apply(lambda r: r['ricavo_totale'] if r['tipo'] == 'VENDITA' and r['pagamento'] == 'Dopo (Credito)' else 0, axis=1).cumsum()
+        
+        chart_stat_df = stat_df.melt(
+            id_vars=['Data_Ora', 'prodotto', 'tipo'],
+            value_vars=['Soldi Lotto (Blu)', 'Soldi Guadagnati (Verde)', 'Soldi a Credito (Rosso)'],
+            var_name='Metrica',
+            value_name='Importo (€)'
+        )
+
+        chart_temp = alt.Chart(chart_stat_df).mark_line(point=True, strokeWidth=3).encode(
+            x=alt.X('Data_Ora:T', title='Data e Ora'),
+            y=alt.Y('Importo (€):Q', title='Importo (€)'),
+            color=alt.Color('Metrica:N', scale=alt.Scale(domain=['Soldi Lotto (Blu)', 'Soldi Guadagnati (Verde)', 'Soldi a Credito (Rosso)'], range=['#38bdf8', '#2ed573', '#ff4757']), legend=alt.Legend(title="Legenda Finanziaria", orient="bottom")),
+            tooltip=['Data_Ora:T', 'prodotto:N', 'tipo:N', 'Metrica:N', 'Importo (€):Q']
+        ).properties(height=400).configure_view(strokeWidth=0).configure_axis(gridColor='rgba(255,255,255,0.05)', labelColor='#94a3b8', titleColor='#f8fafc').interactive()
+
+        st.altair_chart(chart_temp, use_container_width=True)
+
+    if not vendite_df.empty:
+        st.markdown("---")
         clienti_grouped = vendite_df.groupby('cliente').agg(
             Spesa_Totale=('ricavo_totale', 'sum'),
             Grammi_Totali=('quantita', 'sum'),
             Numero_Acquisti=('id', 'count')
         ).reset_index().sort_values(by='Spesa_Totale', ascending=False)
         
-        totale_generale_spesa = clienti_grouped['Spesa_Totale'].sum()
-        clienti_grouped['Percentuale'] = (clienti_grouped['Spesa_Totale'] / totale_generale_spesa * 100) if totale_generale_spesa > 0 else 0
-        
-        chart_pie_clienti = alt.Chart(clienti_grouped).mark_arc(innerRadius=50, outerRadius=110).encode(
-            theta=alt.Theta(field="Spesa_Totale", type="quantitative"),
-            color=alt.Color(field="cliente", type="nominal", legend=alt.Legend(title="Clienti", orient="right")),
-            tooltip=['cliente', 'Spesa_Totale', 'Grammi_Totali', 'Percentuale']
-        ).properties(height=380).configure_view(strokeWidth=0)
-        
-        st.altair_chart(chart_pie_clienti, use_container_width=True)
-        st.markdown("---")
         st.dataframe(clienti_grouped, use_container_width=True, hide_index=True)
+
+with tab5:
+    st.subheader("📜 Registro Storico Transazioni")
+    movimenti_df = get_movimenti_dettagliati_df()
+    if not movimenti_df.empty:
+        st.dataframe(movimenti_df, use_container_width=True, hide_index=True)
+        csv_data = movimenti_df.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Scarica Report Storico in CSV", data=csv_data, file_name=f"report_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
