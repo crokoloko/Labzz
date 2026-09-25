@@ -23,28 +23,9 @@ def genera_codice_lotto_automatico(data_riferimento=None):
     if data_riferimento is None:
         data_riferimento = date.today()
     
-    giorno = data_riferimento.strftime("%d").lstrip("0")  # Rimuove lo zero iniziale se presente (es. 05 -> 5)
-    
-    # Mappa delle iniziali dei mesi in italiano
-    iniziali_mesi = {
-        1: 'g',  # Gennaio
-        2: 'f',  # Febbraio
-        3: 'm',  # Marzo
-        4: 'a',  # Aprile
-        5: 'm',  # Maggio
-        6: 'gi', # Giugno (usiamo 'gi' per distinguere da maggio o 'u')
-        7: 'l',  # Luglio
-        8: 'ag', # Agosto (usiamo 'ag' o 'o')
-        9: 's',  # Settembre
-        10: 'o', # Ottobre
-        11: 'n', # Novembre
-        12: 'd'  # Dicembre
-    }
-    
-    # Per giugno e agosto usiamo direttamente la prima lettera minuscola standard o specifica
+    giorno = data_riferimento.strftime("%d").lstrip("0")
     MESE_INIZIALI = ['g', 'f', 'm', 'a', 'm', 'g', 'l', 'a', 's', 'o', 'n', 'd']
     iniziale_mese = MESE_INIZIALI[data_riferimento.month - 1]
-    
     anno_2_cifre = data_riferimento.strftime("%y")
     
     return f"{giorno}{iniziale_mese}{anno_2_cifre}"
@@ -53,7 +34,6 @@ def genera_codice_lotto_automatico(data_riferimento=None):
 # FUNZIONE CARICAMENTO VIDEO BASE64 PER LOGO
 # ==========================================
 def get_video_base64(file_path):
-    """Legge il file video e lo converte in stringa Base64 per l'embedding HTML."""
     if os.path.exists(file_path):
         with open(file_path, "rb") as f:
             data = f.read()
@@ -61,14 +41,12 @@ def get_video_base64(file_path):
     return None
 
 # ==========================================
-# INIEZIONE CSS CUSTOM (FIX DEFINITIVO ARROW_RIGHT & DESIGN CLEAN)
+# INIEZIONE CSS CUSTOM
 # ==========================================
 st.markdown("""
 <style>
-    /* 1. IMPORTAZIONE GOOGLE FONTS (TITAN ONE & FREDOKA) */
     @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Titan+One&display=swap');
 
-    /* 2. SFONDO GLOBALE UNIFORMATO AL BLU SCURO DEL LOGO */
     .stApp {
         background-color: #090c17 !important;
         background: linear-gradient(180deg, #070a14 0%, #090c17 50%, #0d1222 100%) !important;
@@ -77,12 +55,10 @@ st.markdown("""
         font-weight: 500;
     }
 
-    /* 3. RIMOZIONE BARRA IN ALTO DI STREAMLIT PER EVITARE TAGLI */
     header[data-testid="stHeader"] {
         display: none !important;
     }
 
-    /* 4. MARGINE SUPERIORE ED INFERIORE ESTESO PER EVITARE TAGLI IN FONDO */
     .block-container {
         padding-top: 2.8rem !important;
         padding-bottom: 6rem !important;
@@ -90,7 +66,6 @@ st.markdown("""
         padding-right: 0.8rem !important;
     }
 
-    /* 5. CENTRATURA PERFETTA LOGO VIDEO SENZA BORDURA NÉ SFUMATURA */
     .logo-container {
         display: flex !important;
         justify-content: center !important;
@@ -114,7 +89,6 @@ st.markdown("""
         background-color: transparent !important;
     }
 
-    /* 6. SPAZIATURA E CENTRATURA TAB (SCHEDE) */
     div[data-testid="stTabs"] {
         margin-top: 0rem !important;
         padding-top: 0rem !important;
@@ -129,7 +103,6 @@ st.markdown("""
         flex-wrap: wrap !important;
     }
 
-    /* 7. TITOLI E INTESTAZIONI PRINCIPALI CENTRATI */
     h1, h2, h3, h4, h5, h6 {
         font-family: 'Titan One', cursive, sans-serif !important;
         color: #ffffff !important;
@@ -151,13 +124,11 @@ st.markdown("""
         text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5) !important;
     }
 
-    /* CENTRATURA TESTI DESCRITTIVI SPECIFICI */
     .stMarkdown p {
         font-family: 'Fredoka', sans-serif !important;
         line-height: 1.5 !important;
     }
 
-    /* 8. CONTENITORE CUSTOM PER GRIGLIA DASHBOARD */
     .dashboard-grid {
         display: grid !important;
         grid-template-columns: repeat(2, 1fr) !important;
@@ -201,7 +172,6 @@ st.markdown("""
         text-shadow: 0 2px 6px rgba(56, 189, 248, 0.3);
     }
 
-    /* 9. FIX DEFINITIVO PER EXPANDER & TESTI SORMONTATI */
     div[data-testid="stExpander"] {
         background: rgba(15, 23, 42, 0.75) !important;
         backdrop-filter: blur(12px) !important;
@@ -220,10 +190,6 @@ st.markdown("""
         line-height: 1.4 !important;
     }
 
-    div[data-testid="stExpander"] details summary span {
-        text-align: left !important;
-    }
-
     div[data-testid="stExpanderDetails"] {
         padding: 16px !important;
         border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
@@ -238,7 +204,6 @@ st.markdown("""
         margin-bottom: 20px !important;
     }
 
-    /* 10. TAB OPERATIVI 3D */
     .stTabs [data-baseweb="tab"] {
         font-family: 'Fredoka', sans-serif !important;
         background: rgba(15, 23, 42, 0.7) !important;
@@ -256,7 +221,6 @@ st.markdown("""
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
     }
 
-    /* 11. PULSANTI 3D CLEAN */
     .stButton {
         display: flex !important;
         justify-content: center !important;
@@ -280,7 +244,6 @@ st.markdown("""
         box-shadow: 0 10px 25px rgba(2, 132, 199, 0.5) !important;
     }
 
-    /* 12. INPUT E SELECT CLEAN */
     .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
         font-family: 'Fredoka', sans-serif !important;
         font-weight: 600 !important;
@@ -290,7 +253,6 @@ st.markdown("""
         border-radius: 10px !important;
     }
 
-    /* 13. TABELLE STYLING GLASS */
     div[data-testid="stDataFrame"] {
         font-family: 'Fredoka', sans-serif !important;
         background: rgba(15, 23, 42, 0.6) !important;
@@ -300,7 +262,6 @@ st.markdown("""
         margin-bottom: 25px !important;
     }
 
-    /* MOBILE ADJUSTMENTS */
     @media (max-width: 768px) {
         .block-container {
             padding-top: 2.5rem !important;
@@ -378,11 +339,17 @@ def init_db():
             margine REAL DEFAULT 0,
             note TEXT,
             cliente TEXT DEFAULT 'Anonimo',
+            pagamento TEXT DEFAULT 'Subito',
             data TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (prodotto_id) REFERENCES prodotti (id) ON DELETE CASCADE,
             FOREIGN KEY (lotto_id) REFERENCES lotti (id) ON DELETE SET NULL
         )
         """)
+
+        cursor.execute("PRAGMA table_info(movimenti)")
+        colonne_mov = [column[1] for column in cursor.fetchall()]
+        if 'pagamento' not in colonne_mov:
+            cursor.execute("ALTER TABLE movimenti ADD COLUMN pagamento TEXT DEFAULT 'Subito'")
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS impostazioni (
@@ -395,7 +362,7 @@ def init_db():
 init_db()
 
 # ==========================================
-# FUNZIONI DI LETTURA E QUERY INTEGRATE
+# FUNZIONI DI LETTURA E QUERY
 # ==========================================
 def get_soglia_esaurimento():
     with get_connection() as conn:
@@ -493,6 +460,7 @@ def get_movimenti_dettagliati_df():
             m.costo_totale, 
             m.margine, 
             COALESCE(m.cliente, 'Anonimo') AS cliente,
+            COALESCE(m.pagamento, 'Subito') AS pagamento,
             m.note, 
             m.lotto_id
         FROM movimenti m
@@ -590,7 +558,6 @@ def elimina_lotto_db(lotto_id):
         cursor.execute("UPDATE movimenti SET lotto_id = NULL WHERE lotto_id = ?", (lotto_id,))
         cursor.execute("DELETE FROM lotti WHERE id = ?", (lotto_id,))
 
-# FUNZIONE PER TRIGGERARE L'ANIMAZIONE DI FUOCHI D'ARTIFICIO (CONFETTI)
 def spara_fuochi_d_artificio():
     js_code = """
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
@@ -614,7 +581,7 @@ def spara_fuochi_d_artificio():
     st.components.v1.html(js_code, height=0)
 
 # ==========================================
-# INTERFACCIA UTENTE (STREAMLIT)
+# INTERFACCIA UTENTE
 # ==========================================
 
 video_b64 = get_video_base64("logo.gif.mp4")
@@ -633,7 +600,6 @@ else:
     else:
         st.title("LaBzz")
 
-# SCHEDE DI NAVIGAZIONE
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "💸 Cassa", 
     "📊 Dashboard", 
@@ -674,8 +640,8 @@ with tab1:
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    quantita_vendita = st.number_input("Quantità Data (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
-                    totale_incassato = st.number_input("Euro Ricevuti (€)", min_value=0.0, value=0.0, step=1.0, format="%.2f")
+                    quantita_vendita = st.number_input("Quantità", min_value=0.0, value=0.0, step=0.5, format="%.1f")
+                    totale_incassato = st.number_input("Euro", min_value=0.0, value=0.0, step=1.0, format="%.2f")
                 
                 with col2:
                     prezzo_unitario_calc = (totale_incassato / quantita_vendita) if quantita_vendita > 0 else 0.0
@@ -692,6 +658,10 @@ with tab1:
                     if suggerimenti:
                         cliente_selezionato_suggerito = st.selectbox("Suggerimenti Cliente", ["-- Seleziona o Continua a Scrivere --"] + suggerimenti, key="select_suggerimento_cliente")
 
+                # Selezione tempistica pagamento
+                st.markdown("##### Modalità Pagamento")
+                tipo_pagamento = st.radio("Quando ricevi i soldi?", ["Subito", "Dopo (Credito)"], horizontal=True)
+
                 if st.button("Conferma Vendita", key="btn_conferma_v"):
                     if cliente_selezionato_suggerito and cliente_selezionato_suggerito != "-- Seleziona o Continua a Scrivere --":
                         nome_finale_cliente = cliente_selezionato_suggerito
@@ -701,9 +671,9 @@ with tab1:
                         nome_finale_cliente = "Anonimo"
 
                     if quantita_vendita <= 0:
-                        st.error("Inserisci una quantità di grammi superiore a 0 g.")
+                        st.error("Inserisci una quantità superiore a 0 g.")
                     elif totale_incassato <= 0:
-                        st.error("Inserisci l'importo in Euro ricevuto.")
+                        st.error("Inserisci l'importo in Euro.")
                     elif quantita_vendita > qta_tot_disp:
                         st.error(f"Quantità inserita ({quantita_vendita:,.1f} g) superiore alla disponibilità ({qta_tot_disp:,.1f} g).")
                     else:
@@ -740,12 +710,12 @@ with tab1:
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto, l_id))
                                 
                                 cursor.execute("""
-                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, note)
-                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?)
-                                """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, nome_finale_cliente, f"Lotto {cod_lotto}"))
+                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
+                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, nome_finale_cliente, tipo_pagamento, f"Lotto {cod_lotto}"))
                         
                         spara_fuochi_d_artificio()
-                        st.success(f"✅ Vendita a '{nome_finale_cliente}' registrata e coordinata con i lotti e report!")
+                        st.success(f"✅ Vendita a '{nome_finale_cliente}' registrata (Pagamento: {tipo_pagamento})!")
 
         elif tipo_operazione == "XME":
             lotti_df = get_lotti_attivi_df()
@@ -780,8 +750,8 @@ with tab1:
                                 cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, lotto_id_scelto))
                                 
                             cursor.execute("""
-                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, note)
-                                VALUES (?, ?, 'XME', ?, 0, ?, ?, 'XME', ?)
+                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note)
+                                VALUES (?, ?, 'XME', ?, 0, ?, ?, 'XME', 'Subito', ?)
                             """, (p_id, lotto_id_scelto, qta_xme, costo_perdita, -costo_perdita, f"XME: {motivo}"))
                         
                         st.warning("Operazione XME registrata e sincronizzata col lotto!")
@@ -934,7 +904,6 @@ with tab3:
             nome_nuovo = st.text_input("Nome Prodotto", placeholder="Es. Nome Nuova Varietà / Prodotto")
             data_acq_m = st.date_input("Data di Acquisto Lotto", value=date.today())
             
-            # Codice lotto generato automaticamente basato sulla data scelta
             codice_lotto_default = genera_codice_lotto_automatico(data_acq_m)
             cod_lotto_m = st.text_input("Codice Lotto", value=codice_lotto_default)
             
@@ -963,8 +932,8 @@ with tab3:
                             
                             lotto_id = cursor.lastrowid
                             cursor.execute("""
-                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, note)
-                                VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Primo Carico Lotto')
+                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note)
+                                VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Primo Carico Lotto')
                             """, (p_id, lotto_id, qta_lotto_m, costo_u_lotto_m, qta_lotto_m * costo_u_lotto_m))
                             
                         st.success(f"✅ Prodotto '{nome_nuovo}' e lotto '{cod_lotto_m}' creati con successo!")
@@ -981,7 +950,6 @@ with tab3:
                 p_nome_lotto = st.selectbox("Seleziona Prodotto Esistente", prodotti_esistenti_df['nome'].tolist())
                 data_acq_add = st.date_input("Data di Acquisto", value=date.today(), key="date_acq_add")
                 
-                # Codice lotto generato automaticamente basato sulla data scelta
                 codice_lotto_add_default = genera_codice_lotto_automatico(data_acq_add)
                 cod_lotto_add = st.text_input("Codice Lotto", value=codice_lotto_add_default, key="input_cod_lotto_add")
                 
@@ -1001,8 +969,8 @@ with tab3:
                         
                         lotto_id = cursor.lastrowid
                         cursor.execute("""
-                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, note)
-                            VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Rifornimento Lotto')
+                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note)
+                            VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Rifornimento Lotto')
                         """, (p_id_m, lotto_id, qta_lotto_add, costo_u_lotto_add, qta_lotto_add * costo_u_lotto_add))
                     
                     st.success(f"✅ Lotto '{cod_lotto_add}' aggiunto con successo al prodotto {p_nome_lotto}!")
@@ -1052,16 +1020,17 @@ with tab4:
 
         st.dataframe(
             df_filtrato[[
-                'id', 'data', 'cliente', 'prodotto', 'codice_lotto', 'tipo', 'quantita', 'unita_misura',
+                'id', 'data', 'cliente', 'pagamento', 'prodotto', 'codice_lotto', 'tipo', 'quantita', 'unita_misura',
                 'prezzo_unitario', 'ricavo_totale', 'costo_totale', 'margine', 'note'
             ]],
             column_config={
                 "id": "ID",
                 "data": "Data/Ora",
-                "cliente": "Cliente / Origine",
+                "cliente": "Cliente",
+                "pagamento": "Pagamento",
                 "prodotto": "Prodotto",
-                "codice_lotto": "Codice Lotto Origine",
-                "tipo": "Tipo Operazione",
+                "codice_lotto": "Codice Lotto",
+                "tipo": "Tipo",
                 "quantita": st.column_config.NumberColumn("Quantità", format="%.1f g"),
                 "unita_misura": "U.M.",
                 "prezzo_unitario": st.column_config.NumberColumn("Prezzo Unit.", format="€ %.2f"),
@@ -1201,9 +1170,10 @@ with tab5:
             
             with st.expander(f"📜 Storico Acquisti di {cliente_scelto}", expanded=False):
                 st.dataframe(
-                    v_cliente[['data', 'prodotto', 'quantita', 'ricavo_totale', 'prezzo_unitario']],
+                    v_cliente[['data', 'pagamento', 'prodotto', 'quantita', 'ricavo_totale', 'prezzo_unitario']],
                     column_config={
                         "data": "Data/Ora",
+                        "pagamento": "Pagamento",
                         "prodotto": "Prodotto",
                         "quantita": st.column_config.NumberColumn("Quantità", format="%.1f g"),
                         "ricavo_totale": st.column_config.NumberColumn("Spesa (€)", format="€ %.2f"),
