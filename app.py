@@ -27,7 +27,7 @@ def get_video_base64(file_path):
     return None
 
 # ==========================================
-# INIEZIONE CSS CUSTOM (SFONDO LOGO + NESSUN TAGLIO IN ALTO)
+# INIEZIONE CSS CUSTOM (SFONDO LOGO + ANIMAZIONI)
 # ==========================================
 st.markdown("""
 <style>
@@ -50,7 +50,7 @@ st.markdown("""
 
     /* 4. MARGINE SUPERIORE PER NON TAGLIARE IL LOGO */
     .block-container {
-        padding-top: 2.5rem !important;
+        padding-top: 2.8rem !important;
         padding-bottom: 2rem !important;
         padding-left: 0.5rem !important;
         padding-right: 0.5rem !important;
@@ -540,6 +540,29 @@ def elimina_lotto_db(lotto_id):
         cursor.execute("UPDATE movimenti SET lotto_id = NULL WHERE lotto_id = ?", (lotto_id,))
         cursor.execute("DELETE FROM lotti WHERE id = ?", (lotto_id,))
 
+# FUNZIONE PER TRIGGERARE L'ANIMAZIONE DI FUOCHI D'ARTIFICIO (CONFETTI)
+def spara_fuochi_d_artificio():
+    js_code = """
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script>
+        var count = 200;
+        var defaults = { origin: { y: 0.7 } };
+
+        function fire(particleRatio, opts) {
+          confetti(Object.assign({}, defaults, opts, {
+            particleCount: Math.floor(count * particleRatio)
+          }));
+        }
+
+        fire(0.25, { spread: 26, startVelocity: 55 });
+        fire(0.2, { spread: 60 });
+        fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
+        fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
+        fire(0.1, { spread: 120, startVelocity: 45 });
+    </script>
+    """
+    st.components.v1.html(js_code, height=0)
+
 # ==========================================
 # INTERFACCIA UTENTE (STREAMLIT)
 # ==========================================
@@ -597,60 +620,64 @@ with tab1:
             else:
                 st.info(f"Disponibilità totale: **{qta_tot_disp:,.1f} g**")
                 
-                with st.form("form_vendita"):
-                    st.markdown("##### Registra Vendita")
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        quantita_vendita = st.number_input("Quantità da Vendere (g)", min_value=0.5, value=min(100.0, qta_tot_disp), step=0.5, format="%.1f")
-                        prezzo_vendita_unitario = st.number_input("Prezzo al grammo (€/g)", min_value=0.1, value=float(prod_row['valore_mercato_unitario']), step=0.5, format="%.2f")
-                    
-                    with col2:
-                        totale_vendita = quantita_vendita * prezzo_vendita_unitario
-                        st.metric("Totale Incasso Previsto", f"€ {totale_vendita:,.2f}")
-                        note = st.text_input("Note (Opzionale)")
+                st.markdown("##### Registra Vendita")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # CASSA PARTE SEMPRE DA 0 G
+                    quantita_vendita = st.number_input("Quantità da Vendere (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
+                    prezzo_vendita_unitario = st.number_input("Prezzo al grammo (€/g)", min_value=0.1, value=float(prod_row['valore_mercato_unitario']), step=0.5, format="%.2f")
+                
+                with col2:
+                    # AGGIORNAMENTO ISTANTANEO IN TEMPO REALE DEL TOTALE
+                    totale_vendita = quantita_vendita * prezzo_vendita_unitario
+                    st.metric("Totale", f"€ {totale_vendita:,.2f}")
+                    note = st.text_input("Note (Opzionale)")
 
-                    if st.form_submit_button("Conferma Vendita"):
-                        if quantita_vendita > qta_tot_disp:
-                            st.error(f"Quantità inserita ({quantita_vendita:,.1f} g) superiore alla disponibilità ({qta_tot_disp:,.1f} g).")
-                        else:
-                            with get_connection() as conn:
-                                cursor = conn.cursor()
-                                qta_da_scaricare = float(quantita_vendita)
-                                
-                                for _, lotto in lotti_disponibili.iterrows():
-                                    if qta_da_scaricare <= 0:
-                                        break
-                                    
-                                    l_id = int(lotto['id'])
-                                    qta_lotto_disp = float(lotto['quantita_attuale'])
-                                    costo_u_lotto = float(lotto['costo_acquisto_unitario'])
-                                    cod_lotto = lotto['codice_lotto']
-                                    
-                                    prelievo = min(qta_lotto_disp, qta_da_scaricare)
-                                    nuova_qta_lotto = qta_lotto_disp - prelievo
-                                    qta_da_scaricare -= prelievo
-                                    
-                                    costo_quota = prelievo * costo_u_lotto
-                                    ricavo_quota = prelievo * prezzo_vendita_unitario
-                                    margine_quota = ricavo_quota - costo_quota
-                                    
-                                    if nuova_qta_lotto == 0:
-                                        cursor.execute("""
-                                            UPDATE lotti 
-                                            SET quantita_attuale = 0, data_completamento = ? 
-                                            WHERE id = ?
-                                        """, (date.today(), l_id))
-                                    else:
-                                        cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto, l_id))
-                                    
-                                    cursor.execute("""
-                                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, note)
-                                        VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?)
-                                    """, (p_id, l_id, prelievo, prezzo_vendita_unitario, ricavo_quota, costo_quota, margine_quota, f"Lotto {cod_lotto} | {note}".strip(" |")))
+                if st.button(" Conforma Vendita", key="btn_conferma_v"):
+                    if quantita_vendita <= 0:
+                        st.error("Inserisci una quantità superiore a 0 g per registrare la vendita.")
+                    elif quantita_vendita > qta_tot_disp:
+                        st.error(f"Quantità inserita ({quantita_vendita:,.1f} g) superiore alla disponibilità ({qta_tot_disp:,.1f} g).")
+                    else:
+                        with get_connection() as conn:
+                            cursor = conn.cursor()
+                            qta_da_scaricare = float(quantita_vendita)
                             
-                            st.success("✅ Vendita registrata e coordinata con i lotti e report!")
-                            st.rerun()
+                            for _, lotto in lotti_disponibili.iterrows():
+                                if qta_da_scaricare <= 0:
+                                    break
+                                
+                                l_id = int(lotto['id'])
+                                qta_lotto_disp = float(lotto['quantita_attuale'])
+                                costo_u_lotto = float(lotto['costo_acquisto_unitario'])
+                                cod_lotto = lotto['codice_lotto']
+                                
+                                prelievo = min(qta_lotto_disp, qta_da_scaricare)
+                                nuova_qta_lotto = qta_lotto_disp - prelievo
+                                qta_da_scaricare -= prelievo
+                                
+                                costo_quota = prelievo * costo_u_lotto
+                                ricavo_quota = prelievo * prezzo_vendita_unitario
+                                margine_quota = ricavo_quota - costo_quota
+                                
+                                if nuova_qta_lotto == 0:
+                                    cursor.execute("""
+                                        UPDATE lotti 
+                                        SET quantita_attuale = 0, data_completamento = ? 
+                                        WHERE id = ?
+                                    """, (date.today(), l_id))
+                                else:
+                                    cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto, l_id))
+                                
+                                cursor.execute("""
+                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, note)
+                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?)
+                                """, (p_id, l_id, prelievo, prezzo_vendita_unitario, ricavo_quota, costo_quota, margine_quota, f"Lotto {cod_lotto} | {note}".strip(" |")))
+                        
+                        # ANIMAZIONE FUOCHI D'ARTIFICIO / CONFETTI
+                        spara_fuochi_d_artificio()
+                        st.success("✅ Vendita registrata e coordinata con i lotti e report!")
 
         elif tipo_operazione == "XME":
             lotti_df = get_lotti_attivi_df()
