@@ -178,6 +178,7 @@ def init_db():
         )
         """)
         
+        # Tabella clienti corretta con la colonna 'fiducia'
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS clienti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -327,9 +328,6 @@ def get_movimenti_dettagliati_df():
         except:
             return pd.DataFrame()
 
-# ==========================================
-# SIMULAZIONE BOT AUTOMATICA DELL'ANNO
-# ==========================================
 def esegui_simulazione_bot():
     reset_database_totale()
     p_name = get_impostazione('nome_protagonista', 'Hassan')
@@ -348,7 +346,6 @@ def esegui_simulazione_bot():
         for c in clienti_fittizi:
             cursor.execute("INSERT OR IGNORE INTO clienti (nome, fiducia) VALUES (?, 60)", (c,))
 
-        # Lotto iniziale
         data_inizio = date.today() - timedelta(days=365)
         cursor.execute("SELECT id FROM prodotti WHERE nome = 'Hash Base'")
         p_id_init = cursor.fetchone()[0]
@@ -368,7 +365,6 @@ def esegui_simulazione_bot():
             VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
         """, (p_id_init, l_id_init, qta_init, costo_u_init, costo_tot_init, f"Lotto Iniziale", ts_c))
 
-    # Simulazione rapida di 30 giorni di transazioni automatiche del bot
     for giorno_idx in range(30):
         data_corrente = (date.today() - timedelta(days=30)) + timedelta(days=giorno_idx)
         ts_giorno = datetime.combine(data_corrente, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
@@ -397,9 +393,7 @@ def esegui_simulazione_bot():
     set_impostazione('simulazione_eseguita', '1')
     set_impostazione('log_strategico_finale', f"Simulazione Bot completata con successo per {p_name}! Tutti i flussi e i lotti sono sincronizzati.")
 
-# ==========================================
-# HUD DI GIOCO FISSO IN CIMA
-# ==========================================
+# HUD
 p_name = get_impostazione('nome_protagonista', 'Hassan')
 energia_gioco = get_impostazione('energia', '100')
 stress_gioco = get_impostazione('stress', '15')
@@ -442,7 +436,6 @@ if tutti_log:
 else:
     placeholder_notifica.markdown(f'<div class="alert-banner">📡 <b>Stato:</b> Bot pronto. Avvia la simulazione nel tab apposito per iniziare i flussi automatici.</div>', unsafe_allow_html=True)
 
-# 6 Tabs di Gioco
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "💸 Cassa & Vendite", 
     "🚀 Upgrade & Shop", 
@@ -532,7 +525,7 @@ with tab1:
                             nuova_q = float(row_l['quantita_attuale']) - qta_x
                             costo_p = qta_x * float(row_l['costo_acquisto_unitario'])
                             p_id_x = int(get_prodotti_disponibili_df()[get_prodotti_disponibili_df()['nome'] == row_l['prodotto']].iloc[0]['id'])
-                            dt_c = date.today() if nuova_q == 0 else None
+                            dt_c = date.today() if nueva_q == 0 else None
                             
                             cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_q, dt_c, l_id_scelto))
                             cursor.execute("""
