@@ -694,14 +694,6 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
 
     return True
 
-# GESTIONE AVANZAMENTO GIORNALIERO SE BOT ATTIVO (SOLO MENTRE SEI SUL SITO)
-if get_impostazione('bot_attivo', '0') == '1':
-    giorni_gia_simulati = int(get_impostazione('giorni_simulati', '0'))
-    if giorni_gia_simulati < 365:
-        p_name = get_impostazione('nome_protagonista', 'Hassan')
-        esegui_giorno_simulazione(giorni_gia_simulati, p_name)
-        set_impostazione('giorni_simulati', str(giorni_gia_simulati + 1))
-
 # CONTROLLO GLOBALE VENDITE PER EFFETTI VISIVI INDIPENDENTI DAL TAB
 with get_connection() as conn:
     cursor = conn.cursor()
@@ -1138,7 +1130,7 @@ with tab6:
     p_name_corrente = get_impostazione('nome_protagonista', 'Hassan')
 
     if not bot_attivo:
-        st.markdown("Avvia il bot per attivare la narrazione continua e il timer live (1 giorno ogni 5 secondi).")
+        st.markdown("Avvia il bot per attivare il timer live (1 giorno ogni 5 secondi) e seguire la narrazione in tempo reale.")
         
         col_nome1, col_nome2 = st.columns([2, 1])
         with col_nome1:
