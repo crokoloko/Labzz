@@ -41,7 +41,7 @@ def get_video_base64(file_path):
     return None
 
 # ==========================================
-# INIEZIONE CSS CUSTOM (STILE CHAT & APP)
+# INIEZIONE CSS CUSTOM
 # ==========================================
 st.markdown("""
 <style>
@@ -386,8 +386,7 @@ def reset_database_totale():
     set_impostazione('bot_attivo', '0')
     set_impostazione('giorni_simulati', '0')
     set_impostazione('timestamp_avvio', '')
-    if "ultime_notizie" in st.session_state:
-        st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
+    st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
 
 def get_soglia_esaurimento():
     return float(get_impostazione('soglia_esaurimento', '10.0'))
@@ -552,17 +551,19 @@ def trigger_valore_vendita_effect(importo_totale):
     js_code = f"""
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script>
-        confetti({{
-            particleCount: {particelle},
-            spread: 90,
-            startVelocity: {velocita},
-            origin: {{ y: 0.6 }},
-            colors: ['{colore}', '#ffffff', '#2563eb', '#9333ea'],
-            scalar: 1.1
-        }});
+        try {{
+            confetti({{
+                particleCount: {particelle},
+                spread: 90,
+                startVelocity: {velocita},
+                origin: {{ y: 0.6 }},
+                colors: ['{colore}', '#ffffff', '#2563eb', '#9333ea'],
+                scalar: 1.1
+            }});
+        }} catch(e) {{}}
     </script>
     """
-    st.components.v1.html(js_code, height=0)
+    st.components.v1.html(js_code, height=0, scrolling=False)
 
 video_b64 = get_video_base64("logo.gif.mp4")
 if video_b64:
@@ -580,12 +581,20 @@ else:
         st.title("LaBzz")
 
 # ==========================================
-# GESTIONE SIMULAZIONE IN BACKGROUND (PERSISTENTE)
+# GESTIONE SIMULAZIONE IN BACKGROUND & LOG
 # ==========================================
 if "ultime_notizie" not in st.session_state:
     st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
 if "nome_protagonista" not in st.session_state:
     st.session_state["nome_protagonista"] = "Hassan"
+
+def aggiungi_notizia_persistente(testo):
+    if "ultime_notizie" not in st.session_state:
+        st.session_state["ultime_notizie"] = []
+    st.session_state["ultime_notizie"].append(testo)
+    # Mantiene massimo gli ultimi 100 log in memoria per pulizia
+    if len(st.session_state["ultime_notizie"]) > 100:
+        st.session_state["ultime_notizie"] = st.session_state["ultime_notizie"][-100:]
 
 def esegui_giorno_simulazione(giorno_idx, p_name):
     giorni_totali = 365
@@ -605,15 +614,15 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
             f"🧠 [{data_corrente.strftime('%d %b')}] Studio session: {p_name} collega l'Elektron Digitakt per una sessione notturna.",
             f"📦 [{data_corrente.strftime('%d %b')}] Turno di notte: gestione dei bancali di truciolato e pianificazione tracce."
         ]
-        st.session_state["ultime_notizie"].append(random.choice(saga_pool))
+        aggiungi_notizia_persistente(random.choice(saga_pool))
 
         if data_corrente.day == 1:
             stipendio_netto = random.uniform(1650.0, 1800.0)
-            st.session_state["ultime_notizie"].append(f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato sul conto di {p_name}.")
+            aggiungi_notizia_persistente(f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato sul conto di {p_name}.")
 
         if data_corrente.month == 12 and data_corrente.day == 15:
             tredicesima = random.uniform(1650.0, 1800.0)
-            st.session_state["ultime_notizie"].append(f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f} per {p_name}.")
+            aggiungi_notizia_persistente(f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f} per {p_name}.")
 
         cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
         giacenza_totale = cursor.fetchone()[0] or 0.0
@@ -640,7 +649,7 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
                 else:
                     spesa_lotto = costo_base_lotto * 1.27
                     nota_rifornimento = "Rifornimento a DEBITO (+27%)"
-                    st.session_state["ultime_notizie"].append(f"💳 Rifornimento a debito per {p_name} (€ {spesa_lotto:,.2f}).")
+                    aggiungi_notizia_persistente(f"💳 Rifornimento a debito per {p_name} (€ {spesa_lotto:,.2f}).")
 
                 costo_u = spesa_lotto / qta_lotto
                 codice_l = genera_codice_lotto_automatico(data_corrente)
@@ -1152,7 +1161,6 @@ with tab6:
     bot_attivo = get_impostazione('bot_attivo', '0') == '1'
     giorni_simulati_correnti = int(get_impostazione('giorni_simulati', '0'))
 
-    # SE IL BOT NON È ATTIVO -> MOSTRA I SELETTORI INIZIALI
     if not bot_attivo:
         st.markdown("Avvia il bot in background persistente per attivare la narrazione continua in stile chat.")
         
@@ -1168,7 +1176,7 @@ with tab6:
             if st.button("🚀 Avvia Bot (Background)", use_container_width=True):
                 reset_database_totale()
                 p_name = st.session_state["nome_protagonista"]
-                st.session_state["ultime_notizie"] = [f"🚀 Inizio della saga: {p_name} timbra il cartellino in fabbrica mentre progetta il suo alter ego underground."]
+                aggiungi_notizia_persistente(f"🚀 Inizio della saga: {p_name} timbra il cartellino in fabbrica mentre progetta il suo alter ego underground.")
                 
                 with get_connection() as conn:
                     cursor = conn.cursor()
@@ -1210,7 +1218,6 @@ with tab6:
                 st.success("✅ Reset generale completato con successo!")
                 st.rerun()
 
-    # SE IL BOT È ATTIVO -> SCOMPAIONO I SELETTORI E COMPARE LA FINESTRA DI CHAT NARRATIVA
     else:
         st.markdown(f"🟢 **Bot attivo in background ({st.session_state['nome_protagonista']})** — Progresso: **{giorni_simulati_correnti} / 365 giorni**")
         
@@ -1222,16 +1229,13 @@ with tab6:
         st.markdown("---")
         st.markdown("#### 💬 Cronaca e Flusso Narrativo Unificato")
 
-        # Container stile finestra di chat per mostrare tutti gli aggiornamenti principali
         chat_container = st.container(border=True)
         with chat_container:
             notizie = st.session_state.get("ultime_notizie", ["In attesa di eventi..."])
-            # Mostra la cronologia completa in ordine cronologico come flusso di chat logico
             for notizia in notizie:
                 with st.chat_message("assistant", avatar="🤖"):
                     st.write(notizia)
 
-        # Ricarica automaticamente la pagina se il bot sta lavorando live per aggiornare la chat
         if giorni_simulati_correnti < 365:
             import time
             time.sleep(3)
