@@ -250,14 +250,6 @@ st.markdown("""
         100% { background-position: 0% 50%; }
     }
 
-    .debt-container {
-        background: rgba(239, 68, 68, 0.08);
-        border: 1px solid rgba(239, 68, 68, 0.3);
-        border-radius: 14px;
-        padding: 16px;
-        margin-bottom: 25px;
-    }
-
     .debt-name {
         font-family: 'Comic Sans MS', 'Chalkboard SE', 'Fira Code', cursive, sans-serif !important;
         font-style: italic;
@@ -912,17 +904,16 @@ with tab5:
     if vendite_df.empty:
         st.info("Nessuna vendita registrata.")
     else:
-        # SEZIONE DEBITI ORDINATA ED ELEGANTE CON PULSANTE DI SALDO RAPIDO
+        # SEZIONE DEBITI IN FILA ORIZZONTALE PERFETTA SENZA RETTANGOLI
         clienti_debito = vendite_df[vendite_df['pagamento'] == 'Dopo (Credito)']
         if not clienti_debito.empty:
             debito_per_cliente = clienti_debito.groupby('cliente')['ricavo_totale'].sum().reset_index()
             
-            st.markdown('<div class="debt-container">', unsafe_allow_html=True)
             for _, row_d in debito_per_cliente.iterrows():
                 c_nome = row_d['cliente']
                 c_importo = row_d['ricavo_totale']
                 
-                col_d1, col_d2, col_d3 = st.columns([4, 2, 3])
+                col_d1, col_d2, col_d3 = st.columns([3, 2, 3])
                 with col_d1:
                     st.markdown(f'<span class="debt-name">{c_nome}</span>', unsafe_allow_html=True)
                 with col_d2:
@@ -930,9 +921,8 @@ with tab5:
                 with col_d3:
                     if st.button("💳 Segna come Pagato", key=f"btn_paga_{c_nome}"):
                         segna_debito_pagato(c_nome)
-                        st.success(f"Debito di {c_nome} saldato con successo!")
+                        st.success(f"Debito di {c_nome} saldato!")
                         st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
 
         clienti_grouped = vendite_df.groupby('cliente').agg(
             Spesa_Totale=('ricavo_totale', 'sum'),
