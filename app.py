@@ -1,7 +1,8 @@
 import sqlite3
 import base64
 import os
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
+import random
 import pandas as pd
 import streamlit as st
 import altair as alt
@@ -539,6 +540,132 @@ def segna_debito_pagato(nome_cliente):
         cursor = conn.cursor()
         cursor.execute("UPDATE movimenti SET pagamento = 'Subito' WHERE cliente = ? AND pagamento = 'Dopo (Credito)'", (nome_cliente,))
 
+# ==========================================
+# FUNZIONE BOT SIMULAZIONE INTELLIGENTE UN ANNO
+# ==========================================
+def simula_anno_intelligente():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        
+        # 1. Creazione varietà realistiche
+        prodotti_nomi = ["Super Skunk", "Amnesia Haze", "OG Kush", "Lemon Haze", "Gelato #33"]
+        prodotti_ids = []
+        for p_nome in prodotti_nomi:
+            cursor.execute("INSERT OR IGNORE INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) VALUES (?, 'g', 50.0, 50.0)", (p_nome,))
+            cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (p_nome,))
+            prodotti_ids.append(cursor.fetchone()[0])
+
+        clienti_fittizi = ["Mario Rossi", "Luca Bianchi", "Giulia Verdi", "Sara Neri", "Marco Gialli", "Anonimo"]
+        for c in clienti_fittizi:
+            if c != "Anonimo":
+                cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (c,))
+
+        # 2. Carico iniziale per partire
+        data_corrente = date.today() - timedelta(days=365)
+        data_fine = date.today()
+
+        for p_id in prodotti_ids:
+            qta_lotto = 500.0
+            costo_u = random.choice([2.0, 2.5, 3.0])
+            codice_l = genera_codice_lotto_automatico(data_corrente)
+            cursor.execute("""
+                INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (p_id, codice_l, qta_lotto, qta_lotto, costo_u, data_corrente, data_corrente))
+            lotto_id = cursor.lastrowid
+            timestamp_c = datetime.combine(data_corrente, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+            cursor.execute("""
+                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
+                VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Primo Carico Iniziale', ?)
+            """, (p_id, lotto_id, qta_lotto, costo_u, qta_lotto * costo_u, timestamp_c))
+
+        # 3. Simulazione giorno per giorno con logica umana/intelligente
+        while data_corrente <= data_fine:
+            timestamp_giorno = datetime.combine(data_corrente, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+
+            # Controllo scorte: se la giacenza totale è bassa, fai un rifornimento automatico intelligente
+            cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
+            giacenza_totale = cursor.fetchone()[0] or 0.0
+            if giacenza_totale < 350.0 or random.random() < 0.04:
+                p_id_rif = random.choice(prodotti_ids)
+                qta_lotto = random.choice([300.0, 500.0, 1000.0])
+                costo_u = random.choice([2.0, 2.5, 3.0])
+                codice_l = genera_codice_lotto_automatico(data_corrente)
+                cursor.execute("""
+                    INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (p_id_rif, codice_l, qta_lotto, qta_lotto, costo_u, data_corrente, data_corrente))
+                l_id_rif = cursor.lastrowid
+                cursor.execute("""
+                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
+                    VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Rifornimento Intelligente', ?)
+                """, (p_id_rif, l_id_rif, qta_lotto, costo_u, qta_lotto * costo_u, timestamp_giorno))
+
+            # Vendite giornaliere realistiche
+            num_vendite = random.choice([0, 1, 1, 2, 3])
+            for _ in range(num_vendite):
+                p_id = random.choice(prodotti_ids)
+                cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC LIMIT 1", (p_id,))
+                lotto_attivo = cursor.fetchone()
+
+                if lotto_attivo:
+                    l_id, qta_disp, costo_u, cod_lotto = lotto_attivo
+
+                    # LOGICA PREZZI AL GRAMMO E QUANTITÀ INTELLIGENTE:
+                    # 60% delle volte a 10 €/g (quantità maggiori: 5g - 50g)
+                    # 25% delle volte a 50 €/g (quantità medie: 1g - 5g)
+                    # 15% delle volte a 90 €/g (quantità piccole/esclusive: 0.5g - 2g)
+                    rand_tier = random.random()
+                    if rand_tier < 0.60:
+                        prezzo_unitario = 10.0
+                        qta_vendita = random.choice([5.0, 10.0, 15.0, 20.0, 25.0, 50.0])
+                    elif rand_tier < 0.85:
+                        prezzo_unitario = 50.0
+                        qta_vendita = random.choice([1.0, 2.0, 3.0, 5.0])
+                    else:
+                        prezzo_unitario = 90.0
+                        qta_vendita = random.choice([0.5, 1.0, 2.0])
+
+                    # Non vendere più di quanto c'è nel lotto
+                    qta_vendita = min(qta_disp, qta_vendita)
+                    if qta_vendita <= 0:
+                        continue
+
+                    ricavo_totale = qta_vendita * prezzo_unitario
+                    costo_totale = qta_vendita * costo_u
+                    margine = ricavo_totale - costo_totale
+
+                    nuova_qta = qta_disp - qta_vendita
+                    data_comp = data_corrente if nuova_qta == 0 else None
+
+                    cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
+
+                    cliente = random.choice(clienti_fittizi)
+                    pagamento = "Subito" if random.random() < 0.70 else "Dopo (Credito)"
+
+                    cursor.execute("""
+                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
+                        VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Lotto {cod_lotto}", timestamp_giorno))
+
+            # Uscita personale XME occasionale
+            if random.random() < 0.03:
+                cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE quantita_attuale > 5 ORDER BY RANDOM() LIMIT 1")
+                lotto_xme = cursor.fetchone()
+                if lotto_xme:
+                    lx_id, qx_disp, cx_u = lotto_xme
+                    qta_xme_val = random.choice([2.0, 5.0, 10.0])
+                    if qx_disp >= qta_xme_val:
+                        nuova_q_xme = qx_disp - qta_xme_val
+                        costo_pers = qta_xme_val * cx_u
+                        cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_q_xme, lx_id))
+                        cursor.execute("""
+                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, margine, cliente, pagamento, note, data)
+                            SELECT prodotto_id, id, 'XME', ?, 0, ?, ?, 'XME', 'Subito', 'Uscita Personale Intelligente', ? FROM lotti WHERE id = ?
+                        """, (qta_xme_val, costo_pers, -costo_pers, timestamp_giorno, lx_id))
+
+            data_corrente += timedelta(days=1)
+
 def spara_fuochi_d_artificio():
     js_code = """
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
@@ -577,7 +704,6 @@ else:
     else:
         st.title("LaBzz")
 
-# Ordine tab modificato: Statistiche prima di Report & Storico
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "💸 Cassa", 
     "📊 Dashboard", 
@@ -592,7 +718,7 @@ with tab1:
     prodotti_disp_df = get_prodotti_disponibili_df()
     
     if prodotti_disp_df.empty:
-        st.warning("⚠️ Nessun prodotto disponibile con giacenza in magazzino. Aggiungi un nuovo prodotto o carica un lotto dalla scheda 'Rifornimenti'.")
+        st.warning("⚠️ Nessun prodotto disponibile con giacenza in magazzino. Avvia la simulazione dal tab Rifornimenti!")
     else:
         if tipo_operazione == "Vendita":
             prod_nome = st.selectbox("Seleziona Prodotto da Vendere", prodotti_disp_df['nome'].tolist())
@@ -790,6 +916,16 @@ with tab2:
 
 with tab3:
     st.subheader("🚚 Registro Rifornimenti e Lotti")
+
+    # BOT DI SIMULAZIONE INTELLIGENTE
+    with st.expander("🤖 Bot di Simulazione Intelligente (1 Anno)", expanded=False):
+        st.markdown("Questo strumento simula **un intero anno** in modo intelligente: applica i prezzi al grammo richiesti (**60% a 10 €/g**, il resto a **50 €/g** e **90 €/g** con quantità proporzionate), gestisce rifornimenti automatici quando le scorte calano, clienti, crediti e consumi personali `XME`.")
+        if st.button("🚀 Avvia Simulazione Intelligente"):
+            simula_anno_intelligente()
+            spara_fuochi_d_artificio()
+            st.success("✅ Simulazione intelligente completata con successo! Guarda i grafici e la cassa.")
+            st.rerun()
+
     soglia_attuale = get_soglia_esaurimento()
     report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_attuale)
     
@@ -880,7 +1016,6 @@ with tab4:
     movimenti_df = get_movimenti_dettagliati_df()
     vendite_df = movimenti_df[movimenti_df['tipo'] == 'VENDITA'].copy() if not movimenti_df.empty else pd.DataFrame()
     
-    # GESTIONE SESSIONE PER IL POPUP A SCOMPARSA AL CLIC SUL NOME
     if "cliente_selezionato_debito" not in st.session_state:
         st.session_state["cliente_selezionato_debito"] = None
 
@@ -889,7 +1024,6 @@ with tab4:
         if not clienti_debito.empty:
             debito_per_cliente = clienti_debito.groupby('cliente')['ricavo_totale'].sum().reset_index()
             
-            # Mostriamo i nomi in fila orizzontale in modo elegante e pulito
             cols = st.columns(len(debito_per_cliente))
             for idx, row_d in debito_per_cliente.iterrows():
                 c_nome = row_d['cliente']
@@ -898,7 +1032,6 @@ with tab4:
                     if st.button(f"✨ {c_nome}", key=f"btn_nome_{c_nome}", use_container_width=True):
                         st.session_state["cliente_selezionato_debito"] = c_nome
 
-            # Se l'utente ha cliccato su un nome, compare il riquadro con l'importo e la conferma
             cli_selezionato = st.session_state["cliente_selezionato_debito"]
             if cli_selezionato:
                 importo_selezionato = debito_per_cliente[debito_per_cliente['cliente'] == cli_selezionato]['ricavo_totale'].values
@@ -924,7 +1057,6 @@ with tab4:
     if movimenti_df.empty:
         st.info("Nessun movimento registrato per le statistiche temporali.")
     else:
-        # NUOVO GRAFICO TEMPORALE A 3 COLORI (Blu: Lotto, Verde: Guadagnati, Rosso: Credito)
         stat_df = movimenti_df.copy()
         stat_df['Data_Ora'] = pd.to_datetime(stat_df['data'])
         stat_df = stat_df.sort_values('Data_Ora')
