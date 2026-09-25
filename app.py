@@ -108,16 +108,6 @@ st.markdown("""
         box-shadow: 0 4px 15px rgba(0,0,0,0.4);
         font-size: 0.95rem;
     }
-    
-    .event-banner {
-        background: linear-gradient(135deg, #7f1d1d 0%, #450a0a 100%);
-        border-left: 5px solid #ef4444;
-        padding: 12px 16px;
-        border-radius: 12px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-        font-size: 0.95rem;
-    }
 
     h1, h2, h3, h4 {
         font-family: 'Titan One', cursive, sans-serif !important;
@@ -127,7 +117,6 @@ st.markdown("""
         text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.7);
     }
 
-    /* CARDS DI GIOCO */
     .game-card {
         background: rgba(15, 23, 42, 0.7);
         border: 1px solid rgba(255, 255, 255, 0.1);
@@ -369,7 +358,6 @@ energia_gioco = get_impostazione('energia', '100')
 stress_gioco = get_impostazione('stress', '15')
 reputazione_gioco = get_impostazione('reputazione', '50')
 
-# Calcola cassa corrente al volo per l'HUD
 with get_connection() as conn:
     inc_tot = pd.read_sql_query("SELECT SUM(ricavo_totale) FROM movimenti WHERE tipo = 'VENDITA'", conn).iloc[0, 0] or 0.0
     cost_tot = pd.read_sql_query("SELECT SUM(costo_totale) FROM movimenti WHERE tipo = 'CARICO'", conn).iloc[0, 0] or 0.0
@@ -397,7 +385,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Banner notifiche rapide
 placeholder_notifica = st.empty()
 tutti_log = get_tutti_log_db()
 if tutti_log:
@@ -405,7 +392,6 @@ if tutti_log:
 else:
     placeholder_notifica.markdown(f'<div class="alert-banner">📡 <b>Stato:</b> Gestione magazzino attiva. Pronto per iniziare!</div>', unsafe_allow_html=True)
 
-# 6 Tabs pulite ed essenziali focalizzate sul gioco
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "💸 Cassa & Vendite", 
     "📊 Progressi & Stats", 
@@ -460,9 +446,9 @@ with tab1:
                             nuova_qta = qta_l - prelievo
                             rimanente -= prelievo
                             
-                             costo_q = prelievo * float(lotto['costo_acquisto_unitario'])
-                             ricavo_q = prelievo * prezzo_u
-                             margine_q = ricavo_q - costo_q
+                            costo_q = prelievo * float(lotto['costo_acquisto_unitario'])
+                            ricavo_q = prelievo * prezzo_u
+                            margine_q = ricavo_q - costo_q
                             
                             dt_comp = date.today() if nuova_qta == 0 else None
                             cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, dt_comp, l_id))
@@ -592,7 +578,6 @@ with tab6:
         if st.button("🚀 Avvia Simulazione Anno", use_container_width=True):
             with st.spinner("Simulazione in corso..."):
                 reset_database_totale()
-                # Simulazione rapida di test o anno completo
                 time.sleep(1)
             st.success("Simulazione completata!")
             st.rerun()
