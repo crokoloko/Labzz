@@ -37,23 +37,20 @@ st.markdown("""
         padding-right: 0.5rem !important;
     }
 
-    /* 4. CENTRATURA LOGO E RIMOZIONE SPAZIO INFERIORE */
-    div[data-testid="stImage"] {
+    /* 4. CENTRATURA LOGO VIDEO MP4 / GIF */
+    .logo-container {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
         width: 100% !important;
-        margin: 0 auto 0rem auto !important;
-        padding: 0 !important;
+        margin: 0 auto 0.5rem auto !important;
     }
 
-    div[data-testid="stImage"] > img {
-        display: block !important;
-        margin: 0 auto !important;
+    .logo-container video {
+        max-width: 380px !important;
         width: 100% !important;
-        max-width: 420px !important;
         height: auto !important;
-        object-fit: contain !important;
+        border-radius: 16px !important;
         filter: drop-shadow(0 0 20px rgba(56, 189, 248, 0.4));
     }
 
@@ -149,8 +146,8 @@ st.markdown("""
             padding-left: 0.3rem !important;
             padding-right: 0.3rem !important;
         }
-        div[data-testid="stImage"] > img {
-            max-width: 90% !important;
+        .logo-container video {
+            max-width: 85% !important;
         }
         div[data-testid="stTabs"] {
             margin-top: -0.8rem !important;
@@ -524,9 +521,16 @@ def elimina_lotto_db(lotto_id):
 # INTERFACCIA UTENTE (STREAMLIT)
 # ==========================================
 
-# HEADER LOGO CENTRATO ADERENTE AI TAB
+# HEADER LOGO ANIMATO MP4 (RIPRODUZIONE CONTINUA TIPO GIF)
 try:
-    st.image("logo.png", use_container_width=True)
+    st.markdown("""
+        <div class="logo-container">
+            <video autoplay loop muted playsinline>
+                <source src="logo.gif.mp4" type="video/mp4">
+                Il tuo browser non supporta la riproduzione video.
+            </video>
+        </div>
+    """, unsafe_allow_html=True)
 except Exception:
     st.title("LaBzz")
 
