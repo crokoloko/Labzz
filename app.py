@@ -946,7 +946,7 @@ with tab5:
     if vendite_df.empty:
         st.info("Nessuna vendita registrata.")
     else:
-        # SEZIONE DEBITI (CORRETTO CON unsafe_allow_html=True)
+        # SEZIONE DEBITI CORRETTA (IN UN'UNICA RIGA SENZA INDENTAZIONI DI BLOCCO)
         clienti_debito = vendite_df[vendite_df['pagamento'] == 'Dopo (Credito)']
         if not clienti_debito.empty:
             st.markdown("#### ⚠️ Persone in Debito (Da Riscuotere)")
@@ -954,15 +954,10 @@ with tab5:
             html_debiti = '<div class="debt-container">'
             debito_per_cliente = clienti_debito.groupby('cliente')['ricavo_totale'].sum().reset_index()
             for _, row_d in debito_per_cliente.iterrows():
-                html_debiti += f'''
-                <div class="debt-item">
-                    <span class="debt-dot"></span>
-                    <span class="debt-name">{row_d['cliente']}</span>
-                    <span style="margin-left: auto; font-weight: 700; color: #ef4444;">€ {row_d['ricavo_totale']:,.2f}</span>
-                </div>
-                '''
+                html_debiti += f'<div class="debt-item"><span class="debt-dot"></span><span class="debt-name">{row_d["cliente"]}</span><span style="margin-left: auto; font-weight: 700; color: #ef4444;">€ {row_d["ricavo_totale"]:,.2f}</span></div>'
             html_debiti += '</div>'
-            st.markdown(html_debiti, unsafe_allow_html=True)  # <-- RISOLTO QUI
+            
+            st.markdown(html_debiti, unsafe_allow_html=True)
 
         clienti_grouped = vendite_df.groupby('cliente').agg(
             Spesa_Totale=('ricavo_totale', 'sum'),
