@@ -382,7 +382,18 @@ def set_soglia_esaurimento(valore):
         cursor = conn.cursor()
         cursor.execute("UPDATE impostazioni SET valore = ? WHERE chiave = 'soglia_esaurimento'", (valore,))
 
-def get_prodotti_df():
+def get_prodotti_disponibili_df():
+    query = """
+        SELECT DISTINCT p.id, p.nome, p.valore_mercato_unitario
+        FROM prodotti p
+        JOIN lotti l ON p.id = l.prodotto_id
+        WHERE l.quantita_attuale > 0
+        ORDER BY p.nome ASC
+    """
+    with get_connection() as conn:
+        return pd.read_sql_query(query, conn)
+
+def get_prodotti_tutti_df():
     with get_connection() as conn:
         return pd.read_sql_query("SELECT * FROM prodotti ORDER BY nome ASC", conn)
 
@@ -612,14 +623,14 @@ with tab1:
     
     tipo_operazione = st.radio("Seleziona Tipo Registrazione", ["Vendita", "XME"], horizontal=True)
     
-    prodotti_tutti_df = get_prodotti_df()
+    prodotti_disp_df = get_prodotti_disponibili_df()
     
-    if prodotti_tutti_df.empty:
-        st.warning("⚠️ Nessun prodotto presente in anagrafica. Crea un nuovo prodotto o carica un lotto dalla scheda 'Rifornimenti'.")
+    if prodotti_disp_df.empty:
+        st.warning("⚠️ Nessun prodotto disponibile con giacenza in magazzino. Aggiungi un nuovo prodotto o carica un lotto dalla scheda 'Rifornimenti'.")
     else:
         if tipo_operazione == "Vendita":
-            prod_nome = st.selectbox("Seleziona Prodotto da Vendere", prodotti_tutti_df['nome'].tolist())
-            prod_row = prodotti_tutti_df[prodotti_tutti_df['nome'] == prod_nome].iloc[0]
+            prod_nome = st.selectbox("Seleziona Prodotto da Vendere", prodotti_disp_df['nome'].tolist())
+            prod_row = prodotti_disp_df[prodotti_disp_df['nome'] == prod_nome].iloc[0]
             p_id = int(prod_row['id'])
             
             with get_connection() as conn:
@@ -629,7 +640,7 @@ with tab1:
             qta_tot_disp = float(lotti_disponibili['quantita_attuale'].sum()) if not lotti_disponibili.empty else 0.0
             
             if qta_tot_disp <= 0:
-                st.error(f"⚠️ Nessuna scorta disponibile per {prod_nome}. Aggiungi prima un lotto dalla scheda 'Rifornimenti'.")
+                st.error(f"⚠️ Nessuna scorta disponibile per {prod_nome}.")
             else:
                 st.info(f"Disponibilità totale: {qta_tot_disp:,.1f} g")
                 
@@ -733,7 +744,8 @@ with tab1:
                             nuova_qta = float(lotto_row['quantita_attuale']) - qta_xme
                             costo_perdita = qta_xme * float(lotto_row['costo_acquisto_unitario'])
                             
-                            p_id = int(prodotti_tutti_df[prodotti_tutti_df['nome'] == lotto_row['prodotto']].iloc[0]['id'])
+                            prod_tutti = get_prodotti_tutti_df()
+                            p_id = int(prod_tutti[prod_tutti['nome'] == lotto_row['prodotto']].iloc[0]['id'])
                             
                             if nuova_qta == 0:
                                 cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (date.today(), lotto_id_scelto))
@@ -930,7 +942,7 @@ with tab3:
                         st.error("Un prodotto con questo nome esiste già in anagrafica.")
 
     with st.expander("➕ Aggiungi Lotto a Prodotto Esistente", expanded=False):
-        prodotti_esistenti_df = get_prodotti_df()
+        prodotti_esistenti_df = get_prodotti_tutti_df()
         if prodotti_esistenti_df.empty:
             st.info("Nessun prodotto disponibile. Creane uno nuovo sopra.")
         else:
