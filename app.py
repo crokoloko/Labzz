@@ -86,67 +86,68 @@ st.markdown("""
         text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5) !important;
     }
 
-    /* 7. STRUTTURA QUADRATINI METRICHE (DIMENSIONI RIDOTTE COMPATTE) */
-    div[data-testid="metric-container"] {
+    /* 7. CONTENITORE CUSTOM PER GRIGLIA 2x2 FORZATA IN HTML/CSS */
+    .dashboard-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px !important;
         width: 100% !important;
+        margin-bottom: 20px !important;
     }
 
-    div[data-testid="stMetric"] {
+    .custom-card {
         background: rgba(30, 41, 59, 0.55) !important;
         backdrop-filter: blur(16px) !important;
         -webkit-backdrop-filter: blur(16px) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 14px !important;
-        padding: 6px 4px !important;
+        border-radius: 16px !important;
+        padding: 12px 8px !important;
         box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.5), 
                     inset 0 1px 1px 0 rgba(255, 255, 255, 0.1) !important;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        
-        /* Forma quadrata e compattata */
         aspect-ratio: 1 / 1 !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;
         align-items: center !important;
         text-align: center !important;
-        margin: 0 auto 8px auto !important;
-        max-width: 110px !important; /* Dimensione ridotta per permettere l'affiancamento 2x2 su mobile */
         width: 100% !important;
+        box-sizing: border-box !important;
     }
 
-    div[data-testid="stMetric"]:hover {
+    .custom-card:hover {
         transform: translateY(-3px) !important;
         border-color: rgba(56, 189, 248, 0.5) !important;
         box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.7), 
                     0 0 12px rgba(56, 189, 248, 0.25) !important;
     }
 
-    div[data-testid="stMetricValue"] {
+    .card-label {
         font-family: 'Fredoka', sans-serif !important;
-        font-size: 0.95rem !important; /* Font proporzionato al riquadro ridotto */
+        color: #94a3b8 !important;
+        font-size: 0.72rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+        line-height: 1.1 !important;
+        margin-bottom: 4px !important;
+    }
+
+    .card-value {
+        font-family: 'Fredoka', sans-serif !important;
+        font-size: 1.15rem !important;
         font-weight: 700 !important;
         color: #38bdf8 !important;
         text-shadow: 0 2px 6px rgba(56, 189, 248, 0.3);
         word-break: break-word !important;
-        margin-top: 2px !important;
-    }
-
-    div[data-testid="stMetricLabel"] {
-        font-family: 'Fredoka', sans-serif !important;
-        color: #94a3b8 !important;
-        font-size: 0.62rem !important; /* Etichetta compatta */
-        font-weight: 600 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.2px;
-        line-height: 1.0 !important;
     }
 
     /* Regolazione specifica per Mobile */
     @media (max-width: 768px) {
         .block-container {
             padding-top: 0.5rem !important;
-            padding-left: 0.2rem !important;
-            padding-right: 0.2rem !important;
+            padding-left: 0.3rem !important;
+            padding-right: 0.3rem !important;
         }
         div[data-testid="stImage"] > img {
             max-width: 90% !important;
@@ -154,15 +155,18 @@ st.markdown("""
         div[data-testid="stTabs"] {
             margin-top: -0.8rem !important;
         }
-        div[data-testid="stMetric"] {
-            max-width: 95px !important; /* Ulteriore riduzione per schermi stretti */
-            padding: 4px 2px !important;
+        .dashboard-grid {
+            gap: 8px !important;
         }
-        div[data-testid="stMetricValue"] {
-            font-size: 0.85rem !important;
+        .custom-card {
+            padding: 8px 4px !important;
+            border-radius: 12px !important;
         }
-        div[data-testid="stMetricLabel"] {
-            font-size: 0.58rem !important;
+        .card-label {
+            font-size: 0.65rem !important;
+        }
+        .card-value {
+            font-size: 0.98rem !important;
         }
     }
 
@@ -657,7 +661,7 @@ with tab1:
                         st.rerun()
 
 # ------------------------------------------
-# TAB 2: DASHBOARD & KPI (GRIGLIA 2x2 FORZATA)
+# TAB 2: DASHBOARD & KPI (GRIGLIA HTML/CSS 2x2 FORZATA)
 # ------------------------------------------
 with tab2:
     st.subheader("Dashboard & Analytics Integrata")
@@ -673,19 +677,27 @@ with tab2:
         incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
         margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
 
-        # RIGA 1: Valore (Costo) & Valore (Vendita)
-        riga1_col1, riga1_col2 = st.columns(2)
-        with riga1_col1:
-            st.metric("Valore (Costo)", f"€ {val_costo:,.2f}")
-        with riga1_col2:
-            st.metric("Valore (Vendita)", f"€ {val_mercato:,.2f}")
-
-        # RIGA 2: Incasso Totale & Margine Netto
-        riga2_col1, riga2_col2 = st.columns(2)
-        with riga2_col1:
-            st.metric("Incasso Totale", f"€ {incasso_tot:,.2f}")
-        with riga2_col2:
-            st.metric("Margine Netto", f"€ {margine_tot:,.2f}")
+        # GRIGLIA 2x2 PERFETTA E GARANTITA SU TUTTI I DISPOSITIVI IN HTML/CSS
+        st.markdown(f"""
+        <div class="dashboard-grid">
+            <div class="custom-card">
+                <div class="card-label">Valore (Costo)</div>
+                <div class="card-value">€ {val_costo:,.2f}</div>
+            </div>
+            <div class="custom-card">
+                <div class="card-label">Valore (Vendita)</div>
+                <div class="card-value">€ {val_mercato:,.2f}</div>
+            </div>
+            <div class="custom-card">
+                <div class="card-label">Incasso Totale</div>
+                <div class="card-value">€ {incasso_tot:,.2f}</div>
+            </div>
+            <div class="custom-card">
+                <div class="card-label">Margine Netto</div>
+                <div class="card-value">€ {margine_tot:,.2f}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
         st.markdown("---")
 
@@ -905,7 +917,7 @@ with tab3:
                             st.success(f"Prodotto '{nome_nuovo}' salvato con successo!")
                             st.rerun()
                         except sqlite3.IntegrityError:
-                            st.error("Un prodotto con questo nome existe già.")
+                            st.error("Un prodotto con questo nome esiste già.")
 
 # ------------------------------------------
 # TAB 4: REPORT & STORICO
