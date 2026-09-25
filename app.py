@@ -584,7 +584,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 ])
 
 # ------------------------------------------
-# TAB 1: CASSA (SOLO VENDITE ED XME)
+# TAB 1: CASSA (LOGICA DIRETTA GRAMMI -> EURO TOTALI)
 # ------------------------------------------
 with tab1:
     st.subheader("💸 Cassa Operativa")
@@ -615,17 +615,20 @@ with tab1:
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    quantita_vendita = st.number_input("Quantità da Vendere (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
-                    prezzo_vendita_unitario = st.number_input("Prezzo al grammo (€/g)", min_value=0.1, value=float(prod_row['valore_mercato_unitario']), step=0.5, format="%.2f")
+                    quantita_vendita = st.number_input("Quantità Data (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
+                    totale_incassato = st.number_input("Euro Ricevuti (€)", min_value=0.0, value=0.0, step=1.0, format="%.2f")
                 
                 with col2:
-                    totale_vendita = quantita_vendita * prezzo_vendita_unitario
-                    st.metric("Totale", f"€ {totale_vendita:,.2f}")
+                    # Calcolo automatico del prezzo unitario per le statistiche interne
+                    prezzo_unitario_calc = (totale_incassato / quantita_vendita) if quantita_vendita > 0 else 0.0
+                    st.metric("Prezzo al Grammo Calcolato", f"€ {prezzo_unitario_calc:,.2f} / g")
                     note = st.text_input("Note (Opzionale)")
 
                 if st.button("Conferma Vendita", key="btn_conferma_v"):
                     if quantita_vendita <= 0:
-                        st.error("Inserisci una quantità superiore a 0 g per registrare la vendita.")
+                        st.error("Inserisci una quantità di grammi superiore a 0 g.")
+                    elif totale_incassato <= 0:
+                        st.error("Inserisci l'importo in Euro ricevuto.")
                     elif quantita_vendita > qta_tot_disp:
                         st.error(f"Quantità inserita ({quantita_vendita:,.1f} g) superiore alla disponibilità ({qta_tot_disp:,.1f} g).")
                     else:
@@ -647,7 +650,7 @@ with tab1:
                                 qta_da_scaricare -= prelievo
                                 
                                 costo_quota = prelievo * costo_u_lotto
-                                ricavo_quota = prelievo * prezzo_vendita_unitario
+                                ricavo_quota = prelievo * prezzo_unitario_calc
                                 margine_quota = ricavo_quota - costo_quota
                                 
                                 if nuova_qta_lotto == 0:
@@ -662,7 +665,7 @@ with tab1:
                                 cursor.execute("""
                                     INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, note)
                                     VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?)
-                                """, (p_id, l_id, prelievo, prezzo_vendita_unitario, ricavo_quota, costo_quota, margine_quota, f"Lotto {cod_lotto} | {note}".strip(" |")))
+                                """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, f"Lotto {cod_lotto} | {note}".strip(" |")))
                         
                         spara_fuochi_d_artificio()
                         st.success("✅ Vendita registrata e coordinata con i lotti e report!")
