@@ -327,6 +327,7 @@ def init_db():
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('simulazione_eseguita', '0')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('nome_protagonista', 'Hassan')")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('personalita_bot', 'Influente (Max 7g/giorno)')")
+        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('log_strategico_finale', '')")
 
 init_db()
 
@@ -360,6 +361,52 @@ def reset_database_totale():
         cursor.execute("DELETE FROM clienti")
         cursor.execute("DELETE FROM log_narrativi")
     set_impostazione('simulazione_eseguita', '0')
+    set_impostazione('log_strategico_finale', '')
+
+def genera_log_strategico_e_storia():
+    p_name = get_impostazione('nome_protagonista', 'Hassan')
+    personalita = get_impostazione('personalita_bot', 'Influente (Max 7g/giorno)')
+    
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT SUM(ricavo_totale) FROM movimenti WHERE tipo = 'VENDITA'")
+        incassi = cursor.fetchone()[0] or 0.0
+        cursor.execute("SELECT SUM(costo_totale) FROM movimenti WHERE tipo = 'CARICO'")
+        costi_lotti = cursor.fetchone()[0] or 0.0
+        cursor.execute("SELECT SUM(margine) FROM movimenti WHERE tipo = 'VENDITA'")
+        margine_tot = cursor.fetchone()[0] or 0.0
+        cursor.execute("SELECT COUNT(id) FROM lotti")
+        num_lotti = cursor.fetchone()[0] or 0
+        cursor.execute("SELECT COUNT(id) FROM movimenti WHERE tipo = 'VENDITA'")
+        num_vendite = cursor.fetchone()[0] or 0
+
+    cassa_netta = 500.0 + incassi - costi_lotti
+
+    report_testo = f"""==================================================
+🌟 LOG STRATEGICO & STORY REPORT: SAGA DI {p_name.upper()}
+==================================================
+Profilo / Personalità Applicata: {personalita}
+Data Generazione Report: {date.today().strftime('%d/%m/%Y')}
+
+📖 LA STORIA:
+Nel corso dell'ultimo anno, {p_name} ha condotto una doppia vita intensa: di giorno operaio in fabbrica a montare ante, schiene, basi e cassetti con la mente concentrata su pattern musicali Acid da 180 BPM, e di notte gestore del proprio magazzino underground. Tra sessioni di studio con l'Elektron Digitakt e allenamenti all'aperto con la heavy rope nei boschi di collina, {p_name} è riuscito a far quadrare i conti tra il lavoro dipendente e la gestione logistica dei lotti.
+
+💡 I TRICK E LE STRATEGIE UTILIZZATE PER IL SUCCESSO:
+1. Gestione Rigorosa Sequenziale dei Lotti (FIFO): 
+   Il sistema ha garantito che ogni singolo grammo venisse prelevato rigorosamente dal lotto più vecchio attivo, azzerandolo completamente prima di intaccare quello successivo, registrando con precisione la data esatta di inizio e fine esaurimento.
+2. Ottimizzazione della Cassa e Rifornimenti a Debito:
+   Con una cassa di partenza di € 500,00 e un volume di {num_lotti} lotti acquistati nel corso dell'anno, quando la liquidità scarseggiava a causa dei cicli di rotazione, il sistema ha gestito i rifornimenti a debito (+27%), rientrando prontamente grazie ai flussi costanti delle vendite feriali e dei weekend club.
+3. Strategia di Prezzo e Volumi ({personalita}):
+   Grazie al profilo scelto, {p_name} ha calibrato un flusso di {num_vendite} vendite complessive, spingendo sui prezzi maggiorati durante le serate nei club del fine weekend (€ 40-45/g) rispetto ai giorni feriali (€ 10-12/g), garantendo un margine netto totale di € {margine_tot:,.2f}.
+
+📊 RIEPILOGO FINANZIARIO FINALE:
+- Incasso Totale Business: € {incassi:,.2f}
+- Costi Totali Rifornimento Lotti: € {costi_lotti:,.2f}
+- Cassa Business Netta: € {cassa_netta:,.2f}
+- Margine Reale Complessivo: € {margine_tot:,.2f}
+==================================================
+"""
+    set_impostazione('log_strategico_finale', report_testo)
 
 def esegui_simulazione_anno_fluida(progress_bar, status_text, placeholder_notizia):
     reset_database_totale()
@@ -412,7 +459,6 @@ def esegui_simulazione_anno_fluida(progress_bar, status_text, placeholder_notizi
             VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
         """, (p_id_init, l_id_init, qta_init, costo_u_init, costo_tot_init, f"Lotto Iniziale", ts_c))
 
-    # 180 secondi totali per 365 giorni (~0.49 secondi per giorno)
     ritardo_giornaliero = 180.0 / 365.0
 
     for giorno_idx in range(365):
@@ -537,6 +583,7 @@ def esegui_simulazione_anno_fluida(progress_bar, status_text, placeholder_notizi
         time.sleep(ritardo_giornaliero)
 
     set_impostazione('simulazione_eseguita', '1')
+    genera_log_strategico_e_storia()
 
 def get_soglia_esaurimento():
     return float(get_impostazione('soglia_esaurimento', '10.0'))
@@ -792,7 +839,7 @@ with tab1:
                                 ricavo_quota = prelievo * prezzo_unitario_calc
                                 margine_quota = ricavo_quota - costo_quota
                                 
-                                if nuova_qta_lotto == 0:
+                                if nueva_qta_lotto == 0:
                                     cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (date.today(), l_id))
                                 else:
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto, l_id))
@@ -998,13 +1045,14 @@ with tab5:
         st.download_button("📥 Scarica Report Storico in CSV", data=csv_data, file_name=f"report_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
 
 with tab6:
-    st.subheader("🤖 Bot Live: Simulazione Anno Fluida (3 Minuti)")
+    st.subheader("🤖 Bot Live: Simulazione Anno & Story Log")
     
     simulazione_fatta = get_impostazione('simulazione_eseguita', '0') == '1'
     p_name_corrente = get_impostazione('nome_protagonista', 'Hassan')
     personalita_corrente = get_impostazione('personalita_bot', 'Influente (Max 7g/giorno)')
+    log_finale_testo = get_impostazione('log_strategico_finale', '')
 
-    st.markdown("Scegli la personalità e avvia la simulazione della durata di circa 3 minuti: vedrai la barra avanzare e le notifiche di vendita aggiornarsi in tempo reale.")
+    st.markdown("Avvia la simulazione annuale. Alla fine troverai il **Log Strategico & Story Report** pronto per essere letto o scaricato.")
     
     col_nome1, col_nome2 = st.columns([1, 1])
     with col_nome1:
@@ -1035,7 +1083,7 @@ with tab6:
             progress_bar = st.progress(0)
             status_text = st.empty()
             esegui_simulazione_anno_fluida(progress_bar, status_text, placeholder_notifica_principale)
-            st.success("✅ Simulazione completata con successo! Guarda i risultati aggiornati nella Dashboard e nelle Statistiche.")
+            st.success("✅ Simulazione completata con successo! Log strategico generato.")
             st.rerun()
 
     with col_b2:
@@ -1044,6 +1092,14 @@ with tab6:
             st.success("✅ Reset generale completato con successo!")
             st.rerun()
 
-    if simulazione_fatta:
+    if simulazione_fatta and log_finale_testo:
         st.markdown("---")
-        st.success(f"🟢 **Stato:** Simulazione completata con il profilo **{personalita_corrente}**.")
+        st.subheader("📖 Story & Trick Log (Report Strategico)")
+        st.text_area("Dettaglio Analisi Anno", value=log_finale_testo, height=300)
+        
+        st.download_button(
+            "📥 Scarica Story & Trick Log in formato .TXT",
+            data=log_finale_testo.encode('utf-8'),
+            file_name=f"story_trick_log_{datetime.now().strftime('%Y%m%d')}.txt",
+            mime="text/plain"
+        )
