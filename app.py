@@ -29,10 +29,24 @@ st.markdown("""
         font-weight: 500;
     }
 
-    /* 3. STILE PER IL LOGO IMMAGINE INTESTAZIONE */
-    .app-logo {
+    /* 3. FIX CENTRATURA E RESPONSIVENESS IMMAGINI / LOGO HEADER */
+    div[data-testid="stImage"] {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        width: 100% !important;
+        margin: 0 auto !important;
+        padding: 0 !important;
+    }
+
+    div[data-testid="stImage"] > img {
+        display: block !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        max-width: 100% !important;
+        height: auto !important;
+        object-fit: contain !important;
         filter: drop-shadow(0 0 15px rgba(56, 189, 248, 0.4));
-        margin-bottom: 20px;
     }
 
     /* 4. TITOLI E INTESTAZIONI 3D CON TITAN ONE */
@@ -42,6 +56,7 @@ st.markdown("""
         letter-spacing: 1px;
         text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.6), 0 0 20px rgba(56, 189, 248, 0.35) !important;
         margin-bottom: 25px !important;
+        text-align: center;
     }
     h2, h3, h4, h5 {
         font-family: 'Titan One', cursive, sans-serif !important;
@@ -444,11 +459,13 @@ def elimina_lotto_db(lotto_id):
 # INTERFACCIA UTENTE (STREAMLIT)
 # ==========================================
 
-# Caricamento del Logo al posto del titolo testuale (puoi modificare 'width' se desideri ridimensionarlo)
-try:
-    st.image("logo.png", width=260)
-except Exception:
-    st.title("LaBzz")  # Fallback nel caso in cui il file logo.png non sia presente nella cartella
+# HEADER LOGO CENTRATO BILANCIATO
+col_sx, col_logo, col_dx = st.columns([1, 4, 1])
+with col_logo:
+    try:
+        st.image("logo.png", use_container_width=True)
+    except Exception:
+        st.title("LaBzz")
 
 tab1, tab2, tab3, tab4 = st.tabs([
     "💸 Cassa", 
