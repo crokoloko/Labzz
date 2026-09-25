@@ -178,7 +178,6 @@ def init_db():
         )
         """)
         
-        # Tabella clienti corretta con la colonna 'fiducia'
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS clienti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -186,6 +185,12 @@ def init_db():
             fiducia INTEGER DEFAULT 50
         )
         """)
+        
+        # Controllo di sicurezza: se la tabella clienti esisteva senza 'fiducia', la aggiunge
+        try:
+            cursor.execute("ALTER TABLE clienti ADD COLUMN fiducia INTEGER DEFAULT 50;")
+        except sqlite3.OperationalError:
+            pass # La colonna esiste già
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS movimenti (
@@ -525,7 +530,7 @@ with tab1:
                             nuova_q = float(row_l['quantita_attuale']) - qta_x
                             costo_p = qta_x * float(row_l['costo_acquisto_unitario'])
                             p_id_x = int(get_prodotti_disponibili_df()[get_prodotti_disponibili_df()['nome'] == row_l['prodotto']].iloc[0]['id'])
-                            dt_c = date.today() if nueva_q == 0 else None
+                            dt_c = date.today() if nuova_q == 0 else None
                             
                             cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_q, dt_c, l_id_scelto))
                             cursor.execute("""
