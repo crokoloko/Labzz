@@ -40,7 +40,7 @@ def get_video_base64(file_path):
     return None
 
 # ==========================================
-# INIEZIONE CSS CUSTOM (CON EFFETTI DEBITI LAMPEGGIANTI & COLOR SCROLL)
+# INIEZIONE CSS CUSTOM
 # ==========================================
 st.markdown("""
 <style>
@@ -261,7 +261,6 @@ st.markdown("""
         margin-bottom: 25px !important;
     }
 
-    /* STILI CUSTOM PER DEBITI (PALLINO LAMPEGGIANTE + TESTO COLOR SCROLL CORSIBILE) */
     @keyframes blink-dot {
         0% { transform: scale(0.95); opacity: 0.4; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
         70% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
@@ -324,9 +323,6 @@ st.markdown("""
 
 DB_NAME = "magazzino.db"
 
-# ==========================================
-# GESTIONE DATABASE SQLITE
-# ==========================================
 def get_connection():
     return sqlite3.connect(DB_NAME, timeout=10)
 
@@ -409,9 +405,6 @@ def init_db():
 
 init_db()
 
-# ==========================================
-# FUNZIONI DI LETTURA E QUERY
-# ==========================================
 def get_soglia_esaurimento():
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -628,10 +621,6 @@ def spara_fuochi_d_artificio():
     """
     st.components.v1.html(js_code, height=0)
 
-# ==========================================
-# INTERFACCIA UTENTE
-# ==========================================
-
 video_b64 = get_video_base64("logo.gif.mp4")
 
 if video_b64:
@@ -656,14 +645,9 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📈 Statistiche"
 ])
 
-# ------------------------------------------
-# TAB 1: CASSA
-# ------------------------------------------
 with tab1:
     st.subheader("💸 Cassa Operativa")
-    
     tipo_operazione = st.radio("Seleziona Tipo Registrazione", ["Vendita", "XME"], horizontal=True)
-    
     prodotti_disp_df = get_prodotti_disponibili_df()
     
     if prodotti_disp_df.empty:
@@ -686,11 +670,9 @@ with tab1:
                 st.info(f"Disponibilità totale: {qta_tot_disp:,.1f} g")
                 
                 col1, col2 = st.columns(2)
-                
                 with col1:
                     quantita_vendita = st.number_input("Quantità", min_value=0.0, value=0.0, step=0.5, format="%.1f")
                     totale_incassato = st.number_input("Euro", min_value=0.0, value=0.0, step=1.0, format="%.2f")
-                
                 with col2:
                     prezzo_unitario_calc = (totale_incassato / quantita_vendita) if quantita_vendita > 0 else 0.0
                     st.metric("Prezzo al Grammo Calcolato", f"€ {prezzo_unitario_calc:,.2f} / g")
@@ -772,11 +754,9 @@ with tab1:
             else:
                 with st.form("form_xme"):
                     st.markdown("##### Registra Uscita Personale (XME)")
-                    
                     opzioni_lotto = {f"{r['prodotto']} - Lotto: {r['codice_lotto']} (Disp: {r['quantita_attuale']:,.1f} g)": r['id'] for _, r in lotti_df.iterrows()}
                     lotto_selezionato_label = st.selectbox("Seleziona Lotto da Scaricare", list(opzioni_lotto.keys()))
                     lotto_id_scelto = opzioni_lotto[lotto_selezionato_label]
-                    
                     lotto_row = lotti_df[lotti_df['id'] == lotto_id_scelto].iloc[0]
                     
                     qta_xme = st.number_input("Quantità (g)", min_value=0.5, max_value=float(lotto_row['quantita_attuale']), value=10.0, step=0.5, format="%.1f")
@@ -804,9 +784,6 @@ with tab1:
                         st.warning("Operazione XME registrata e sincronizzata col lotto!")
                         st.rerun()
 
-# ------------------------------------------
-# TAB 2: DASHBOARD
-# ------------------------------------------
 with tab2:
     st.subheader("📊 Dashboard & Analytics")
     df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
@@ -842,11 +819,8 @@ with tab2:
         """, unsafe_allow_html=True)
 
         st.markdown("---")
-
         st.subheader("📈 Storico Progressivo Operazioni")
-        if movimenti_df.empty:
-            st.info("Registra transazioni per generare il grafico.")
-        else:
+        if not movimenti_df.empty:
             mov_df = movimenti_df.copy()
             mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
             mov_df = mov_df.sort_values('Data_Ora')
@@ -871,89 +845,39 @@ with tab2:
 
             st.altair_chart(chart, use_container_width=True)
 
-# ------------------------------------------
-# TAB 3: RIFORNI MENTI
-# ------------------------------------------
 with tab3:
     st.subheader("🚚 Registro Rifornimenti e Lotti")
-    
     soglia_attuale = get_soglia_esaurimento()
     report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_attuale)
     
-    if report_lotti_df.empty:
-        st.info("Nessun lotto o prodotto di rifornimento salvato. Usa i pannelli sottostanti per iniziare.")
-    else:
+    if not report_lotti_df.empty:
         lotti_warning = report_lotti_df[report_lotti_df['stato_lotto'].str.contains("⚠️")]
-        if not lotti_warning.empty:
-            for _, w_row in lotti_warning.iterrows():
-                st.warning(f"⚠️ Lotto {w_row['codice_lotto']} ({w_row['prodotto']}) in esaurimento! Scorta residua: {w_row['quantita_attuale']:,.1f} g")
+        for _, w_row in lotti_warning.iterrows():
+            st.warning(f"⚠️ Lotto {w_row['codice_lotto']} ({w_row['prodotto']}) in esaurimento! Scorta residua: {w_row['quantita_attuale']:,.1f} g")
 
         col_m1, col_m2, col_m3 = st.columns(3)
-        costo_tot_lotti = report_lotti_df['costo_totale_lotto'].sum()
-        incasso_tot_lotti = report_lotti_df['incasso_totale_lotto'].sum()
-        guadagno_netto_tot_lotti = report_lotti_df['guadagno_netto_lotto'].sum()
-        
-        col_m1.metric("Costo Totale Acquisizione Lotti", f"€ {costo_tot_lotti:,.2f}")
-        col_m2.metric("Incasso Totale Generato dai Lotti", f"€ {incasso_tot_lotti:,.2f}")
-        col_m3.metric("Guadagno Netto Reale Lotti", f"€ {guadagno_netto_tot_lotti:,.2f}")
+        col_m1.metric("Costo Totale Acquisizione Lotti", f"€ {report_lotti_df['costo_totale_lotto'].sum():,.2f}")
+        col_m2.metric("Incasso Totale Generato dai Lotti", f"€ {report_lotti_df['incasso_totale_lotto'].sum():,.2f}")
+        col_m3.metric("Guadagno Netto Reale Lotti", f"€ {report_lotti_df['guadagno_netto_lotto'].sum():,.2f}")
         
         st.markdown("---")
-        
-        st.dataframe(
-            report_lotti_df[[
-                'lotto_id', 'prodotto', 'codice_lotto', 'stato_lotto', 'quantita_iniziale', 'qta_venduta_lotto', 'quantita_attuale',
-                'unita_misura', 'costo_acquisto_unitario', 'costo_totale_lotto',
-                'incasso_totale_lotto', 'guadagno_netto_lotto', 'data_acquisto', 'data_carico'
-            ]],
-            column_config={
-                "lotto_id": "ID Lotto",
-                "prodotto": "Prodotto",
-                "codice_lotto": "Codice Lotto",
-                "stato_lotto": "Stato Lotto",
-                "quantita_iniziale": st.column_config.NumberColumn("Q.tà Iniziale", format="%.1f g"),
-                "qta_venduta_lotto": st.column_config.NumberColumn("Q.tà Venduta", format="%.1f g"),
-                "quantita_attuale": st.column_config.NumberColumn("Q.tà Residua", format="%.1f g"),
-                "unita_misura": "U.M.",
-                "costo_acquisto_unitario": st.column_config.NumberColumn("Costo Unit.", format="€ %.2f"),
-                "costo_totale_lotto": st.column_config.NumberColumn("Costo Totale Lotto", format="€ %.2f"),
-                "incasso_totale_lotto": st.column_config.NumberColumn("Incasso Generato", format="€ %.2f"),
-                "guadagno_netto_lotto": st.column_config.NumberColumn("Guadagno Netto", format="€ %.2f"),
-                "data_acquisto": "Data Acquisto",
-                "data_carico": "Data Carico"
-            },
-            use_container_width=True,
-            hide_index=True
-        )
+        st.dataframe(report_lotti_df, use_container_width=True, hide_index=True)
 
     st.markdown("---")
-    
     col_cfg1, col_cfg2, col_cfg3 = st.columns([1, 2, 1])
     with col_cfg2:
-        nuova_soglia = st.number_input(
-            "⚙️ Soglia Alert In Esaurimento (g)", 
-            min_value=1.0, 
-            value=soglia_attuale, 
-            step=1.0, 
-            format="%.1f"
-        )
+        nuova_soglia = st.number_input("⚙️ Soglia Alert In Esaurimento (g)", min_value=1.0, value=soglia_attuale, step=1.0, format="%.1f")
         if nuova_soglia != soglia_attuale:
             set_soglia_esaurimento(nuova_soglia)
             st.success(f"Soglia salvata permanentemente a {nuova_soglia:,.1f} g!")
             st.rerun()
 
     st.markdown("---")
-    
-    st.subheader("⚙️ Gestione Lotti e Anagrafica")
-    st.write("Apri i pannelli sottostanti per inserire nuovi rifornimenti, eliminare lotti o aggiungere un nuovo prodotto:")
-    
     with st.expander("➕ Aggiungi un Nuovo Prodotto e Rifornimento", expanded=False):
         with st.form("form_nuovo_prodotto_lotto"):
             nome_nuovo = st.text_input("Nome Prodotto", placeholder="Es. Nome Nuova Varietà / Prodotto")
             data_acq_m = st.date_input("Data di Acquisto Lotto", value=date.today())
-            
-            codice_lotto_default = genera_codice_lotto_automatico(data_acq_m)
-            cod_lotto_m = st.text_input("Codice Lotto", value=codice_lotto_default)
-            
+            cod_lotto_m = st.text_input("Codice Lotto", value=genera_codice_lotto_automatico(data_acq_m))
             qta_lotto_m = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
             costo_u_lotto_m = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
             prezzo_v_init = st.number_input("Prezzo di Vendita Standard (€/g)", min_value=0.1, value=2.0, step=0.5, format="%.2f")
@@ -966,221 +890,79 @@ with tab3:
                     try:
                         with get_connection() as conn:
                             cursor = conn.cursor()
-                            cursor.execute("""
-                                INSERT INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) 
-                                VALUES (?, 'g', ?, ?)
-                            """, (nome_nuovo.strip(), prezzo_v_init, scorta_min_init))
+                            cursor.execute("INSERT INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) VALUES (?, 'g', ?, ?)", (nome_nuovo.strip(), prezzo_v_init, scorta_min_init))
                             p_id = cursor.lastrowid
-                            
-                            cursor.execute("""
-                                INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
-                                VALUES (?, ?, ?, ?, ?, ?, ?)
-                            """, (p_id, cod_lotto_m.strip(), qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today()))
-                            
+                            cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, ?, ?, ?, ?, ?, ?)", (p_id, cod_lotto_m.strip(), qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today()))
                             lotto_id = cursor.lastrowid
-                            cursor.execute("""
-                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note)
-                                VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Primo Carico Lotto')
-                            """, (p_id, lotto_id, qta_lotto_m, costo_u_lotto_m, qta_lotto_m * costo_u_lotto_m))
-                            
-                        st.success(f"✅ Prodotto '{nome_nuovo}' e lotto '{cod_lotto_m}' creati con successo!")
+                            cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Primo Carico Lotto')", (p_id, lotto_id, qta_lotto_m, costo_u_lotto_m, qta_lotto_m * costo_u_lotto_m))
+                        st.success(f"✅ Prodotto '{nome_nuovo}' creato!")
                         st.rerun()
                     except sqlite3.IntegrityError:
-                        st.error("Un prodotto con questo nome esiste già in anagrafica.")
+                        st.error("Un prodotto con questo nome esiste già.")
 
     with st.expander("➕ Aggiungi Lotto a Prodotto Esistente", expanded=False):
         prodotti_esistenti_df = get_prodotti_tutti_df()
-        if prodotti_esistenti_df.empty:
-            st.info("Nessun prodotto disponibile. Creane uno nuovo sopra.")
-        else:
+        if not prodotti_esistenti_df.empty:
             with st.form("form_lotto_aggiuntivo"):
                 p_nome_lotto = st.selectbox("Seleziona Prodotto Esistente", prodotti_esistenti_df['nome'].tolist())
                 data_acq_add = st.date_input("Data di Acquisto", value=date.today(), key="date_acq_add")
-                
-                codice_lotto_add_default = genera_codice_lotto_automatico(data_acq_add)
-                cod_lotto_add = st.text_input("Codice Lotto", value=codice_lotto_add_default, key="input_cod_lotto_add")
-                
+                cod_lotto_add = st.text_input("Codice Lotto", value=genera_codice_lotto_automatico(data_acq_add), key="input_cod_lotto_add")
                 qta_lotto_add = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
                 costo_u_lotto_add = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
                 
                 if st.form_submit_button("➕ Aggiungi Nuovo Lotto"):
                     p_row_m = prodotti_esistenti_df[prodotti_esistenti_df['nome'] == p_nome_lotto].iloc[0]
                     p_id_m = int(p_row_m['id'])
-                    
                     with get_connection() as conn:
                         cursor = conn.cursor()
-                        cursor.execute("""
-                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (p_id_m, cod_lotto_add.strip(), qta_lotto_add, qta_lotto_add, costo_u_lotto_add, data_acq_add, date.today()))
-                        
+                        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, ?, ?, ?, ?, ?, ?)", (p_id_m, cod_lotto_add.strip(), qta_lotto_add, qta_lotto_add, costo_u_lotto_add, data_acq_add, date.today()))
                         lotto_id = cursor.lastrowid
-                        cursor.execute("""
-                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note)
-                            VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Rifornimento Lotto')
-                        """, (p_id_m, lotto_id, qta_lotto_add, costo_u_lotto_add, qta_lotto_add * costo_u_lotto_add))
-                    
-                    st.success(f"✅ Lotto '{cod_lotto_add}' aggiunto con successo al prodotto {p_nome_lotto}!")
+                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Rifornimento Lotto')", (p_id_m, lotto_id, qta_lotto_add, costo_u_lotto_add, qta_lotto_add * costo_u_lotto_add))
+                    st.success("✅ Lotto aggiunto!")
                     st.rerun()
 
     with st.expander("🗑️ Rimuovi un Lotto Esistente", expanded=False):
-        if report_lotti_df.empty:
-            st.info("Nessun lotto presente da rimuovere.")
-        else:
-            opzioni_lotti_gest = {
-                f"ID {r['lotto_id']} | {r['prodotto']} - {r['codice_lotto']} (Residuo: {r['quantita_attuale']:,.1f} g | Status: {r['stato_lotto']})": r['lotto_id']
-                for _, r in report_lotti_df.iterrows()
-            }
-            
-            label_lotto_scelto = st.selectbox("Seleziona Lotto da Eliminare", list(opzioni_lotti_gest.keys()))
-            id_lotto_scelto = opzioni_lotti_gest[label_lotto_scelto]
-            lotto_info = report_lotti_df[report_lotti_df['lotto_id'] == id_lotto_scelto].iloc[0]
-            
-            st.caption(f"Eliminando il lotto **{lotto_info['codice_lotto']}**, i dati storici delle vendite rimarranno salvati nel database.")
-            
+        if not report_lotti_df.empty:
+            opzioni_lotti_gest = {f"ID {r['lotto_id']} | {r['prodotto']} - {r['codice_lotto']} (Residuo: {r['quantita_attuale']:,.1f} g)": r['lotto_id'] for _, r in report_lotti_df.iterrows()}
+            id_lotto_scelto = st.selectbox("Seleziona Lotto da Eliminare", list(opzioni_lotti_gest.keys()))
             if st.button("🗑️ Rimuovi Definitivamente Lotto"):
-                elimina_lotto_db(id_lotto_scelto)
-                st.success(f"Lotto '{lotto_info['codice_lotto']}' rimosso!")
+                elimina_lotto_db(opzioni_lotti_gest[id_lotto_scelto])
+                st.success("Lotto rimosso!")
                 st.rerun()
 
-# ------------------------------------------
-# TAB 4: REPORT & STORICO
-# ------------------------------------------
 with tab4:
     st.subheader("📜 Registro Storico Transazioni")
-    
     movimenti_df = get_movimenti_dettagliati_df()
-    
-    if movimenti_df.empty:
-        st.info("Nessuna transazione registrata nel database.")
-    else:
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            prod_filtro = st.multiselect("Filtra per Prodotto", options=movimenti_df['prodotto'].unique(), default=movimenti_df['prodotto'].unique())
-        with col_f2:
-            tipo_filtro = st.multiselect("Filtra per Tipo Operazione", options=movimenti_df['tipo'].unique(), default=movimenti_df['tipo'].unique())
-            
-        df_filtrato = movimenti_df[
-            (movimenti_df['prodotto'].isin(prod_filtro)) & 
-            (movimenti_df['tipo'].isin(tipo_filtro))
-        ].copy()
+    if not movimenti_df.empty:
+        st.dataframe(movimenti_df, use_container_width=True, hide_index=True)
+        csv_data = movimenti_df.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Scarica Report Storico in CSV", data=csv_data, file_name=f"report_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
 
-        st.dataframe(
-            df_filtrato[[
-                'id', 'data', 'cliente', 'pagamento', 'prodotto', 'codice_lotto', 'tipo', 'quantita', 'unita_misura',
-                'prezzo_unitario', 'ricavo_totale', 'costo_totale', 'margine', 'note'
-            ]],
-            column_config={
-                "id": "ID",
-                "data": "Data/Ora",
-                "cliente": "Cliente",
-                "pagamento": "Pagamento",
-                "prodotto": "Prodotto",
-                "codice_lotto": "Codice Lotto",
-                "tipo": "Tipo",
-                "quantita": st.column_config.NumberColumn("Quantità", format="%.1f g"),
-                "unita_misura": "U.M.",
-                "prezzo_unitario": st.column_config.NumberColumn("Prezzo Unit.", format="€ %.2f"),
-                "ricavo_totale": st.column_config.NumberColumn("Ricavo", format="€ %.2f"),
-                "costo_totale": st.column_config.NumberColumn("Costo", format="€ %.2f"),
-                "margine": st.column_config.NumberColumn("Margine", format="€ %.2f"),
-                "note": "Note"
-            },
-            use_container_width=True,
-            hide_index=True
-        )
-
-        csv_data = df_filtrato.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Scarica Report Storico in CSV",
-            data=csv_data,
-            file_name=f"report_magazzino_{datetime.now().strftime('%Y%m%d')}.csv",
-            mime="text/csv"
-        )
-
-        st.markdown("---")
-        
-        st.subheader("🔄 Storno Movimento")
-        with st.expander("🛠️ Annulla una transazione specifica", expanded=False):
-            st.write("Selezionando una transazione, l'operazione verrà stornata e la quantità verrà restituita al lotto di origine.")
-            
-            opzioni_movimenti = {
-                f"ID {r['id']} | {r['data']} | Cliente: {r['cliente']} | {r['prodotto']} ({r['quantita']} g)": r['id']
-                for _, r in df_filtrato.iterrows()
-            }
-            
-            mov_selezionato_label = st.selectbox("Seleziona Transazione da Annullare", list(opzioni_movimenti.keys()))
-            id_mov_da_stornare = opzioni_movimenti[mov_selezionato_label]
-            
-            if st.button("❌ Storna / Annulla Questa Transazione"):
-                success, msg = storna_movimento(id_mov_da_stornare)
-                if success:
-                    st.success(msg)
-                    st.rerun()
-                else:
-                    st.error(msg)
-
-    st.markdown("---")
-    
-    st.subheader("⚙️ Reset Globale Database")
-    with st.expander("🚨 Pulsante di Reset Totale Storico Transazioni", expanded=False):
-        st.warning("Attenzione: l'operazione cancellerà definitivamente tutte le transazioni registrate nello storico.")
-        
-        if "conferma_reset" not in st.session_state:
-            st.session_state["conferma_reset"] = False
-
-        if not st.session_state["conferma_reset"]:
-            if st.button("🗑️ Resetta Tutto lo Storico Transazioni"):
-                st.session_state["conferma_reset"] = True
-                st.rerun()
-        else:
-            st.error("Sei davvero sicuro di voler cancellare TUTTE le transazioni?")
-            col_res1, col_res2 = st.columns(2)
-            with col_res1:
-                if st.button("✅ Sì, Cancella Definitivamente"):
-                    with get_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("DELETE FROM movimenti")
-                    st.session_state["conferma_reset"] = False
-                    st.success("Storico delle transazioni resettato con successo!")
-                    st.rerun()
-            with col_res2:
-                if st.button("❌ Annulla"):
-                    st.session_state["conferma_reset"] = False
-                    st.rerun()
-
-# ------------------------------------------
-# TAB 5: STATISTICHE
-# ------------------------------------------
 with tab5:
     st.subheader("📈 Statistiche Avanzate Clienti")
-    
     movimenti_df = get_movimenti_dettagliati_df()
     vendite_df = movimenti_df[movimenti_df['tipo'] == 'VENDITA'].copy() if not movimenti_df.empty else pd.DataFrame()
     
     if vendite_df.empty:
-        st.info("Nessuna vendita registrata. Effettua acquisti dalla Cassa per visualizzare i report dei clienti.")
+        st.info("Nessuna vendita registrata.")
     else:
-        # SEZIONE DEBITI CON EFFETTO LAMPEGGIANTE E COLOR SCROLL
+        # SEZIONE DEBITI (CORRETTO CON unsafe_allow_html=True)
         clienti_debito = vendite_df[vendite_df['pagamento'] == 'Dopo (Credito)']
         if not clienti_debito.empty:
             st.markdown("#### ⚠️ Persone in Debito (Da Riscuotere)")
             
             html_debiti = '<div class="debt-container">'
-            # Raggruppiamo per cliente e sommiamo il dovuto
             debito_per_cliente = clienti_debito.groupby('cliente')['ricavo_totale'].sum().reset_index()
             for _, row_d in debito_per_cliente.iterrows():
-                c_nome = row_d['cliente']
-                c_importo = row_d['ricavo_totale']
                 html_debiti += f'''
                 <div class="debt-item">
                     <span class="debt-dot"></span>
-                    <span class="debt-name">{c_nome}</span>
-                    <span style="margin-left: auto; font-weight: 700; color: #ef4444;">€ {c_importo:,.2f}</span>
+                    <span class="debt-name">{row_d['cliente']}</span>
+                    <span style="margin-left: auto; font-weight: 700; color: #ef4444;">€ {row_d['ricavo_totale']:,.2f}</span>
                 </div>
                 '''
             html_debiti += '</div>'
-            st.markdown(html_debiti, unsafe_allow_html=True)
+            st.markdown(html_debiti, unsafe_allow_html=True)  # <-- RISOLTO QUI
 
         clienti_grouped = vendite_df.groupby('cliente').agg(
             Spesa_Totale=('ricavo_totale', 'sum'),
@@ -1194,27 +976,9 @@ with tab5:
         chart_pie_clienti = alt.Chart(clienti_grouped).mark_arc(innerRadius=50, outerRadius=110).encode(
             theta=alt.Theta(field="Spesa_Totale", type="quantitative"),
             color=alt.Color(field="cliente", type="nominal", legend=alt.Legend(title="Clienti", orient="right")),
-            tooltip=[
-                alt.Tooltip('cliente', title='Cliente'),
-                alt.Tooltip('Spesa_Totale', title='Spesa Totale (€)', format=',.2f'),
-                alt.Tooltip('Grammi_Totali', title='Grammi Totali (g)', format=',.1f'),
-                alt.Tooltip('Percentuale', title='% sul Totale', format=',.1f')
-            ]
+            tooltip=['cliente', 'Spesa_Totale', 'Grammi_Totali', 'Percentuale']
         ).properties(height=380).configure_view(strokeWidth=0)
         
         st.altair_chart(chart_pie_clienti, use_container_width=True)
-        
         st.markdown("---")
-        
-        st.dataframe(
-            clienti_grouped,
-            column_config={
-                "cliente": "Nome Cliente",
-                "Spesa_Totale": st.column_config.NumberColumn("Spesa Totale (€)", format="€ %.2f"),
-                "Grammi_Totali": st.column_config.NumberColumn("Grammi Acquistati", format="%.1f g"),
-                "Numero_Acquisti": st.column_config.NumberColumn("Transazioni", format="%d"),
-                "Percentuale": st.column_config.NumberColumn("% sul Totale", format="%.1f %%")
-            },
-            use_container_width=True,
-            hide_index=True
-        )
+        st.dataframe(clienti_grouped, use_container_width=True, hide_index=True)
