@@ -584,7 +584,7 @@ else:
     else:
         st.title("LaBzz")
 
-# SCHEDE DI NAVIGAZIONE CON NUOVA SCHEDA STATISTICHE
+# SCHEDE DI NAVIGAZIONE
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "💸 Cassa", 
     "📊 Dashboard", 
@@ -594,7 +594,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ------------------------------------------
-# TAB 1: CASSA (LOGICA CLIENTE + GRAMMI/EURO)
+# TAB 1: CASSA (CAMPO CLIENTE ATTIVO)
 # ------------------------------------------
 with tab1:
     st.subheader("💸 Cassa Operativa")
