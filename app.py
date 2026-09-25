@@ -3,6 +3,7 @@ import base64
 import os
 from datetime import datetime, date, timedelta
 import random
+import time
 import pandas as pd
 import streamlit as st
 import altair as alt
@@ -86,20 +87,12 @@ st.markdown("""
     }
 
     .alert-banner {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        border-left: 5px solid #38bdf8;
+        background: linear-gradient(135deg, #112b1c 0%, #08110a 100%);
+        border-left: 5px solid #2ed573;
         padding: 14px 18px;
         border-radius: 12px;
         margin-bottom: 20px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-    }
-    .alert-banner.urgent {
-        border-left-color: #ef4444;
-        background: linear-gradient(135deg, #2b1619 0%, #110809 100%);
-    }
-    .alert-banner.fun {
-        border-left-color: #2ed573;
-        background: linear-gradient(135deg, #112b1c 0%, #08110a 100%);
     }
 
     div[data-testid="stTabs"] {
@@ -367,26 +360,21 @@ def reset_database_totale():
         cursor.execute("DELETE FROM clienti")
         cursor.execute("DELETE FROM log_narrativi")
     set_impostazione('simulazione_eseguita', '0')
-    p_name = get_impostazione('nome_protagonista', 'Hassan')
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        aggiungi_log_db(cursor, f"🚀 Inizio della saga: {p_name} timbra il cartellino in fabbrica mentre progetta il suo alter ego underground.")
 
-def esegui_simulazione_anno_completo():
+def esegui_simulazione_anno_progressiva(progress_bar, status_text):
     reset_database_totale()
     p_name = get_impostazione('nome_protagonista', 'Hassan')
     personalita = get_impostazione('personalita_bot', 'Influente (Max 7g/giorno)')
     
-    # Parametri in base alla personalità scelta
     if "Tranquillo" in personalita:
         max_vendita_giorno = 3.0
-        prob_vendita_feriale = [70, 30] # pesi per 0 o 1
+        prob_vendita_feriale = [70, 30]
         pesi_weekend = [60, 30, 10]
     elif "Famoso" in personalita:
         max_vendita_giorno = 20.0
         prob_vendita_feriale = [20, 80]
         pesi_weekend = [10, 40, 50]
-    else: # Influente
+    else:
         max_vendita_giorno = 7.0
         prob_vendita_feriale = [50, 50]
         pesi_weekend = [40, 40, 20]
@@ -422,30 +410,17 @@ def esegui_simulazione_anno_completo():
         cursor.execute("""
             INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
             VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
-        """, (p_id_init, l_id_init, qta_init, costo_u_init, costo_tot_init, f"Lotto Iniziale ({personalita})", ts_c))
+        """, (p_id_init, l_id_init, qta_init, costo_u_init, costo_tot_init, f"Lotto Iniziale", ts_c))
 
-        for giorno_idx in range(365):
-            data_corrente = (date.today() - timedelta(days=365)) + timedelta(days=giorno_idx)
-            ts_giorno = datetime.combine(data_corrente, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
-            
-            saga_pool = [
-                f"🏭 [{data_corrente.strftime('%d %b')}] Fabbrica: {p_name} monta ante e cassetti pensando a pattern Acid da 180 BPM.",
-                f"🚗 [{data_corrente.strftime('%d %b')}] Alfa Giulietta: {p_name} viaggia lungo i tornanti di collina tra lavoro e boschi.",
-                f"🧠 [{data_corrente.strftime('%d %b')}] Studio session: {p_name} collega l'Elektron Digitakt per una sessione notturna.",
-                f"📦 [{data_corrente.strftime('%d %b')}] Magazzino: {p_name} movimenta bancali di truciolato e pianifica i prossimi mix.",
-                f"🌲 [{data_corrente.strftime('%d %b')}] Fitness: {p_name} si allena con la heavy rope nei boschi di collina."
-            ]
-            
-            if random.random() < 0.25:
-                aggiungi_log_db(cursor, random.choice(saga_pool))
+    # Durata totale circa 3 minuti (180 secondi / 365 giorni ≈ 0.49 secondi a giorno)
+    ritardo_giornaliero = 180.0 / 365.0
 
-            if data_corrente.day == 1:
-                stipendio_netto = random.uniform(1650.0, 1800.0)
-                aggiungi_log_db(cursor, f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato per {p_name}.")
+    for giorno_idx in range(365):
+        data_corrente = (date.today() - timedelta(days=365)) + timedelta(days=giorno_idx)
+        ts_giorno = datetime.combine(data_corrente, datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
 
-            if data_corrente.month == 12 and data_corrente.day == 15:
-                tredicesima = random.uniform(1650.0, 1800.0)
-                aggiungi_log_db(cursor, f"🎄 TREDICESIMA: Arrivata la tredicesima di € {tredicesima:,.2f} per {p_name}.")
+        with get_connection() as conn:
+            cursor = conn.cursor()
 
             cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
             giacenza_totale = cursor.fetchone()[0] or 0.0
@@ -467,15 +442,7 @@ def esegui_simulazione_anno_completo():
                     p_id_rif, p_nome_rif = p_scelto[0], p_scelto[1]
                     qta_lotto = 100.0
                     costo_base_lotto = qta_lotto * 4.50
-                    
-                    if cassa_attuale >= costo_base_lotto:
-                        spesa_lotto = costo_base_lotto
-                        nota_rifornimento = f"Rifornimento programmato ({p_nome_rif})"
-                    else:
-                        spesa_lotto = costo_base_lotto * 1.27
-                        nota_rifornimento = f"Rifornimento a debito ({p_nome_rif})"
-                        aggiungi_log_db(cursor, f"💳 {p_name} a corto di cassa: scatta il rifornimento a debito (+27%).")
-
+                    spesa_lotto = costo_base_lotto if cassa_attuale >= costo_base_lotto else costo_base_lotto * 1.27
                     costo_u = spesa_lotto / qta_lotto
                     codice_l = genera_codice_lotto_automatico(data_corrente)
                     
@@ -487,8 +454,7 @@ def esegui_simulazione_anno_completo():
                     cursor.execute("""
                         INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) 
                         VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', ?, ?)
-                    """, (p_id_rif, l_id_rif, qta_lotto, costo_u, spesa_lotto, nota_rifornimento, ts_giorno))
-                    aggiungi_log_db(cursor, f"📦 MAGAZZINO: Ordinato nuovo lotto {codice_l} ({p_nome_rif}) in coda.")
+                    """, (p_id_rif, l_id_rif, qta_lotto, costo_u, spesa_lotto, f"Rifornimento ({p_nome_rif})", ts_giorno))
 
             is_weekend = data_corrente.weekday() >= 5
             cursor.execute("SELECT nome FROM clienti")
@@ -527,7 +493,8 @@ def esegui_simulazione_anno_completo():
                                 VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Lotto {cod_lotto}", ts_giorno))
                             
-                            aggiungi_log_db(cursor, f"🎉 VENDITA: {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}.")
+                            # NOTIZIA ESCLUSIVAMENTE SULLE VENDITE
+                            aggiungi_log_db(cursor, f"🎉 VENDITA [{data_corrente.strftime('%d %b')}]: {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}.")
             else:
                 num_transazioni_wk = random.choices([0, 1, 2], weights=pesi_weekend)[0]
                 for _ in range(num_transazioni_wk):
@@ -545,7 +512,7 @@ def esegui_simulazione_anno_completo():
                         if qta_vendita > 0:
                             prezzo_unitario = 45.0 if "Famoso" in personalita else 40.0
                             ricavo_totale = qta_vendita * prezzo_unitario
-                            costo_totale = qta_vendita * costo_u
+                            costo_totale = 20.0
                             margine = ricavo_totale - costo_totale
                             nuova_qta = qta_disp - qta_vendita
                             data_comp = data_corrente if nuova_qta == 0 else None
@@ -558,7 +525,12 @@ def esegui_simulazione_anno_completo():
                                 VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Weekend Club", ts_giorno))
                             
-                            aggiungi_log_db(cursor, f"🔥 SERATA CLUB: {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}.")
+                            # NOTIZIA ESCLUSIVAMENTE SULLE VENDITE
+                            aggiungi_log_db(cursor, f"🔥 SERATA CLUB [{data_corrente.strftime('%d %b')}]: {cliente} acquista {qta_vendita:,.1f} g per € {ricavo_totale:,.2f}.")
+
+        progress_bar.progress((giorno_idx + 1) / 365)
+        status_text.text(f"Simulazione in corso: {data_corrente.strftime('%d %b %Y')} ({giorno_idx + 1}/365 giorni)")
+        time.sleep(ritardo_giornaliero)
 
     set_impostazione('simulazione_eseguita', '1')
 
@@ -714,15 +686,12 @@ else:
     else:
         st.title("LaBzz")
 
-# BANNER POP-UP NARRATIVO IN CIMA
+# BANNER NOTIFICHE VENDITE IN CIMA
 tutti_log = get_tutti_log_db()
 if tutti_log:
     ultima_notif = tutti_log[-1]
-    is_urgent = "⚠️" in ultima_notif or "debito" in ultima_notif.lower()
-    is_fun = "🎉" in ultima_notif or "VENDITA" in ultima_notif or "SERATA" in ultima_notif or "STIPENDIO" in ultima_notif or "Inizio" in ultima_notif
-    css_class = "alert-banner urgent" if is_urgent else ("alert-banner fun" if is_fun else "alert-banner")
     p_name_attivo = get_impostazione('nome_protagonista', 'Hassan')
-    st.markdown(f'<div class="{css_class}">📖 <b>Cronaca della Storia ({p_name_attivo}):</b> {ultima_notif}</div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="alert-banner">📈 <b>Ultime Vendite Registrate ({p_name_attivo}):</b> {ultima_notif}</div>', unsafe_allow_html=True)
 
 # 6 Tabs configurate
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -829,7 +798,7 @@ with tab1:
                         
                         with get_connection() as conn_log:
                             cursor_log = conn_log.cursor()
-                            aggiungi_log_db(cursor_log, f"💰 VENDITA MANUALE: {nome_finale_cliente} ha acquistato per € {totale_incassato:,.2f}!")
+                            aggiungi_log_db(cursor_log, f"🎉 VENDITA MANUALE: {nome_finale_cliente} ha acquistato per € {totale_incassato:,.2f}!")
                         st.success(f"✅ Vendita a '{nome_finale_cliente}' registrata (Pagamento: {tipo_pagamento})!")
                         st.rerun()
 
@@ -975,10 +944,6 @@ with tab3:
     report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_attuale)
     
     if not report_lotti_df.empty:
-        lotti_warning = report_lotti_df[report_lotti_df['stato_lotto'].str.contains("⚠️")]
-        for _, w_row in lotti_warning.iterrows():
-            st.warning(f"⚠️ Lotto {w_row['codice_lotto']} ({w_row['prodotto']}) in esaurimento! Scorta residua: {w_row['quantita_attuale']:,.1f} g")
-
         col_m1, col_m2, col_m3 = st.columns(3)
         col_m1.metric("Costo Totale Acquisizione Lotti", f"€ {report_lotti_df['costo_totale_lotto'].sum():,.2f}")
         col_m2.metric("Incasso Totale Generato dai Lotti", f"€ {report_lotti_df['incasso_totale_lotto'].sum():,.2f}")
@@ -992,117 +957,10 @@ with tab3:
         csv_lotti = report_lotti_df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Scarica Report Completo Lotti in CSV", data=csv_lotti, file_name=f"report_lotti_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
 
-    st.markdown("---")
-    col_cfg1, col_cfg2, col_cfg3 = st.columns([1, 2, 1])
-    with col_cfg2:
-        nuova_soglia = st.number_input("⚙️ Soglia Alert In Esaurimento (g)", min_value=1.0, value=soglia_attuale, step=1.0, format="%.1f")
-        if nuova_soglia != soglia_attuale:
-            set_soglia_esaurimento(nuova_soglia)
-            st.success(f"Soglia salvata permanentemente a {nuova_soglia:,.1f} g!")
-            st.rerun()
-
-    st.markdown("---")
-    with st.expander("➕ Aggiungi un Nuovo Prodotto e Rifornimento", expanded=False):
-        with st.form("form_nuovo_prodotto_lotto"):
-            nome_nuovo = st.text_input("Nome Prodotto", placeholder="Es. Hash / Amnesia Haze")
-            data_acq_m = st.date_input("Data di Acquisto Lotto", value=date.today())
-            cod_lotto_m = st.text_input("Codice Lotto", value=genera_codice_lotto_automatico(data_acq_m))
-            qta_lotto_m = st.number_input("Quantità Lotto (g)", min_value=0.5, value=80.0, step=0.5, format="%.1f")
-            costo_u_lotto_m = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=4.50, step=0.25, format="%.2f")
-            prezzo_v_init = st.number_input("Prezzo di Vendita Standard (€/g)", min_value=0.1, value=10.0, step=0.5, format="%.2f")
-            scorta_min_init = st.number_input("Scorta Minima Alert (g)", min_value=0.0, value=10.0, step=5.0, format="%.1f")
-
-            if st.form_submit_button("Crea Prodotto e Registra Lotto"):
-                if nome_nuovo.strip() == "":
-                    st.error("Inserisci un nome valido per il prodotto.")
-                else:
-                    try:
-                        with get_connection() as conn:
-                            cursor = conn.cursor()
-                            cursor.execute("INSERT INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) VALUES (?, 'g', ?, ?)", (nome_nuovo.strip(), prezzo_v_init, scorta_min_init))
-                            p_id = cursor.lastrowid
-                            cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, ?, ?, ?, ?, ?, ?)", (p_id, cod_lotto_m.strip(), qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today()))
-                            lotto_id = cursor.lastrowid
-                            timestamp_attuale = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Primo Carico Lotto', ?)", (p_id, lotto_id, qta_lotto_m, costo_u_lotto_m, qta_lotto_m * costo_u_lotto_m, timestamp_attuale))
-                        st.success(f"✅ Prodotto '{nome_nuovo}' creato!")
-                        st.rerun()
-                    except sqlite3.IntegrityError:
-                        st.error("Un prodotto con questo nome esiste già.")
-
-    with st.expander("➕ Aggiungi Lotto a Prodotto Esistente", expanded=False):
-        prodotti_esistenti_df = get_prodotti_tutti_df()
-        if not prodotti_esistenti_df.empty:
-            with st.form("form_lotto_aggiuntivo"):
-                p_nome_lotto = st.selectbox("Seleziona Prodotto Esistente", prodotti_esistenti_df['nome'].tolist())
-                data_acq_add = st.date_input("Data di Acquisto", value=date.today(), key="date_acq_add")
-                cod_lotto_add = st.text_input("Codice Lotto", value=genera_codice_lotto_automatico(data_acq_add), key="input_cod_lotto_add")
-                qta_lotto_add = st.number_input("Quantità Lotto (g)", min_value=0.5, value=80.0, step=0.5, format="%.1f")
-                costo_u_lotto_add = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=4.50, step=0.25, format="%.2f")
-                
-                if st.form_submit_button("➕ Aggiungi Nuovo Lotto"):
-                    p_row_m = prodotti_esistenti_df[prodotti_esistenti_df['nome'] == p_nome_lotto].iloc[0]
-                    p_id_m = int(p_row_m['id'])
-                    with get_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, ?, ?, ?, ?, ?, ?)", (p_id_m, cod_lotto_add.strip(), qta_lotto_add, qta_lotto_add, costo_u_lotto_add, data_acq_add, date.today()))
-                        lotto_id = cursor.lastrowid
-                        timestamp_attuale = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, pagamento, note, data) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Subito', 'Rifornimento Lotto', ?)", (p_id_m, lotto_id, qta_lotto_add, costo_u_lotto_add, qta_lotto_add * costo_u_lotto_add, timestamp_attuale))
-                    st.success("✅ Lotto aggiunto!")
-                    st.rerun()
-
-    with st.expander("🗑️ Rimuovi un Lotto Esistente", expanded=False):
-        if not report_lotti_df.empty:
-            opzioni_lotti_gest = {f"ID {r['lotto_id']} | {r['prodotto']} - {r['codice_lotto']} (Residuo: {r['quantita_attuale']:,.1f} g)": r['lotto_id'] for _, r in report_lotti_df.iterrows()}
-            id_lotto_scelto = st.selectbox("Seleziona Lotto da Eliminare", list(opzioni_lotti_gest.keys()))
-            if st.button("🗑️ Rimuovi Definitivamente Lotto"):
-                elimina_lotto_db(opzioni_lotti_gest[id_lotto_scelto])
-                st.success("Lotto rimosso!")
-                st.rerun()
-
 with tab4:
     st.subheader("📈 Statistiche Avanzate Clienti")
     movimenti_df = get_movimenti_dettagliati_df()
-    vendite_df = movimenti_df[movimenti_df['tipo'] == 'VENDITA'].copy() if not movimenti_df.empty else pd.DataFrame()
-    
-    if "cliente_selezionato_debito" not in st.session_state:
-        st.session_state["cliente_selezionato_debito"] = None
-
     if not movimenti_df.empty:
-        clienti_debito = movimenti_df[(movimenti_df['tipo'] == 'VENDITA') & (movimenti_df['pagamento'] == 'Dopo (Credito)')]
-        if not clienti_debito.empty:
-            debito_per_cliente = clienti_debito.groupby('cliente')['ricavo_totale'].sum().reset_index()
-            cols = st.columns(len(debito_per_cliente))
-            for idx, row_d in debito_per_cliente.iterrows():
-                c_nome = row_d['cliente']
-                with cols[idx]:
-                    if st.button(f"✨ {c_nome}", key=f"btn_nome_{c_nome}", use_container_width=True):
-                        st.session_state["cliente_selezionato_debito"] = c_nome
-
-            cli_selezionato = st.session_state["cliente_selezionato_debito"]
-            if cli_selezionato:
-                importo_selezionato = debito_per_cliente[debito_per_cliente['cliente'] == cli_selezionato]['ricavo_totale'].values
-                if len(importo_selezionato) > 0:
-                    importo_val = importo_selezionato[0]
-                    with st.container(border=True):
-                        st.markdown(f"### 💳 Gestione Debito: **{cli_selezionato}**")
-                        st.markdown(f"**Importo da riscuotere:** <span style='color: #ef4444; font-size: 1.3rem;'>€ {importo_val:,.2f}</span>", unsafe_allow_html=True)
-                        col_p1, col_p2 = st.columns(2)
-                        with col_p1:
-                            if st.button("✅ Conferma Pagamento", key=f"conferma_pag_{cli_selezionato}", use_container_width=True):
-                                segna_debito_pagato(cli_selezionato)
-                                st.session_state["cliente_selezionato_debito"] = None
-                                st.success(f"Debito di {cli_selezionato} saldato con successo!")
-                                st.rerun()
-                        with col_p2:
-                            if st.button("❌ Chiudi", key=f"chiudi_pop_{cli_selezionato}", use_container_width=True):
-                                st.session_state["cliente_selezionato_debito"] = None
-                                st.rerun()
-
-    if movimenti_df.empty:
-        st.info("Nessun movimento registrato per le statistiche temporali.")
-    else:
         stat_df = movimenti_df.copy()
         stat_df['Data_Ora'] = pd.to_datetime(stat_df['data'])
         stat_df = stat_df.sort_values('Data_Ora')
@@ -1133,13 +991,13 @@ with tab5:
         st.download_button("📥 Scarica Report Storico in CSV", data=csv_data, file_name=f"report_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
 
 with tab6:
-    st.subheader("🤖 Bot Live: Simulazione Anno Completo")
+    st.subheader("🤖 Bot Live: Simulazione Anno Progressiva")
     
     simulazione_fatta = get_impostazione('simulazione_eseguita', '0') == '1'
     p_name_corrente = get_impostazione('nome_protagonista', 'Hassan')
     personalita_corrente = get_impostazione('personalita_bot', 'Influente (Max 7g/giorno)')
 
-    st.markdown("Scegli la personalità del bot e avvia la simulazione di tutti i 365 giorni in un solo click:")
+    st.markdown("Scegli la personalità e avvia la simulazione progressiva (durata circa 3 minuti). Vedrai i grafici e la dashboard aggiornarsi giorno dopo giorno in tempo reale!")
     
     col_nome1, col_nome2 = st.columns([1, 1])
     with col_nome1:
@@ -1166,10 +1024,11 @@ with tab6:
 
     col_b1, col_b2 = st.columns(2)
     with col_b1:
-        if st.button("🚀 Avvia Simulazione Anno", use_container_width=True):
-            with st.spinner(f"Elaborazione anno in corso con profilo '{nuova_pers}'..."):
-                esegui_simulazione_anno_completo()
-            st.success("✅ Simulazione completata con successo! Guarda la Dashboard e la Cassa.")
+        if st.button("🚀 Avvia Simulazione Progressiva (3 Minuti)", use_container_width=True):
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            esegui_simulazione_anno_progressiva(progress_bar, status_text)
+            st.success("✅ Simulazione completata con successo! Guarda i risultati aggiornati.")
             st.rerun()
 
     with col_b2:
@@ -1180,4 +1039,4 @@ with tab6:
 
     if simulazione_fatta:
         st.markdown("---")
-        st.success(f"🟢 **Stato:** Anno simulato correttamente con profilo **{personalita_corrente}**. Tutti i dati sono aggiornati.")
+        st.success(f"🟢 **Stato:** Simulazione completata con profilo **{personalita_corrente}**.")
