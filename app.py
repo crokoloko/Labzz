@@ -681,7 +681,7 @@ with tab1:
                                 ricavo_quota = prelievo * prezzo_unitario_calc
                                 margine_quota = ricavo_quota - costo_quota
                                 
-                                if nueva_qta_lotto == 0:
+                                if nuova_qta_lotto == 0:
                                     cursor.execute("""
                                         UPDATE lotti 
                                         SET quantita_attuale = 0, data_completamento = ? 
@@ -986,7 +986,7 @@ with tab6:
 
     if reset_db_btn:
         reset_database_totale()
-        st.success("✅ Database ripulito con successo! I dati originali sono stati azzerati.")
+        st.success("✅ Database azzerato con successo! Tutti i prodotti, lotti, vendite, clienti e statistiche sono stati eliminati.")
         st.rerun()
 
     if avvia_live:
@@ -1164,3 +1164,13 @@ with tab6:
 
         spara_fuochi_d_artificio()
         status_text.success("🎉 Simulazione Live completata giorno per giorno! Ora puoi esplorare liberamente le schede Dashboard, Cassa e Statistiche.")
+
+    # Sezione di Reset in fondo alla pagina
+    st.markdown("---")
+    st.markdown("### 🛠️ Gestione Dati e Ripristino")
+    st.write("Usa il pulsante sottostante per cancellare completamente qualsiasi dato (clienti, lotti, vendite, rifornimenti, statistiche e magazzino) e azzerare l'applicazione.")
+    
+    if st.button("🗑️ ESEGUI RESET GENERALE DI TUTTI I DATI", use_container_width=True):
+        reset_database_totale()
+        st.success("✅ Reset generale completato con successo! L'applicazione è ora completamente pulita.")
+        st.rerun()
