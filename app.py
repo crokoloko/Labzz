@@ -223,24 +223,21 @@ st.markdown("""
     .stButton {
         display: flex !important;
         justify-content: center !important;
-        margin: 12px 0 !important;
+        margin: 0 !important;
     }
 
-    .stButton > button, button[kind="primary"] {
-        font-family: 'Fredoka', sans-serif !important;
-        background: linear-gradient(135deg, #0284c7 0%, #1d4ed8 100%) !important;
-        color: #ffffff !important;
-        font-weight: 700 !important;
+    /* Stile pulito e invisibile per i bottoni dei pallini per mantenerli allineati sulla riga */
+    div.row-widget.stButton > button {
+        background: transparent !important;
         border: none !important;
-        border-radius: 12px !important;
-        padding: 12px 28px !important;
-        box-shadow: 0 6px 20px rgba(2, 132, 199, 0.35) !important;
-        transition: all 0.2s ease !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        min-height: unset !important;
     }
-
-    .stButton > button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 10px 25px rgba(2, 132, 199, 0.5) !important;
+    div.row-widget.stButton > button:hover {
+        transform: scale(1.1) !important;
+        box-shadow: none !important;
     }
 
     .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
@@ -281,32 +278,37 @@ st.markdown("""
         margin-bottom: 25px;
     }
 
-    .debt-item {
-        display: flex;
-        align-items: center;
-        margin: 8px 0;
-        font-size: 1.1rem;
-    }
-
     .debt-dot {
-        width: 12px;
-        height: 12px;
+        width: 14px;
+        height: 14px;
         background-color: #ef4444;
         border-radius: 50%;
         display: inline-block;
-        margin-right: 12px;
         animation: blink-dot 1.5s infinite;
+        cursor: pointer;
+    }
+
+    .debt-dot-green {
+        width: 14px;
+        height: 14px;
+        background-color: #2ed573;
+        border-radius: 50%;
+        display: inline-block;
+        box-shadow: 0 0 10px #2ed573;
+        cursor: pointer;
     }
 
     .debt-name {
         font-family: 'Comic Sans MS', 'Chalkboard SE', 'Fira Code', cursive, sans-serif !important;
         font-style: italic;
         font-weight: 700;
+        font-size: 1.15rem;
         background: linear-gradient(270deg, #ff4757, #ffa502, #ff6b81, #eccc68, #ff4757);
         background-size: 300% 300%;
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         animation: color-scroll 4s ease infinite;
+        margin-left: 12px;
     }
 
     @media (max-width: 768px) {
@@ -951,37 +953,37 @@ with tab5:
     if vendite_df.empty:
         st.info("Nessuna vendita registrata.")
     else:
-        # SEZIONE DEBITI INTERATTIVA CON PALLINO CLICCABILE (ROSSO <-> VERDE CON SPUNTA)
+        # GESTIONE SESSIONE PER IL TOCCO DEI PALLINI DEBITI
+        if "debito_selezionato" not in st.session_state:
+            st.session_state["debito_selezionato"] = None
+
         clienti_debito = vendite_df[vendite_df['pagamento'] == 'Dopo (Credito)']
         if not clienti_debito.empty:
-            if "debito_selezionato" not in st.session_state:
-                st.session_state["debito_selezionato"] = None
-
             debito_per_cliente = clienti_debito.groupby('cliente')['ricavo_totale'].sum().reset_index()
             
             st.markdown('<div class="debt-container">', unsafe_allow_html=True)
             for _, row_d in debito_per_cliente.iterrows():
                 c_nome = row_d['cliente']
                 c_importo = row_d['ricavo_totale']
-                
                 is_selected = (st.session_state["debito_selezionato"] == c_nome)
                 
-                col_d1, col_d2, col_d3 = st.columns([1, 6, 2])
-                with col_d1:
+                # Riga pulita con colonne per allineare perfettamente il pallino, il nome e l'importo
+                c1, c2, c3 = st.columns([0.8, 6.2, 3])
+                with c1:
                     if is_selected:
-                        if st.button("✅", key=f"btn_verde_{c_nome}"):
+                        if st.button("✅", key=f"btn_v_{c_nome}", help="Tocca di nuovo per saldare il debito"):
                             segna_debito_pagato(c_nome)
                             st.session_state["debito_selezionato"] = None
                             st.success(f"Debito di {c_nome} saldato!")
                             st.rerun()
                     else:
-                        if st.button("🔴", key=f"btn_rosso_{c_nome}"):
+                        if st.button("🔴", key=f"btn_r_{c_nome}", help="Tocca per selezionare"):
                             st.session_state["debito_selezionato"] = c_nome
                             st.rerun()
-                with col_d2:
+                with c2:
                     st.markdown(f'<span class="debt-name">{c_nome}</span>', unsafe_allow_html=True)
-                with col_d3:
-                    st.markdown(f'<span style="font-weight: 700; color: #ef4444; float: right;">€ {c_importo:,.2f}</span>', unsafe_allow_html=True)
+                with c3:
+                    st.markdown(f'<div style="text-align: right; font-weight: 700; color: #ef4444; font-size: 1.1rem; padding-top: 4px;">€ {c_importo:,.2f}</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
         clienti_grouped = vendite_df.groupby('cliente').agg(
