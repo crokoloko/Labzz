@@ -568,7 +568,7 @@ else:
         st.title("LaBzz")
 
 # ==========================================
-# MOTORE DI SIMULAZIONE BACKGROUND
+# MOTORE DI SIMULAZIONE BACKGROUND (3 SECONDI = 1 GIORNO)
 # ==========================================
 def esegui_giorno_simulazione(giorno_idx, p_name):
     giorni_totali = 365
@@ -673,7 +673,6 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
                             VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, (p_id, l_id, qta_vendita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, f"Vendita Feriale Lotto {cod_lotto}", ts_giorno))
                         
-                        # Notifica di vendita automatica in background
                         aggiungi_log_db(f"🎉 VENDITA AUTOMATICA: {qta_vendita:,.1f} g ceduti a {cliente} per € {ricavo_totale:,.2f}!")
         else:
             num_clienti_weekend = random.choices([0, 1, 2], weights=[50, 35, 15])[0]
@@ -706,13 +705,13 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
 
     return True
 
-# RECUPERO BACKGROUND ALL'AVVIO
+# RECUPERO BACKGROUND ALL'AVVIO (1 giorno ogni 3 secondi)
 if get_impostazione('bot_attivo', '0') == '1':
     timestamp_avvio_str = get_impostazione('timestamp_avvio', '')
     if timestamp_avvio_str:
         dt_avvio = datetime.fromisoformat(timestamp_avvio_str)
         secondi_trascorsi = (datetime.now() - dt_avvio).total_seconds()
-        giorni_da_recuperare = int(secondi_trascorsi / 2)
+        giorni_da_recuperare = int(secondi_trascorsi / 3)
         
         giorni_gia_simulati = int(get_impostazione('giorni_simulati', '0'))
         nuovo_giorno_idx = giorni_gia_simulati + giorni_da_recuperare
@@ -724,7 +723,7 @@ if get_impostazione('bot_attivo', '0') == '1':
                 break
                 
         set_impostazione('giorni_simulati', str(min(nuovo_giorno_idx, 365)))
-        nuovo_dt_avvio = dt_avvio + timedelta(seconds=(min(giorni_da_recuperare, 365 - giorni_gia_simulati) * 2))
+        nuovo_dt_avvio = dt_avvio + timedelta(seconds=(min(giorni_da_recuperare, 365 - giorni_gia_simulati) * 3))
         set_impostazione('timestamp_avvio', nuovo_dt_avvio.isoformat())
 
 # CONTROLLO GLOBALE VENDITE PER EFFETTI VISIVI INDIPENDENTI DAL TAB
@@ -736,7 +735,6 @@ with get_connection() as conn:
 
 ultima_vendita_memorizzata = int(get_impostazione('ultima_vendita_id', '0'))
 if ultimo_id_db > ultima_vendita_memorizzata:
-    # C'è stata una nuova vendita (manuale o automatica), attiviamo i coriandoli globali!
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT ricavo_totale FROM movimenti WHERE id = ?", (ultimo_id_db,))
@@ -1220,7 +1218,14 @@ with tab6:
                 st.rerun()
 
     else:
-        st.markdown(f"🟢 **Bot attivo in background ({p_name_corrente})** — Progresso: **{giorni_simulati_correnti} / 365 giorni**")
+        # TIMER VISIVO INTEGRATO NELLA FINESTRA BOT
+        col_t1, col_t2 = st.columns([3, 1])
+        with col_t1:
+            st.markdown(f"🟢 **Bot attivo in background ({p_name_corrente})**")
+        with col_t2:
+            st.markdown(f"⏳ **Giorno {giorni_simulati_correnti} / 365**")
+
+        st.progress(min(giorni_simulati_correnti / 365.0, 1.0))
         
         if st.button("⏹️ Ferma Definitivamente il Bot", use_container_width=True):
             set_impostazione('bot_attivo', '0')
