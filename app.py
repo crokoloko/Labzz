@@ -33,8 +33,8 @@ st.markdown("""
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 2rem !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
     }
 
     /* 4. CENTRATURA LOGO E RIMOZIONE SPAZIO INFERIORE */
@@ -86,18 +86,14 @@ st.markdown("""
         text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5) !important;
     }
 
-    /* 7. STRUTTURA GRIGLIA 2x2 PER QUADRATINI METRICHE */
-    div[data-testid="metric-container"] {
-        width: 100% !important;
-    }
-
+    /* 7. CARD METRICHE COMPATTE A FORMA DI QUADRATINO (GLASSMORPHISM 3D) */
     div[data-testid="stMetric"] {
         background: rgba(30, 41, 59, 0.55) !important;
         backdrop-filter: blur(16px) !important;
         -webkit-backdrop-filter: blur(16px) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 16px !important;
-        padding: 12px 10px !important;
+        padding: 10px 8px !important;
         box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.5), 
                     inset 0 1px 1px 0 rgba(255, 255, 255, 0.1) !important;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
@@ -110,7 +106,7 @@ st.markdown("""
         align-items: center !important;
         text-align: center !important;
         margin: 0 auto 10px auto !important;
-        max-width: 160px !important;
+        max-width: 150px !important;
         width: 100% !important;
     }
 
@@ -123,7 +119,7 @@ st.markdown("""
 
     div[data-testid="stMetricValue"] {
         font-family: 'Fredoka', sans-serif !important;
-        font-size: 1.25rem !important;
+        font-size: 1.2rem !important;
         font-weight: 700 !important;
         color: #38bdf8 !important;
         text-shadow: 0 2px 8px rgba(56, 189, 248, 0.3);
@@ -134,19 +130,36 @@ st.markdown("""
     div[data-testid="stMetricLabel"] {
         font-family: 'Fredoka', sans-serif !important;
         color: #94a3b8 !important;
-        font-size: 0.75rem !important;
+        font-size: 0.72rem !important;
         font-weight: 600 !important;
         text-transform: uppercase;
         letter-spacing: 0.3px;
         line-height: 1.1 !important;
     }
 
+    /* FORZATURA GRIGLIA 2 PER RIGA ANCHE SU MOBILE */
+    div[data-testid="column"] {
+        width: 50% !important;
+        flex: 1 1 50% !important;
+        min-width: 45% !important;
+        padding-left: 4px !important;
+        padding-right: 4px !important;
+    }
+
+    div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+    }
+
     /* Regolazione specifica per Mobile */
     @media (max-width: 768px) {
         .block-container {
             padding-top: 0.5rem !important;
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
+            padding-left: 0.2rem !important;
+            padding-right: 0.2rem !important;
         }
         div[data-testid="stImage"] > img {
             max-width: 90% !important;
@@ -155,14 +168,14 @@ st.markdown("""
             margin-top: -0.8rem !important;
         }
         div[data-testid="stMetric"] {
-            max-width: 130px !important;
-            padding: 8px 6px !important;
+            max-width: 140px !important;
+            padding: 6px 4px !important;
         }
         div[data-testid="stMetricValue"] {
-            font-size: 1.1rem !important;
+            font-size: 1.05rem !important;
         }
         div[data-testid="stMetricLabel"] {
-            font-size: 0.68rem !important;
+            font-size: 0.65rem !important;
         }
     }
 
@@ -673,15 +686,14 @@ with tab2:
         incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
         margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
 
-        # STAMPA GRIGLIA 2x2 RIGIDA
-        # RIGA 1: Valore (Costo) & Valore (Vendita)
+        # RIGA 1 (2 COLONNE AFFIANCATE)
         riga1_col1, riga1_col2 = st.columns(2)
         with riga1_col1:
             st.metric("Valore (Costo)", f"€ {val_costo:,.2f}")
         with riga1_col2:
             st.metric("Valore (Vendita)", f"€ {val_mercato:,.2f}")
 
-        # RIGA 2: Incasso Totale & Margine Netto
+        # RIGA 2 (2 COLONNE AFFIANCATE)
         riga2_col1, riga2_col2 = st.columns(2)
         with riga2_col1:
             st.metric("Incasso Totale", f"€ {incasso_tot:,.2f}")
