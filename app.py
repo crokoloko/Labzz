@@ -599,6 +599,11 @@ def elimina_lotto_db(lotto_id):
         cursor.execute("UPDATE movimenti SET lotto_id = NULL WHERE lotto_id = ?", (lotto_id,))
         cursor.execute("DELETE FROM lotti WHERE id = ?", (lotto_id,))
 
+def segna_debito_pagato(nome_cliente):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE movimenti SET pagamento = 'Subito' WHERE cliente = ? AND pagamento = 'Dopo (Credito)'", (nome_cliente,))
+
 def spara_fuochi_d_artificio():
     js_code = """
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
@@ -946,18 +951,38 @@ with tab5:
     if vendite_df.empty:
         st.info("Nessuna vendita registrata.")
     else:
-        # SEZIONE DEBITI CORRETTA (IN UN'UNICA RIGA SENZA INDENTAZIONI DI BLOCCO)
+        # SEZIONE DEBITI INTERATTIVA CON PALLINO CLICCABILE (ROSSO <-> VERDE CON SPUNTA)
         clienti_debito = vendite_df[vendite_df['pagamento'] == 'Dopo (Credito)']
         if not clienti_debito.empty:
-            st.markdown("#### ⚠️ Persone in Debito (Da Riscuotere)")
-            
-            html_debiti = '<div class="debt-container">'
+            if "debito_selezionato" not in st.session_state:
+                st.session_state["debito_selezionato"] = None
+
             debito_per_cliente = clienti_debito.groupby('cliente')['ricavo_totale'].sum().reset_index()
-            for _, row_d in debito_per_cliente.iterrows():
-                html_debiti += f'<div class="debt-item"><span class="debt-dot"></span><span class="debt-name">{row_d["cliente"]}</span><span style="margin-left: auto; font-weight: 700; color: #ef4444;">€ {row_d["ricavo_totale"]:,.2f}</span></div>'
-            html_debiti += '</div>'
             
-            st.markdown(html_debiti, unsafe_allow_html=True)
+            st.markdown('<div class="debt-container">', unsafe_allow_html=True)
+            for _, row_d in debito_per_cliente.iterrows():
+                c_nome = row_d['cliente']
+                c_importo = row_d['ricavo_totale']
+                
+                is_selected = (st.session_state["debito_selezionato"] == c_nome)
+                
+                col_d1, col_d2, col_d3 = st.columns([1, 6, 2])
+                with col_d1:
+                    if is_selected:
+                        if st.button("✅", key=f"btn_verde_{c_nome}"):
+                            segna_debito_pagato(c_nome)
+                            st.session_state["debito_selezionato"] = None
+                            st.success(f"Debito di {c_nome} saldato!")
+                            st.rerun()
+                    else:
+                        if st.button("🔴", key=f"btn_rosso_{c_nome}"):
+                            st.session_state["debito_selezionato"] = c_nome
+                            st.rerun()
+                with col_d2:
+                    st.markdown(f'<span class="debt-name">{c_nome}</span>', unsafe_allow_html=True)
+                with col_d3:
+                    st.markdown(f'<span style="font-weight: 700; color: #ef4444; float: right;">€ {c_importo:,.2f}</span>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
         clienti_grouped = vendite_df.groupby('cliente').agg(
             Spesa_Totale=('ricavo_totale', 'sum'),
