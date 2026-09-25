@@ -16,6 +16,40 @@ st.set_page_config(
 )
 
 # ==========================================
+# FUNZIONE GENERAZIONE CODICE LOTTO PERSONALIZZATO
+# ==========================================
+def genera_codice_lotto_automatico(data_riferimento=None):
+    """Genera il codice lotto nel formato: giorno + iniziale del mese + ultime 2 cifre dell'anno (es. 25s26)."""
+    if data_riferimento is None:
+        data_riferimento = date.today()
+    
+    giorno = data_riferimento.strftime("%d").lstrip("0")  # Rimuove lo zero iniziale se presente (es. 05 -> 5)
+    
+    # Mappa delle iniziali dei mesi in italiano
+    iniziali_mesi = {
+        1: 'g',  # Gennaio
+        2: 'f',  # Febbraio
+        3: 'm',  # Marzo
+        4: 'a',  # Aprile
+        5: 'm',  # Maggio
+        6: 'gi', # Giugno (usiamo 'gi' per distinguere da maggio o 'u')
+        7: 'l',  # Luglio
+        8: 'ag', # Agosto (usiamo 'ag' o 'o')
+        9: 's',  # Settembre
+        10: 'o', # Ottobre
+        11: 'n', # Novembre
+        12: 'd'  # Dicembre
+    }
+    
+    # Per giugno e agosto usiamo direttamente la prima lettera minuscola standard o specifica
+    MESE_INIZIALI = ['g', 'f', 'm', 'a', 'm', 'g', 'l', 'a', 's', 'o', 'n', 'd']
+    iniziale_mese = MESE_INIZIALI[data_riferimento.month - 1]
+    
+    anno_2_cifre = data_riferimento.strftime("%y")
+    
+    return f"{giorno}{iniziale_mese}{anno_2_cifre}"
+
+# ==========================================
 # FUNZIONE CARICAMENTO VIDEO BASE64 PER LOGO
 # ==========================================
 def get_video_base64(file_path):
@@ -288,12 +322,10 @@ def get_connection():
     return sqlite3.connect(DB_NAME, timeout=10)
 
 def init_db():
-    """Inizializza il database verificando le tabelle e impostazioni, senza inserire dati di esempio."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;")
         
-        # 1. Anagrafica prodotti
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS prodotti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -304,7 +336,6 @@ def init_db():
         )
         """)
         
-        # 2. Registro lotti
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS lotti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -320,7 +351,6 @@ def init_db():
         )
         """)
         
-        # Migrazione schema lotti
         cursor.execute("PRAGMA table_info(lotti)")
         colonne_lotti = [column[1] for column in cursor.fetchall()]
         if 'data_acquisto' not in colonne_lotti:
@@ -328,7 +358,6 @@ def init_db():
         if 'data_completamento' not in colonne_lotti:
             cursor.execute("ALTER TABLE lotti ADD COLUMN data_completamento DATE")
 
-        # 3. Tabella Clienti
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS clienti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -336,7 +365,6 @@ def init_db():
         )
         """)
 
-        # 4. Registro movimenti
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS movimenti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -356,7 +384,6 @@ def init_db():
         )
         """)
 
-        # 5. Tabella Impostazioni
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS impostazioni (
             chiave TEXT PRIMARY KEY,
@@ -905,12 +932,16 @@ with tab3:
     with st.expander("➕ Aggiungi un Nuovo Prodotto e Rifornimento", expanded=False):
         with st.form("form_nuovo_prodotto_lotto"):
             nome_nuovo = st.text_input("Nome Prodotto", placeholder="Es. Nome Nuova Varietà / Prodotto")
-            cod_lotto_m = st.text_input("Codice Lotto", value=f"LOTTO-{datetime.now().strftime('%Y%m%d-%H%M')}")
+            data_acq_m = st.date_input("Data di Acquisto Lotto", value=date.today())
+            
+            # Codice lotto generato automaticamente basato sulla data scelta
+            codice_lotto_default = genera_codice_lotto_automatico(data_acq_m)
+            cod_lotto_m = st.text_input("Codice Lotto", value=codice_lotto_default)
+            
             qta_lotto_m = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
             costo_u_lotto_m = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
             prezzo_v_init = st.number_input("Prezzo di Vendita Standard (€/g)", min_value=0.1, value=2.0, step=0.5, format="%.2f")
             scorta_min_init = st.number_input("Scorta Minima Alert (g)", min_value=0.0, value=50.0, step=10.0, format="%.1f")
-            data_acq_m = st.date_input("Data di Acquisto Lotto", value=date.today())
 
             if st.form_submit_button("Crea Prodotto e Registra Lotto"):
                 if nome_nuovo.strip() == "":
@@ -948,10 +979,14 @@ with tab3:
         else:
             with st.form("form_lotto_aggiuntivo"):
                 p_nome_lotto = st.selectbox("Seleziona Prodotto Esistente", prodotti_esistenti_df['nome'].tolist())
-                cod_lotto_add = st.text_input("Codice Lotto", value=f"LOTTO-{datetime.now().strftime('%Y%m%d-%H%M')}")
+                data_acq_add = st.date_input("Data di Acquisto", value=date.today(), key="date_acq_add")
+                
+                # Codice lotto generato automaticamente basato sulla data scelta
+                codice_lotto_add_default = genera_codice_lotto_automatico(data_acq_add)
+                cod_lotto_add = st.text_input("Codice Lotto", value=codice_lotto_add_default, key="input_cod_lotto_add")
+                
                 qta_lotto_add = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
                 costo_u_lotto_add = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
-                data_acq_add = st.date_input("Data di Acquisto", value=date.today(), key="date_acq_add")
                 
                 if st.form_submit_button("➕ Aggiungi Nuovo Lotto"):
                     p_row_m = prodotti_esistenti_df[prodotti_esistenti_df['nome'] == p_nome_lotto].iloc[0]
