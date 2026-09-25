@@ -571,7 +571,6 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
     with get_connection() as conn:
         cursor = conn.cursor()
         
-        # EVENTI NARRATIVI PURO RACCONTO
         saga_pool = [
             f"🏭 [{data_corrente.strftime('%d %b')}] Turno in fabbrica: {p_name} monta ante e cassetti meditando su un nuovo pattern Acid a 180 BPM.",
             f"🚗 [{data_corrente.strftime('%d %b')}] Alfa Giulietta: {p_name} sfreccia lungo i tornanti di collina tra il lavoro e le colline boschive.",
@@ -696,7 +695,7 @@ def esegui_giorno_simulazione(giorno_idx, p_name):
 
     return True
 
-# AVANZAMENTO LIVE (1 giorno ogni 3 secondi se bot attivo)
+# CONTROLLO AVANZAMENTO LIVE (1 giorno ogni 3 secondi se bot attivo)
 if get_impostazione('bot_attivo', '0') == '1':
     giorni_gia_simulati = int(get_impostazione('giorni_simulati', '0'))
     if giorni_gia_simulati < 365:
@@ -824,7 +823,7 @@ with tab1:
                                 ricavo_quota = prelievo * prezzo_unitario_calc
                                 margine_quota = ricavo_quota - costo_quota
                                 
-                                if nueva_qta_lotto == 0:
+                                if nuova_qta_lotto == 0:
                                     cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (date.today(), l_id))
                                 else:
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta_lotto, l_id))
