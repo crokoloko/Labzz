@@ -702,7 +702,7 @@ if get_impostazione('bot_attivo', '0') == '1':
         esegui_giorno_simulazione(giorni_gia_simulati, p_name)
         set_impostazione('giorni_simulati', str(giorni_gia_simulati + 1))
 
-# CONTROLLO GLOBALE VENDITE PER EFFETTI VISIVI INDIPENDENTI DAL TAB
+# CONTROLLO GLOBALE VENDITE PER EFFETTI VISIVI
 with get_connection() as conn:
     cursor = conn.cursor()
     cursor.execute("SELECT MAX(id), SUM(ricavo_totale) FROM movimenti WHERE tipo = 'VENDITA'")
@@ -720,7 +720,7 @@ if ultimo_id_db > ultima_vendita_memorizzata:
     trigger_valore_vendita_effect(importo_ultima)
     set_impostazione('ultima_vendita_id', str(ultimo_id_db))
 
-# Banner Notifica in cima
+# POP-UP / BANNER NOTIFICA IN CIMA
 tutti_log = get_tutti_log_db()
 if tutti_log:
     ultima_notif = tutti_log[-1]
@@ -1131,14 +1131,14 @@ with tab5:
         st.download_button("📥 Scarica Report Storico in CSV", data=csv_data, file_name=f"report_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
 
 with tab6:
-    st.subheader("🤖 Bot Live: Finestra di Chat Narrativa")
+    st.subheader("🤖 Bot Live: Pannello di Controllo")
     
     bot_attivo = get_impostazione('bot_attivo', '0') == '1'
     giorni_simulati_correnti = int(get_impostazione('giorni_simulati', '0'))
     p_name_corrente = get_impostazione('nome_protagonista', 'Hassan')
 
     if not bot_attivo:
-        st.markdown("Avvia il bot per attivare il timer live (1 giorno ogni 3 secondi) e seguire la storiella in tempo reale.")
+        st.markdown("Avvia il bot per attivare il timer (1 giorno ogni 3 secondi) e seguire la storia in tempo reale.")
         
         col_nome1, col_nome2 = st.columns([2, 1])
         with col_nome1:
@@ -1205,19 +1205,6 @@ with tab6:
             set_impostazione('bot_attivo', '0')
             st.warning("🛑 Bot arrestato.")
             st.rerun()
-
-        st.markdown("---")
-        st.markdown("#### 💬 Cronaca e Flusso Narrativo")
-
-        chat_container = st.container(border=True)
-        with chat_container:
-            log_narrativi = get_tutti_log_db()
-            if not log_narrativi:
-                st.write("In attesa di eventi...")
-            else:
-                for log_testo in log_narrativi:
-                    with st.chat_message("assistant", avatar="🤖"):
-                        st.write(log_testo)
 
         if giorni_simulati_correnti < 365:
             import time
