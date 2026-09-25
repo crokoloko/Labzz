@@ -177,7 +177,6 @@ st.markdown("""
         overflow: hidden !important;
     }
 
-    /* Correzione del tag summary e delle frecce interne */
     div[data-testid="stExpander"] details summary {
         color: #f1f5f9 !important;
         font-weight: 600 !important;
@@ -576,9 +575,10 @@ else:
     else:
         st.title("LaBzz")
 
+# SCHEDE DI NAVIGAZIONE CON "DASHBOARD" PULITO
 tab1, tab2, tab3, tab4 = st.tabs([
     "💸 Cassa", 
-    "📊 Dashboard & KPI", 
+    "📊 Dashboard", 
     "🚚 Rifornimenti",
     "📜 Report & Storico"
 ])
@@ -587,7 +587,6 @@ tab1, tab2, tab3, tab4 = st.tabs([
 # TAB 1: CASSA (SOLO VENDITE ED XME)
 # ------------------------------------------
 with tab1:
-    # INTESTAZIONE CON EMOJI DOLLARO
     st.subheader("💸 Cassa Operativa")
     
     tipo_operazione = st.radio("Seleziona Tipo Registrazione", ["Vendita", "XME"], horizontal=True)
@@ -613,7 +612,6 @@ with tab1:
             else:
                 st.info(f"Disponibilità totale: {qta_tot_disp:,.1f} g")
                 
-                st.markdown("##### Registra Vendita")
                 col1, col2 = st.columns(2)
                 
                 with col1:
@@ -712,7 +710,6 @@ with tab1:
 # TAB 2: DASHBOARD & KPI
 # ------------------------------------------
 with tab2:
-    # INTESTAZIONE CON EMOJI GRAFICO DASHBOARD
     st.subheader("📊 Dashboard & Analytics")
     df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
     movimenti_df = get_movimenti_dettagliati_df()
