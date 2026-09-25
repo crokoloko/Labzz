@@ -27,55 +27,62 @@ def get_video_base64(file_path):
     return None
 
 # ==========================================
-# INIEZIONE CSS CUSTOM (FONTS + DARK MODE 3D / GLASSMORPHISM)
+# INIEZIONE CSS CUSTOM (SFONDO LOGO + NESSUN TAGLIO IN ALTO)
 # ==========================================
 st.markdown("""
 <style>
     /* 1. IMPORTAZIONE GOOGLE FONTS (TITAN ONE & FREDOKA) */
     @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Titan+One&display=swap');
 
-    /* 2. SFONDO GLOBALE DARK GRADIENTE E FONT BASE */
+    /* 2. SFONDO GLOBALE UNIFORMATO AL BLU SCURO DEL LOGO */
     .stApp {
-        background: linear-gradient(135deg, #090d16 0%, #0f172a 50%, #1e293b 100%) !important;
+        background-color: #090c17 !important;
+        background: linear-gradient(180deg, #070a14 0%, #090c17 50%, #0d1222 100%) !important;
         color: #f8fafc !important;
         font-family: 'Fredoka', sans-serif !important;
         font-weight: 500;
     }
 
-    /* 3. AZZERAMENTO PADDING CONTAINER PRINCIPALE */
+    /* 3. RIMOZIONE BARRA IN ALTO DI STREAMLIT PER EVITARE TAGLI */
+    header[data-testid="stHeader"] {
+        display: none !important;
+    }
+
+    /* 4. MARGINE SUPERIORE PER NON TAGLIARE IL LOGO */
     .block-container {
-        padding-top: 1rem !important;
+        padding-top: 2.5rem !important;
         padding-bottom: 2rem !important;
         padding-left: 0.5rem !important;
         padding-right: 0.5rem !important;
     }
 
-    /* 4. CENTRATURA PERFETTA LOGO VIDEO MP4 / GIF SENZA SFUMATURA */
+    /* 5. CENTRATURA PERFETTA LOGO VIDEO SENZA BORDURA NÉ SFUMATURA */
     .logo-container {
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
         text-align: center !important;
         width: 100% !important;
-        margin: 0 auto 0.5rem auto !important;
+        margin: 0 auto 1rem auto !important;
         padding: 0 !important;
     }
 
     .logo-container video {
         display: block !important;
         margin: 0 auto !important;
-        max-width: 380px !important;
+        max-width: 420px !important;
         width: 100% !important;
         height: auto !important;
-        border-radius: 16px !important;
-        filter: none !important; /* Rimossa la sfumatura attorno al logo */
+        border-radius: 12px !important;
+        filter: none !important;
         box-shadow: none !important;
         object-fit: contain !important;
+        background-color: transparent !important;
     }
 
-    /* 5. AZZERAMENTO SPAZIO SOPRA I TAB (SCHEDE) */
+    /* 6. SPAZIATURA TAB (SCHEDE) */
     div[data-testid="stTabs"] {
-        margin-top: -0.5rem !important;
+        margin-top: 0rem !important;
         padding-top: 0rem !important;
     }
 
@@ -86,7 +93,7 @@ st.markdown("""
         padding: 0px 0 8px 0 !important;
     }
 
-    /* 6. TITOLI E INTESTAZIONI 3D CON TITAN ONE */
+    /* 7. TITOLI E INTESTAZIONI 3D CON TITAN ONE */
     h1 {
         font-family: 'Titan One', cursive, sans-serif !important;
         color: #ffffff !important;
@@ -102,7 +109,7 @@ st.markdown("""
         text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5) !important;
     }
 
-    /* 7. CONTENITORE CUSTOM PER GRIGLIA 2x2 FORZATA IN HTML/CSS */
+    /* 8. CONTENITORE CUSTOM PER GRIGLIA 2x2 FORZATA IN HTML/CSS */
     .dashboard-grid {
         display: grid !important;
         grid-template-columns: repeat(2, 1fr) !important;
@@ -112,7 +119,7 @@ st.markdown("""
     }
 
     .custom-card {
-        background: rgba(30, 41, 59, 0.55) !important;
+        background: rgba(15, 23, 42, 0.75) !important;
         backdrop-filter: blur(16px) !important;
         -webkit-backdrop-filter: blur(16px) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -161,15 +168,12 @@ st.markdown("""
     /* Regolazione specifica per Mobile */
     @media (max-width: 768px) {
         .block-container {
-            padding-top: 0.5rem !important;
+            padding-top: 2.8rem !important;
             padding-left: 0.3rem !important;
             padding-right: 0.3rem !important;
         }
         .logo-container video {
-            max-width: 90% !important;
-        }
-        div[data-testid="stTabs"] {
-            margin-top: -0.8rem !important;
+            max-width: 95% !important;
         }
         .dashboard-grid {
             gap: 8px !important;
@@ -186,10 +190,10 @@ st.markdown("""
         }
     }
 
-    /* 8. TAB OPERATIVI TATTILI 3D */
+    /* 9. TAB OPERATIVI TATTILI 3D */
     .stTabs [data-baseweb="tab"] {
         font-family: 'Fredoka', sans-serif !important;
-        background: rgba(30, 41, 59, 0.6) !important;
+        background: rgba(15, 23, 42, 0.7) !important;
         border: 1px solid rgba(255, 255, 255, 0.05) !important;
         border-radius: 14px !important;
         color: #94a3b8 !important;
@@ -199,7 +203,7 @@ st.markdown("""
         transition: all 0.25s ease !important;
     }
     .stTabs [data-baseweb="tab"]:hover {
-        background: rgba(51, 65, 85, 0.8) !important;
+        background: rgba(30, 41, 59, 0.8) !important;
         color: #f8fafc !important;
         transform: translateY(-2px) !important;
     }
@@ -210,9 +214,9 @@ st.markdown("""
         box-shadow: 0 8px 20px rgba(37, 99, 235, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.3) !important;
     }
 
-    /* 9. CONTENITORI FORM ED EXPANDER GLASSMORPHISM */
+    /* 10. CONTENITORI FORM ED EXPANDER GLASSMORPHISM */
     div[data-testid="stForm"], div[data-testid="stExpander"] {
-        background: rgba(15, 23, 42, 0.6) !important;
+        background: rgba(15, 23, 42, 0.7) !important;
         backdrop-filter: blur(12px) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 16px !important;
@@ -225,7 +229,7 @@ st.markdown("""
         font-weight: 600 !important;
     }
 
-    /* 10. PULSANTI 3D ED EFFETTI HOVER */
+    /* 11. PULSANTI 3D ED EFFETTI HOVER */
     .stButton > button, button[kind="primary"] {
         font-family: 'Fredoka', sans-serif !important;
         background: linear-gradient(135deg, #0284c7 0%, #1d4ed8 100%) !important;
@@ -246,7 +250,7 @@ st.markdown("""
         box-shadow: 0 3px 10px rgba(2, 132, 199, 0.3) !important;
     }
 
-    /* 11. CONTROLLI INPUT, LABELS & SELECT */
+    /* 12. CONTROLLI INPUT, LABELS & SELECT */
     label, p, span, div {
         font-family: 'Fredoka', sans-serif !important;
     }
@@ -263,17 +267,17 @@ st.markdown("""
         box-shadow: 0 0 12px rgba(56, 189, 248, 0.3) !important;
     }
 
-    /* 12. TABELLE STYLING GLASS CON FREDOKA */
+    /* 13. TABELLE STYLING GLASS CON FREDOKA */
     div[data-testid="stDataFrame"] {
         font-family: 'Fredoka', sans-serif !important;
-        background: rgba(15, 23, 42, 0.5) !important;
+        background: rgba(15, 23, 42, 0.6) !important;
         border-radius: 14px !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         overflow: hidden !important;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
     }
 
-    /* 13. NOTIFICHE ED ALERT PERSONALIZZATI */
+    /* 14. NOTIFICHE ED ALERT PERSONALIZZATI */
     div[data-testid="stNotification"] {
         font-family: 'Fredoka', sans-serif !important;
         font-weight: 600 !important;
@@ -552,7 +556,6 @@ if video_b64:
         </div>
     """, unsafe_allow_html=True)
 else:
-    # Fallback su file immagine logo.png o Titolo
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
     else:
