@@ -288,7 +288,7 @@ def get_connection():
     return sqlite3.connect(DB_NAME, timeout=10)
 
 def init_db():
-    """Inizializza il database verificando le tabelle, impostazioni e garantendo le chiavi esterne."""
+    """Inizializza il database verificando le tabelle e impostazioni, senza inserire dati di esempio."""
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;")
@@ -328,7 +328,7 @@ def init_db():
         if 'data_completamento' not in colonne_lotti:
             cursor.execute("ALTER TABLE lotti ADD COLUMN data_completamento DATE")
 
-        # 3. Tabella Clienti (per mantenere l'anagrafica dei clienti aggiornata)
+        # 3. Tabella Clienti
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS clienti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -356,10 +356,14 @@ def init_db():
         )
         """)
 
-        # Popola tabella clienti con i clienti esistenti nello storico se la tabella è vuota
-        cursor.execute("SELECT COUNT(*) FROM clienti")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute("INSERT OR IGNORE INTO clienti (nome) SELECT DISTINCT cliente FROM movimenti WHERE cliente IS NOT NULL AND cliente != ''")
+        # 5. Tabella Impostazioni
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS impostazioni (
+            chiave TEXT PRIMARY KEY,
+            valore REAL NOT NULL
+        )
+        """)
+        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('soglia_esaurimento', 10.0)")
 
 init_db()
 
@@ -601,7 +605,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ------------------------------------------
-# TAB 1: CASSA (AUTOCOMPLETAMENTO DINAMICO CLIENTE)
+# TAB 1: CASSA
 # ------------------------------------------
 with tab1:
     st.subheader("💸 Cassa Operativa")
@@ -611,7 +615,7 @@ with tab1:
     prodotti_tutti_df = get_prodotti_df()
     
     if prodotti_tutti_df.empty:
-        st.warning("⚠️ Nessun prodotto presente in anagrafica. Crea prima un prodotto dal pannello 'Rifornimenti'.")
+        st.warning("⚠️ Nessun prodotto presente in anagrafica. Crea un nuovo prodotto o carica un lotto dalla scheda 'Rifornimenti'.")
     else:
         if tipo_operazione == "Vendita":
             prod_nome = st.selectbox("Seleziona Prodotto da Vendere", prodotti_tutti_df['nome'].tolist())
@@ -639,24 +643,18 @@ with tab1:
                     prezzo_unitario_calc = (totale_incassato / quantita_vendita) if quantita_vendita > 0 else 0.0
                     st.metric("Prezzo al Grammo Calcolato", f"€ {prezzo_unitario_calc:,.2f} / g")
                     
-                    # LOGICA AUTOCOMPLETAMENTO DINAMICO CLIENTE
                     clienti_esistenti = get_clienti_registrati()
-                    
-                    # Input di testo vuoto iniziale
                     input_cliente = st.text_input("Nome Cliente", value="", placeholder="Inizia a digitare il nome...")
                     
-                    # Filtra i suggerimenti in base a ciò che l'utente sta scrivendo
                     suggerimenti = []
                     if input_cliente.strip() != "":
                         suggerimenti = [c for c in clienti_esistenti if input_cliente.strip().lower() in c.lower()]
                     
-                    # Mostra suggerimenti se trovati
                     cliente_selezionato_suggerito = None
                     if suggerimenti:
                         cliente_selezionato_suggerito = st.selectbox("Suggerimenti Cliente", ["-- Seleziona o Continua a Scrivere --"] + suggerimenti, key="select_suggerimento_cliente")
 
                 if st.button("Conferma Vendita", key="btn_conferma_v"):
-                    # Determina il nome finale del cliente
                     if cliente_selezionato_suggerito and cliente_selezionato_suggerito != "-- Seleziona o Continua a Scrivere --":
                         nome_finale_cliente = cliente_selezionato_suggerito
                     elif input_cliente.strip() != "":
@@ -671,7 +669,6 @@ with tab1:
                     elif quantita_vendita > qta_tot_disp:
                         st.error(f"Quantità inserita ({quantita_vendita:,.1f} g) superiore alla disponibilità ({qta_tot_disp:,.1f} g).")
                     else:
-                        # Registra automaticamente il nuovo cliente se non esiste
                         aggiungi_cliente_se_nuovo(nome_finale_cliente)
 
                         with get_connection() as conn:
@@ -752,7 +749,7 @@ with tab1:
                         st.rerun()
 
 # ------------------------------------------
-# TAB 2: DASHBOARD & KPI
+# TAB 2: DASHBOARD
 # ------------------------------------------
 with tab2:
     st.subheader("📊 Dashboard & Analytics")
@@ -767,7 +764,6 @@ with tab2:
         incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
         margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
 
-        # GRIGLIA KPI CENTRATA
         st.markdown(f"""
         <div class="dashboard-grid">
             <div class="custom-card">
@@ -791,7 +787,6 @@ with tab2:
 
         st.markdown("---")
 
-        # STORICO PROGRESSIVO A LARGHEZZA PIENA
         st.subheader("📈 Storico Progressivo Operazioni")
         if movimenti_df.empty:
             st.info("Registra transazioni per generare il grafico.")
@@ -830,7 +825,7 @@ with tab3:
     report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_attuale)
     
     if report_lotti_df.empty:
-        st.info("Nessun lotto di rifornimento salvato.")
+        st.info("Nessun lotto o prodotto di rifornimento salvato. Usa i pannelli sottostanti per iniziare.")
     else:
         lotti_warning = report_lotti_df[report_lotti_df['stato_lotto'].str.contains("⚠️")]
         if not lotti_warning.empty:
@@ -876,7 +871,6 @@ with tab3:
 
     st.markdown("---")
     
-    # CONFIGURAZIONE SOGLIA ALERT CENTRATA
     col_cfg1, col_cfg2, col_cfg3 = st.columns([1, 2, 1])
     with col_cfg2:
         nuova_soglia = st.number_input(
@@ -893,23 +887,62 @@ with tab3:
 
     st.markdown("---")
     
-    # SEZIONE GESTIONE LOTTI E ANAGRAFICA CLEAN
     st.subheader("⚙️ Gestione Lotti e Anagrafica")
     st.write("Apri i pannelli sottostanti per inserire nuovi rifornimenti, eliminare lotti o aggiungere un nuovo prodotto:")
     
-    with st.expander("➕ Aggiungi un Nuovo Lotto / Rifornimento", expanded=False):
-        if prodotti_tutti_df.empty:
-            st.warning("Crea prima un prodotto in anagrafica nel pannello dedicato.")
+    with st.expander("➕ Aggiungi un Nuovo Prodotto e Rifornimento", expanded=False):
+        with st.form("form_nuovo_prodotto_lotto"):
+            nome_nuovo = st.text_input("Nome Prodotto", placeholder="Es. Nome Nuova Varietà / Prodotto")
+            cod_lotto_m = st.text_input("Codice Lotto", value=f"LOTTO-{datetime.now().strftime('%Y%m%d-%H%M')}")
+            qta_lotto_m = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
+            costo_u_lotto_m = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
+            prezzo_v_init = st.number_input("Prezzo di Vendita Standard (€/g)", min_value=0.1, value=2.0, step=0.5, format="%.2f")
+            scorta_min_init = st.number_input("Scorta Minima Alert (g)", min_value=0.0, value=50.0, step=10.0, format="%.1f")
+            data_acq_m = st.date_input("Data di Acquisto Lotto", value=date.today())
+
+            if st.form_submit_button("Crea Prodotto e Registra Lotto"):
+                if nome_nuovo.strip() == "":
+                    st.error("Inserisci un nome valido per il prodotto.")
+                else:
+                    try:
+                        with get_connection() as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("""
+                                INSERT INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) 
+                                VALUES (?, 'g', ?, ?)
+                            """, (nome_nuovo.strip(), prezzo_v_init, scorta_min_init))
+                            p_id = cursor.lastrowid
+                            
+                            cursor.execute("""
+                                INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                            """, (p_id, cod_lotto_m.strip(), qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today()))
+                            
+                            lotto_id = cursor.lastrowid
+                            cursor.execute("""
+                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, note)
+                                VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Primo Carico Lotto')
+                            """, (p_id, lotto_id, qta_lotto_m, costo_u_lotto_m, qta_lotto_m * costo_u_lotto_m))
+                            
+                        st.success(f"✅ Prodotto '{nome_nuovo}' e lotto '{cod_lotto_m}' creati con successo!")
+                        st.rerun()
+                    except sqlite3.IntegrityError:
+                        st.error("Un prodotto con questo nome esiste già in anagrafica.")
+
+    with st.expander("➕ Aggiungi Lotto a Prodotto Esistente", expanded=False):
+        prodotti_esistenti_df = get_prodotti_df()
+        if prodotti_esistenti_df.empty:
+            st.info("Nessun prodotto disponibile. Creane uno nuovo sopra.")
         else:
-            with st.form("form_lotto_manuale"):
-                p_nome_lotto = st.selectbox("Seleziona Prodotto", prodotti_tutti_df['nome'].tolist())
-                cod_lotto_m = st.text_input("Codice Lotto", value=f"LOTTO-MAN-{datetime.now().strftime('%Y%m%d-%H%M')}")
-                qta_lotto_m = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
-                costo_u_lotto_m = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
-                data_acq_m = st.date_input("Data di Acquisto Lotto", value=date.today())
+            with st.form("form_lotto_aggiuntivo"):
+                p_nome_lotto = st.selectbox("Seleziona Prodotto Esistente", prodotti_esistenti_df['nome'].tolist())
+                cod_lotto_add = st.text_input("Codice Lotto", value=f"LOTTO-{datetime.now().strftime('%Y%m%d-%H%M')}")
+                qta_lotto_add = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
+                costo_u_lotto_add = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
+                data_acq_add = st.date_input("Data di Acquisto", value=date.today(), key="date_acq_add")
                 
-                if st.form_submit_button("➕ Aggiungi Lotto"):
-                    p_row_m = prodotti_tutti_df[prodotti_tutti_df['nome'] == p_nome_lotto].iloc[0]
+                if st.form_submit_button("➕ Aggiungi Nuovo Lotto"):
+                    p_row_m = prodotti_esistenti_df[prodotti_esistenti_df['nome'] == p_nome_lotto].iloc[0]
                     p_id_m = int(p_row_m['id'])
                     
                     with get_connection() as conn:
@@ -917,15 +950,15 @@ with tab3:
                         cursor.execute("""
                             INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
                             VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (p_id_m, cod_lotto_m, qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today()))
+                        """, (p_id_m, cod_lotto_add.strip(), qta_lotto_add, qta_lotto_add, costo_u_lotto_add, data_acq_add, date.today()))
                         
                         lotto_id = cursor.lastrowid
                         cursor.execute("""
                             INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, note)
-                            VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Nuovo Lotto Manuale')
-                        """, (p_id_m, lotto_id, qta_lotto_m, costo_u_lotto_m, qta_lotto_m * costo_u_lotto_m))
+                            VALUES (?, ?, 'CARICO', ?, ?, ?, 'Fornitore', 'Rifornimento Lotto')
+                        """, (p_id_m, lotto_id, qta_lotto_add, costo_u_lotto_add, qta_lotto_add * costo_u_lotto_add))
                     
-                    st.success(f"✅ Lotto '{cod_lotto_m}' aggiunto con successo!")
+                    st.success(f"✅ Lotto '{cod_lotto_add}' aggiunto con successo al prodotto {p_nome_lotto}!")
                     st.rerun()
 
     with st.expander("🗑️ Rimuovi un Lotto Esistente", expanded=False):
@@ -947,45 +980,6 @@ with tab3:
                 elimina_lotto_db(id_lotto_scelto)
                 st.success(f"Lotto '{lotto_info['codice_lotto']}' rimosso!")
                 st.rerun()
-
-    with st.expander("➕ Crea Nuovo Prodotto in Anagrafica", expanded=False):
-        with st.form("form_nuovo_prodotto"):
-            nome_nuovo = st.text_input("Nome Prodotto", placeholder="Es. Zafferano, Spezia")
-            qta_iniziale = st.number_input("Quantità Iniziale (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
-            costo_u_init = st.number_input("Costo d'Acquisto al grammo (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
-            prezzo_v_init = st.number_input("Prezzo di Vendita al grammo (€/g)", min_value=0.1, value=2.0, step=0.5, format="%.2f")
-            scorta_min_init = st.number_input("Scorta Minima Alert (g)", min_value=0.0, value=100.0, step=10.0, format="%.1f")
-
-            if st.form_submit_button("Crea Prodotto"):
-                if nome_nuovo.strip() == "":
-                    st.error("Inserisci un nome valido.")
-                else:
-                    try:
-                        with get_connection() as conn:
-                            cursor = conn.cursor()
-                            cursor.execute("""
-                                INSERT INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) 
-                                VALUES (?, 'g', ?, ?)
-                            """, (nome_nuovo.strip(), prezzo_v_init, scorta_min_init))
-                            p_id = cursor.lastrowid
-                            
-                            if qta_iniziale > 0:
-                                codice_lotto = f"LOTTO-INIT-{datetime.now().strftime('%Y%m%d')}"
-                                cursor.execute("""
-                                    INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                                """, (p_id, codice_lotto, qta_iniziale, qta_iniziale, costo_u_init, date.today(), date.today()))
-                                
-                                lotto_id = cursor.lastrowid
-                                cursor.execute("""
-                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, cliente, note)
-                                    VALUES (?, ?, 'CARICO', ?, ?, ?, 'Iniziale', 'Inizializzazione Prodotto')
-                                """, (p_id, lotto_id, qta_iniziale, costo_u_init, qta_iniziale * costo_u_init))
-                                
-                        st.success(f"Prodotto '{nome_nuovo}' salvato con successo!")
-                        st.rerun()
-                    except sqlite3.IntegrityError:
-                        st.error("Un prodotto con questo nome esiste già.")
 
 # ------------------------------------------
 # TAB 4: REPORT & STORICO
@@ -1043,7 +1037,6 @@ with tab4:
 
         st.markdown("---")
         
-        # BLOCCO STORNO CLEAN
         st.subheader("🔄 Storno Movimento")
         with st.expander("🛠️ Annulla una transazione specifica", expanded=False):
             st.write("Selezionando una transazione, l'operazione verrà stornata e la quantità verrà restituita al lotto di origine.")
@@ -1066,7 +1059,6 @@ with tab4:
 
     st.markdown("---")
     
-    # BLOCCO RESET CLEAN
     st.subheader("⚙️ Reset Globale Database")
     with st.expander("🚨 Pulsante di Reset Totale Storico Transazioni", expanded=False):
         st.warning("Attenzione: l'operazione cancellerà definitivamente tutte le transazioni registrate nello storico.")
@@ -1095,7 +1087,7 @@ with tab4:
                     st.rerun()
 
 # ------------------------------------------
-# TAB 5: STATISTICHE CLIENTI & PREFERENZE
+# TAB 5: STATISTICHE
 # ------------------------------------------
 with tab5:
     st.subheader("📈 Statistiche Avanzate Clienti")
@@ -1106,7 +1098,6 @@ with tab5:
     if vendite_df.empty:
         st.info("Nessuna vendita registrata. Effettua acquisti dalla Cassa per visualizzare i report dei clienti.")
     else:
-        # 1. RIEPILOGO GENERALE TOP CLIENTI
         st.markdown("#### 🏆 Classifica Clienti")
         
         clienti_grouped = vendite_df.groupby('cliente').agg(
@@ -1129,7 +1120,6 @@ with tab5:
         
         st.markdown("---")
         
-        # 2. ANALISI PREFERENZE E DETTAGLI SINGOLO CLIENTE
         st.markdown("#### 👤 Dettaglio e Preferenze Cliente")
         lista_clienti = clienti_grouped['cliente'].tolist()
         
@@ -1138,7 +1128,6 @@ with tab5:
         if cliente_scelto:
             v_cliente = vendite_df[vendite_df['cliente'] == cliente_scelto]
             
-            # KPI SPECIFICI CLIENTE
             c1, c2, c3 = st.columns(3)
             tot_speso_c = v_cliente['ricavo_totale'].sum()
             tot_g_c = v_cliente['quantita'].sum()
@@ -1148,7 +1137,6 @@ with tab5:
             c2.metric("Totale Grammi", f"{tot_g_c:,.1f} g")
             c3.metric("Acquisti Effettuati", f"{num_acq_c}")
             
-            # CALCOLO PRODOTTO PREFERITO
             pref_prod = v_cliente.groupby('prodotto')['quantita'].sum().reset_index().sort_values('quantita', ascending=False)
             top_prod_nome = pref_prod.iloc[0]['prodotto']
             top_prod_g = pref_prod.iloc[0]['quantita']
@@ -1156,7 +1144,6 @@ with tab5:
             
             st.info(f"👑 **Prodotto Preferito**: **{top_prod_nome}** con **{top_prod_g:,.1f} g** acquistati ({perc_top:.1f}% del suo totale).")
             
-            # GRAFICO PREFERENZE PRODOTTO (GRAFICO A TORTA/DONUT)
             chart_pie = alt.Chart(pref_prod).mark_arc(innerRadius=40).encode(
                 theta=alt.Theta(field="quantita", type="quantitative"),
                 color=alt.Color(field="prodotto", type="nominal", legend=alt.Legend(title="Prodotto")),
@@ -1165,7 +1152,6 @@ with tab5:
             
             st.altair_chart(chart_pie, use_container_width=True)
             
-            # STORICO DEL CLIENTE SELEZIONATO
             with st.expander(f"📜 Storico Acquisti di {cliente_scelto}", expanded=False):
                 st.dataframe(
                     v_cliente[['data', 'prodotto', 'quantita', 'ricavo_totale', 'prezzo_unitario']],
