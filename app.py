@@ -27,7 +27,7 @@ def get_video_base64(file_path):
     return None
 
 # ==========================================
-# INIEZIONE CSS CUSTOM (SFONDO LOGO + ANIMAZIONI)
+# INIEZIONE CSS CUSTOM (SFONDO LOGO + ANIMAZIONI + CORREZIONI TESTO)
 # ==========================================
 st.markdown("""
 <style>
@@ -107,6 +107,9 @@ st.markdown("""
         color: #f1f5f9 !important;
         letter-spacing: 0.5px;
         text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5) !important;
+        line-height: 1.4 !important;
+        margin-top: 10px !important;
+        margin-bottom: 10px !important;
     }
 
     /* 8. CONTENITORE CUSTOM PER GRIGLIA 2x2 FORZATA IN HTML/CSS */
@@ -163,6 +166,17 @@ st.markdown("""
         color: #38bdf8 !important;
         text-shadow: 0 2px 6px rgba(56, 189, 248, 0.3);
         word-break: break-word !important;
+    }
+
+    /* FIX SOVRAPPOSIZIONE TESTI IN EXPANDER E SCHEDE */
+    div[data-testid="stExpander"] details summary {
+        font-family: 'Fredoka', sans-serif !important;
+        color: #e2e8f0 !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        padding-top: 8px !important;
+        padding-bottom: 8px !important;
+        line-height: 1.5 !important;
     }
 
     /* Regolazione specifica per Mobile */
@@ -222,11 +236,7 @@ st.markdown("""
         border-radius: 16px !important;
         box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4) !important;
         padding: 20px !important;
-    }
-    details summary {
-        font-family: 'Fredoka', sans-serif !important;
-        color: #e2e8f0 !important;
-        font-weight: 600 !important;
+        margin-bottom: 15px !important;
     }
 
     /* 11. PULSANTI 3D ED EFFETTI HOVER */
@@ -253,6 +263,7 @@ st.markdown("""
     /* 12. CONTROLLI INPUT, LABELS & SELECT */
     label, p, span, div {
         font-family: 'Fredoka', sans-serif !important;
+        line-height: 1.4 !important;
     }
     .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {
         font-family: 'Fredoka', sans-serif !important;
@@ -624,17 +635,15 @@ with tab1:
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    # CASSA PARTE SEMPRE DA 0 G
                     quantita_vendita = st.number_input("Quantità da Vendere (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
                     prezzo_vendita_unitario = st.number_input("Prezzo al grammo (€/g)", min_value=0.1, value=float(prod_row['valore_mercato_unitario']), step=0.5, format="%.2f")
                 
                 with col2:
-                    # AGGIORNAMENTO ISTANTANEO IN TEMPO REALE DEL TOTALE
                     totale_vendita = quantita_vendita * prezzo_vendita_unitario
                     st.metric("Totale", f"€ {totale_vendita:,.2f}")
                     note = st.text_input("Note (Opzionale)")
 
-                if st.button(" Conforma Vendita", key="btn_conferma_v"):
+                if st.button("Conferma Vendita", key="btn_conferma_v"):
                     if quantita_vendita <= 0:
                         st.error("Inserisci una quantità superiore a 0 g per registrare la vendita.")
                     elif quantita_vendita > qta_tot_disp:
@@ -675,7 +684,6 @@ with tab1:
                                     VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?)
                                 """, (p_id, l_id, prelievo, prezzo_vendita_unitario, ricavo_quota, costo_quota, margine_quota, f"Lotto {cod_lotto} | {note}".strip(" |")))
                         
-                        # ANIMAZIONE FUOCHI D'ARTIFICIO / CONFETTI
                         spara_fuochi_d_artificio()
                         st.success("✅ Vendita registrata e coordinata con i lotti e report!")
 
@@ -719,12 +727,11 @@ with tab1:
                         st.rerun()
 
 # ------------------------------------------
-# TAB 2: DASHBOARD & KPI (GRIGLIA HTML/CSS 2x2 FORZATA)
+# TAB 2: DASHBOARD & KPI
 # ------------------------------------------
 with tab2:
-    st.subheader("Dashboard & Analytics Integrata")
+    st.subheader("Dashboard & Analytics")
     df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
-    lotti_attivi_df = get_lotti_attivi_df()
     movimenti_df = get_movimenti_dettagliati_df()
 
     if df_stato_disp.empty and movimenti_df.empty:
@@ -759,56 +766,34 @@ with tab2:
 
         st.markdown("---")
 
-        col_g1, col_g2 = st.columns(2)
+        # STORICO PROGRESSIVO A LARGHEZZA PIENA (RIMOSSO GUADAGNO PER LOTTO)
+        st.subheader("📈 Storico Progressivo Operazioni")
+        if movimenti_df.empty:
+            st.info("Registra transazioni per generare il grafico.")
+        else:
+            mov_df = movimenti_df.copy()
+            mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
+            mov_df = mov_df.sort_values('Data_Ora')
+            
+            mov_df['Spesi Totali'] = mov_df.apply(lambda r: r['costo_totale'] if r['tipo'] == 'CARICO' else 0, axis=1).cumsum()
+            mov_df['Incasso Totale'] = mov_df['ricavo_totale'].cumsum()
+            mov_df['Margine Netto'] = mov_df['margine'].cumsum()
+            
+            chart_df = mov_df.melt(
+                id_vars=['Data_Ora', 'prodotto', 'tipo'],
+                value_vars=['Spesi Totali', 'Incasso Totale', 'Margine Netto'],
+                var_name='Metrica',
+                value_name='Valore (€)'
+            )
 
-        with col_g1:
-            st.subheader("📈 Storico Progressivo Operazioni")
-            if movimenti_df.empty:
-                st.info("Registra transazioni per generare il grafico.")
-            else:
-                mov_df = movimenti_df.copy()
-                mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
-                mov_df = mov_df.sort_values('Data_Ora')
-                
-                mov_df['Spesi Totali'] = mov_df.apply(lambda r: r['costo_totale'] if r['tipo'] == 'CARICO' else 0, axis=1).cumsum()
-                mov_df['Incasso Totale'] = mov_df['ricavo_totale'].cumsum()
-                mov_df['Margine Netto'] = mov_df['margine'].cumsum()
-                
-                chart_df = mov_df.melt(
-                    id_vars=['Data_Ora', 'prodotto', 'tipo'],
-                    value_vars=['Spesi Totali', 'Incasso Totale', 'Margine Netto'],
-                    var_name='Metrica',
-                    value_name='Valore (€)'
-                )
+            chart = alt.Chart(chart_df).mark_line(point=True, strokeWidth=3).encode(
+                x=alt.X('Data_Ora:T', title='Data e Ora Transazione'),
+                y=alt.Y('Valore (€):Q', title='Importo (€)'),
+                color=alt.Color('Metrica:N', scale=alt.Scale(domain=['Spesi Totali', 'Incasso Totale', 'Margine Netto'], range=['#ff4757', '#2ed573', '#38bdf8']), legend=alt.Legend(title="Legenda")),
+                tooltip=['Data_Ora:T', 'prodotto:N', 'tipo:N', 'Metrica:N', 'Valore (€):Q']
+            ).properties(height=420).configure_view(strokeWidth=0).configure_axis(gridColor='rgba(255,255,255,0.05)', labelColor='#94a3b8', titleColor='#f8fafc').interactive()
 
-                chart = alt.Chart(chart_df).mark_line(point=True, strokeWidth=3).encode(
-                    x=alt.X('Data_Ora:T', title='Data e Ora Transazione'),
-                    y=alt.Y('Valore (€):Q', title='Importo (€)'),
-                    color=alt.Color('Metrica:N', scale=alt.Scale(domain=['Spesi Totali', 'Incasso Totale', 'Margine Netto'], range=['#ff4757', '#2ed573', '#38bdf8']), legend=alt.Legend(title="Legenda")),
-                    tooltip=['Data_Ora:T', 'prodotto:N', 'tipo:N', 'Metrica:N', 'Valore (€):Q']
-                ).properties(height=380).configure_view(strokeWidth=0).configure_axis(gridColor='rgba(255,255,255,0.05)', labelColor='#94a3b8', titleColor='#f8fafc').interactive()
-
-                st.altair_chart(chart, use_container_width=True)
-
-        with col_g2:
-            st.subheader("📊 Guadagno Netto Reale per Lotto")
-            soglia_salvata = get_soglia_esaurimento()
-            report_lotti = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_salvata)
-            if report_lotti.empty:
-                st.info("Nessun lotto disponibile per il grafico.")
-            else:
-                chart_lotti = alt.Chart(report_lotti).mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6).encode(
-                    x=alt.X('codice_lotto:N', title='Codice Lotto', sort=None),
-                    y=alt.Y('guadagno_netto_lotto:Q', title='Guadagno Netto Realizzato (€)'),
-                    color=alt.condition(
-                        alt.datum.guadagno_netto_lotto >= 0,
-                        alt.value("#2ed573"),
-                        alt.value("#ff4757")
-                    ),
-                    tooltip=['codice_lotto:N', 'prodotto:N', 'costo_totale_lotto:Q', 'incasso_totale_lotto:Q', 'guadagno_netto_lotto:Q']
-                ).properties(height=380).configure_view(strokeWidth=0).configure_axis(gridColor='rgba(255,255,255,0.05)', labelColor='#94a3b8', titleColor='#f8fafc')
-
-                st.altair_chart(chart_lotti, use_container_width=True)
+            st.altair_chart(chart, use_container_width=True)
 
 # ------------------------------------------
 # TAB 3: RIFORNI MENTI
@@ -881,101 +866,100 @@ with tab3:
 
     st.markdown("---")
     
-    st.subheader("⚙️ Gestione Lotti e Anagrafica Prodotti")
+    # SEZIONE GESTIONE LOTTI E ANAGRAFICA SENZA SOVRAPPOSIZIONI
+    st.markdown("### ⚙️ Gestione Lotti e Anagrafica")
+    st.write("Usa i pannelli sottostanti per gestire le scorte dei lotti e aggiungere nuovi prodotti:")
     
-    col_l1, col_l2 = st.columns(2)
-    
-    with col_l1:
-        with st.expander("➕ **Aggiungi un Nuovo Lotto / Rifornimento**", expanded=False):
-            if prodotti_tutti_df.empty:
-                st.warning("Crea prima un prodotto in anagrafica nel pannello qui accanto.")
-            else:
-                with st.form("form_lotto_manuale"):
-                    p_nome_lotto = st.selectbox("Seleziona Prodotto", prodotti_tutti_df['nome'].tolist())
-                    cod_lotto_m = st.text_input("Codice Lotto", value=f"LOTTO-MAN-{datetime.now().strftime('%Y%m%d-%H%M')}")
-                    qta_lotto_m = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
-                    costo_u_lotto_m = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
-                    data_acq_m = st.date_input("Data di Acquisto Lotto", value=date.today())
+    # OPZIONI VISUALIZZATE IN BLOCCHI SEPARATI SPAZIOSI
+    with st.expander("➕ **Aggiungi un Nuovo Lotto / Rifornimento**", expanded=False):
+        if prodotti_tutti_df.empty:
+            st.warning("Crea prima un prodotto in anagrafica nel pannello dedicato.")
+        else:
+            with st.form("form_lotto_manuale"):
+                p_nome_lotto = st.selectbox("Seleziona Prodotto", prodotti_tutti_df['nome'].tolist())
+                cod_lotto_m = st.text_input("Codice Lotto", value=f"LOTTO-MAN-{datetime.now().strftime('%Y%m%d-%H%M')}")
+                qta_lotto_m = st.number_input("Quantità Lotto (g)", min_value=0.5, value=500.0, step=0.5, format="%.1f")
+                costo_u_lotto_m = st.number_input("Costo Unitario d'Acquisto (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
+                data_acq_m = st.date_input("Data di Acquisto Lotto", value=date.today())
+                
+                if st.form_submit_button("➕ Aggiungi Lotto"):
+                    p_row_m = prodotti_tutti_df[prodotti_tutti_df['nome'] == p_nome_lotto].iloc[0]
+                    p_id_m = int(p_row_m['id'])
                     
-                    if st.form_submit_button("➕ Aggiungi Lotto"):
-                        p_row_m = prodotti_tutti_df[prodotti_tutti_df['nome'] == p_nome_lotto].iloc[0]
-                        p_id_m = int(p_row_m['id'])
+                    with get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (p_id_m, cod_lotto_m, qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today()))
                         
+                        lotto_id = cursor.lastrowid
+                        cursor.execute("""
+                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, note)
+                            VALUES (?, ?, 'CARICO', ?, ?, ?, 'Nuovo Lotto Manuale')
+                        """, (p_id_m, lotto_id, qta_lotto_m, costo_u_lotto_m, qta_lotto_m * costo_u_lotto_m))
+                    
+                    st.success(f"✅ Lotto '{cod_lotto_m}' aggiunto con successo!")
+                    st.rerun()
+
+    with st.expander("🗑️ **Rimuovi un Lotto Esistente**", expanded=False):
+        if report_lotti_df.empty:
+            st.info("Nessun lotto presente da rimuovere.")
+        else:
+            opzioni_lotti_gest = {
+                f"ID {r['lotto_id']} | {r['prodotto']} - {r['codice_lotto']} (Residuo: {r['quantita_attuale']:,.1f} g | Status: {r['stato_lotto']})": r['lotto_id']
+                for _, r in report_lotti_df.iterrows()
+            }
+            
+            label_lotto_scelto = st.selectbox("Seleziona Lotto da Eliminare", list(opzioni_lotti_gest.keys()))
+            id_lotto_scelto = opzioni_lotti_gest[label_lotto_scelto]
+            lotto_info = report_lotti_df[report_lotti_df['lotto_id'] == id_lotto_scelto].iloc[0]
+            
+            st.caption(f"Eliminando il lotto **{lotto_info['codice_lotto']}**, i dati storici delle vendite rimarranno salvati nel database.")
+            
+            if st.button("🗑️ Rimuovi Definitivamente Lotto"):
+                elimina_lotto_db(id_lotto_scelto)
+                st.success(f"Lotto '{lotto_info['codice_lotto']}' rimosso!")
+                st.rerun()
+
+    with st.expander("➕ **Crea Nuovo Prodotto in Anagrafica**", expanded=False):
+        with st.form("form_nuovo_prodotto"):
+            nome_nuovo = st.text_input("Nome Prodotto", placeholder="Es. Zafferano, Spezia")
+            qta_iniziale = st.number_input("Quantità Iniziale (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
+            costo_u_init = st.number_input("Costo d'Acquisto al grammo (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
+            prezzo_v_init = st.number_input("Prezzo di Vendita al grammo (€/g)", min_value=0.1, value=2.0, step=0.5, format="%.2f")
+            scorta_min_init = st.number_input("Scorta Minima Alert (g)", min_value=0.0, value=100.0, step=10.0, format="%.1f")
+
+            if st.form_submit_button("Crea Prodotto"):
+                if nome_nuovo.strip() == "":
+                    st.error("Inserisci un nome valido.")
+                else:
+                    try:
                         with get_connection() as conn:
                             cursor = conn.cursor()
                             cursor.execute("""
-                                INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
-                                VALUES (?, ?, ?, ?, ?, ?, ?)
-                            """, (p_id_m, cod_lotto_m, qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today()))
+                                INSERT INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) 
+                                VALUES (?, 'g', ?, ?)
+                            """, (nome_nuovo.strip(), prezzo_v_init, scorta_min_init))
+                            p_id = cursor.lastrowid
                             
-                            lotto_id = cursor.lastrowid
-                            cursor.execute("""
-                                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, note)
-                                VALUES (?, ?, 'CARICO', ?, ?, ?, 'Nuovo Lotto Manuale')
-                            """, (p_id_m, lotto_id, qta_lotto_m, costo_u_lotto_m, qta_lotto_m * costo_u_lotto_m))
-                        
-                        st.success(f"✅ Lotto '{cod_lotto_m}' aggiunto con successo!")
-                        st.rerun()
-
-        with st.expander("🗑️ **Rimuovi un Lotto Esistente**", expanded=False):
-            if report_lotti_df.empty:
-                st.info("Nessun lotto presente da rimuovere.")
-            else:
-                opzioni_lotti_gest = {
-                    f"ID {r['lotto_id']} | {r['prodotto']} - {r['codice_lotto']} (Residuo: {r['quantita_attuale']:,.1f} g | Status: {r['stato_lotto']})": r['lotto_id']
-                    for _, r in report_lotti_df.iterrows()
-                }
-                
-                label_lotto_scelto = st.selectbox("Seleziona Lotto da Eliminare", list(opzioni_lotti_gest.keys()))
-                id_lotto_scelto = opzioni_lotti_gest[label_lotto_scelto]
-                lotto_info = report_lotti_df[report_lotti_df['lotto_id'] == id_lotto_scelto].iloc[0]
-                
-                st.caption(f"Eliminando il lotto **{lotto_info['codice_lotto']}**, i dati storici delle vendite rimarranno salvati nel database.")
-                
-                if st.button("🗑️ Rimuovi Definitivamente Lotto"):
-                    elimina_lotto_db(id_lotto_scelto)
-                    st.success(f"Lotto '{lotto_info['codice_lotto']}' rimosso!")
-                    st.rerun()
-
-    with col_l2:
-        with st.expander("➕ **Crea Nuovo Prodotto in Anagrafica**", expanded=False):
-            with st.form("form_nuovo_prodotto"):
-                nome_nuovo = st.text_input("Nome Prodotto", placeholder="Es. Zafferano, Spezia")
-                qta_iniziale = st.number_input("Quantità Iniziale (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
-                costo_u_init = st.number_input("Costo d'Acquisto al grammo (€/g)", min_value=0.1, value=1.0, step=0.5, format="%.2f")
-                prezzo_v_init = st.number_input("Prezzo di Vendita al grammo (€/g)", min_value=0.1, value=2.0, step=0.5, format="%.2f")
-                scorta_min_init = st.number_input("Scorta Minima Alert (g)", min_value=0.0, value=100.0, step=10.0, format="%.1f")
-
-                if st.form_submit_button("Crea Prodotto"):
-                    if nome_nuovo.strip() == "":
-                        st.error("Inserisci un nome valido.")
-                    else:
-                        try:
-                            with get_connection() as conn:
-                                cursor = conn.cursor()
+                            if qta_iniziale > 0:
+                                codice_lotto = f"LOTTO-INIT-{datetime.now().strftime('%Y%m%d')}"
                                 cursor.execute("""
-                                    INSERT INTO prodotti (nome, unita_misura, valore_mercato_unitario, scorta_minima_g) 
-                                    VALUES (?, 'g', ?, ?)
-                                """, (nome_nuovo.strip(), prezzo_v_init, scorta_min_init))
-                                p_id = cursor.lastrowid
+                                    INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                                """, (p_id, codice_lotto, qta_iniziale, qta_iniziale, costo_u_init, date.today(), date.today()))
                                 
-                                if qta_iniziale > 0:
-                                    codice_lotto = f"LOTTO-INIT-{datetime.now().strftime('%Y%m%d')}"
-                                    cursor.execute("""
-                                        INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?)
-                                    """, (p_id, codice_lotto, qta_iniziale, qta_iniziale, costo_u_init, date.today(), date.today()))
-                                    
-                                    lotto_id = cursor.lastrowid
-                                    cursor.execute("""
-                                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, note)
-                                        VALUES (?, ?, 'CARICO', ?, ?, ?, 'Inizializzazione Prodotto')
-                                    """, (p_id, lotto_id, qta_iniziale, costo_u_init, qta_iniziale * costo_u_init))
-                                    
-                            st.success(f"Prodotto '{nome_nuovo}' salvato con successo!")
-                            st.rerun()
-                        except sqlite3.IntegrityError:
-                            st.error("Un prodotto con questo nome esiste già.")
+                                lotto_id = cursor.lastrowid
+                                cursor.execute("""
+                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, costo_totale, note)
+                                    VALUES (?, ?, 'CARICO', ?, ?, ?, 'Inizializzazione Prodotto')
+                                """, (p_id, lotto_id, qta_iniziale, costo_u_init, qta_iniziale * costo_u_init))
+                                
+                        st.success(f"Prodotto '{nome_nuovo}' salvato con successo!")
+                        st.rerun()
+                    except sqlite3.IntegrityError:
+                        st.error("Un prodotto con questo nome esiste già.")
 
 # ------------------------------------------
 # TAB 4: REPORT & STORICO
