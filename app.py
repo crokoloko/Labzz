@@ -1,4 +1,6 @@
 import sqlite3
+import base64
+import os
 from datetime import datetime, date
 import pandas as pd
 import streamlit as st
@@ -12,6 +14,17 @@ st.set_page_config(
     page_icon="📦",
     layout="wide"
 )
+
+# ==========================================
+# FUNZIONE CARICAMENTO VIDEO BASE64 PER LOGO
+# ==========================================
+def get_video_base64(file_path):
+    """Legge il file video e lo converte in stringa Base64 per l'embedding HTML."""
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode('utf-8')
+    return None
 
 # ==========================================
 # INIEZIONE CSS CUSTOM (FONTS + DARK MODE 3D / GLASSMORPHISM)
@@ -52,6 +65,7 @@ st.markdown("""
         height: auto !important;
         border-radius: 16px !important;
         filter: drop-shadow(0 0 20px rgba(56, 189, 248, 0.4));
+        object-fit: contain !important;
     }
 
     /* 5. AZZERAMENTO SPAZIO SOPRA I TAB (SCHEDE) */
@@ -521,18 +535,23 @@ def elimina_lotto_db(lotto_id):
 # INTERFACCIA UTENTE (STREAMLIT)
 # ==========================================
 
-# HEADER LOGO ANIMATO MP4 (RIPRODUZIONE CONTINUA TIPO GIF)
-try:
-    st.markdown("""
+# HEADER LOGO ANIMATO MP4 CONVERTITO IN BASE64
+video_b64 = get_video_base64("logo.gif.mp4")
+
+if video_b64:
+    st.markdown(f"""
         <div class="logo-container">
             <video autoplay loop muted playsinline>
-                <source src="logo.gif.mp4" type="video/mp4">
-                Il tuo browser non supporta la riproduzione video.
+                <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
             </video>
         </div>
     """, unsafe_allow_html=True)
-except Exception:
-    st.title("LaBzz")
+else:
+    # Fallback su file immagine logo.png o Titolo
+    if os.path.exists("logo.png"):
+        st.image("logo.png", use_container_width=True)
+    else:
+        st.title("LaBzz")
 
 tab1, tab2, tab3, tab4 = st.tabs([
     "💸 Cassa", 
