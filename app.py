@@ -783,14 +783,20 @@ with tab2:
     else:
         val_costo = df_stato_disp['valore_totale_costo'].sum() if not df_stato_disp.empty else 0
         val_mercato = df_stato_disp['valore_totale_mercato'].sum() if not df_stato_disp.empty else 0
+        
+        # Calcolo corretto della cassa partendo da 500 € netti iniziali
         incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
+        costi_lotti_tot = movimenti_df[movimenti_df['tipo'] == 'CARICO']['costo_totale'].sum() if not movimenti_df.empty else 0
+        costi_xme_tot = movimenti_df[movimenti_df['tipo'] == 'XME']['costo_totale'].sum() if not movimenti_df.empty else 0
+        cassa_reale = 500.0 + incasso_tot - costi_lotti_tot - costi_xme_tot
+
         margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
 
         st.markdown(f"""
         <div class="dashboard-grid">
             <div class="custom-card">
-                <div class="card-label">Valore (Costo)</div>
-                <div class="card-value">€ {val_costo:,.2f}</div>
+                <div class="card-label">Cassa Attuale</div>
+                <div class="card-value">€ {cassa_reale:,.2f}</div>
             </div>
             <div class="custom-card">
                 <div class="card-label">Valore (Vendita)</div>
@@ -1060,6 +1066,7 @@ with tab6:
                 st.session_state["scelta_in_sospeso"] = None
                 st.session_state["simulazione_attiva"] = True
                 st.session_state["simulazione_in_pausa"] = False
+                st.session_state["giorni_simulati"] = 0
                 
                 with get_connection() as conn:
                     cursor = conn.cursor()
