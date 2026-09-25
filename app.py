@@ -43,7 +43,7 @@ st.markdown("""
         justify-content: center !important;
         align-items: center !important;
         width: 100% !important;
-        margin: 0 auto 0rem auto !important; /* Margine inferiore azzerato */
+        margin: 0 auto 0rem auto !important;
         padding: 0 !important;
     }
 
@@ -59,7 +59,7 @@ st.markdown("""
 
     /* 5. AZZERAMENTO SPAZIO SOPRA I TAB (SCHEDE) */
     div[data-testid="stTabs"] {
-        margin-top: -0.5rem !important; /* Elimina lo spazio tra il logo e le schede */
+        margin-top: -0.5rem !important;
         padding-top: 0rem !important;
     }
 
@@ -68,21 +68,6 @@ st.markdown("""
         background-color: transparent !important;
         border-bottom: none !important;
         padding: 0px 0 8px 0 !important;
-    }
-
-    /* Regolazione specifica per Mobile */
-    @media (max-width: 768px) {
-        .block-container {
-            padding-top: 0.5rem !important;
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
-        }
-        div[data-testid="stImage"] > img {
-            max-width: 90% !important;
-        }
-        div[data-testid="stTabs"] {
-            margin-top: -0.8rem !important; /* Compressione ulteriore per schermi piccoli */
-        }
     }
 
     /* 6. TITOLI E INTESTAZIONI 3D CON TITAN ONE */
@@ -101,38 +86,80 @@ st.markdown("""
         text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.5) !important;
     }
 
-    /* 7. CARD METRICHE STILE 3D GLASSMORPHISM */
+    /* 7. CARD METRICHE COMPATTE A FORMA DI QUADRATINO (GLASSMORPHISM 3D) */
     div[data-testid="stMetric"] {
         background: rgba(30, 41, 59, 0.55) !important;
         backdrop-filter: blur(16px) !important;
         -webkit-backdrop-filter: blur(16px) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 18px !important;
-        padding: 20px 24px !important;
-        box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5), 
+        border-radius: 16px !important;
+        padding: 12px 10px !important;
+        box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.5), 
                     inset 0 1px 1px 0 rgba(255, 255, 255, 0.1) !important;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        
+        /* Forza la forma quadrata e compattata */
+        aspect-ratio: 1 / 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        text-align: center !important;
+        margin: 0 auto !important;
+        max-width: 160px !important;
+        width: 100% !important;
     }
+
     div[data-testid="stMetric"]:hover {
-        transform: translateY(-6px) !important;
+        transform: translateY(-4px) !important;
         border-color: rgba(56, 189, 248, 0.5) !important;
-        box-shadow: 0 20px 35px -5px rgba(0, 0, 0, 0.7), 
-                    0 0 20px rgba(56, 189, 248, 0.25) !important;
+        box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.7), 
+                    0 0 15px rgba(56, 189, 248, 0.25) !important;
     }
+
     div[data-testid="stMetricValue"] {
         font-family: 'Fredoka', sans-serif !important;
-        font-size: 2.1rem !important;
+        font-size: 1.35rem !important; /* Dimensione adeguata al quadratino */
         font-weight: 700 !important;
         color: #38bdf8 !important;
-        text-shadow: 0 2px 10px rgba(56, 189, 248, 0.3);
+        text-shadow: 0 2px 8px rgba(56, 189, 248, 0.3);
+        word-break: break-word !important;
+        margin-top: 4px !important;
     }
+
     div[data-testid="stMetricLabel"] {
         font-family: 'Fredoka', sans-serif !important;
         color: #94a3b8 !important;
-        font-size: 0.95rem !important;
+        font-size: 0.75rem !important; /* Etichetta più piccola e compatta */
         font-weight: 600 !important;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.3px;
+        line-height: 1.1 !important;
+    }
+
+    /* Regolazione specifica per Mobile */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-top: 0.5rem !important;
+            padding-left: 0.5rem !important;
+            padding-right: 0.5rem !important;
+        }
+        div[data-testid="stImage"] > img {
+            max-width: 90% !important;
+        }
+        div[data-testid="stTabs"] {
+            margin-top: -0.8rem !important;
+        }
+        div[data-testid="stMetric"] {
+            max-width: 130px !important;
+            padding: 8px 6px !important;
+        }
+        div[data-testid="stMetricValue"] {
+            font-size: 1.15rem !important;
+        }
+        div[data-testid="stMetricLabel"] {
+            font-size: 0.7rem !important;
+        }
     }
 
     /* 8. TAB OPERATIVI TATTILI 3D */
@@ -643,10 +670,10 @@ with tab2:
         incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
         margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
 
-        col1.metric("Valore Magazzino (Costo)", f"€ {val_costo:,.2f}")
-        col2.metric("Valore Magazzino (Vendita)", f"€ {val_mercato:,.2f}")
-        col3.metric("Incasso Totale Vendite", f"€ {incasso_tot:,.2f}")
-        col4.metric("Margine Netto Effettivo", f"€ {margine_tot:,.2f}")
+        col1.metric("Valore (Costo)", f"€ {val_costo:,.2f}")
+        col2.metric("Valore (Vendita)", f"€ {val_mercato:,.2f}")
+        col3.metric("Incasso Totale", f"€ {incasso_tot:,.2f}")
+        col4.metric("Margine Netto", f"€ {margine_tot:,.2f}")
 
         st.markdown("---")
 
