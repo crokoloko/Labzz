@@ -370,6 +370,12 @@ def reset_database_totale():
         cursor.execute("DELETE FROM lotti")
         cursor.execute("DELETE FROM prodotti")
         cursor.execute("DELETE FROM clienti")
+    # Pulisce anche lo stato di sessione del bot
+    st.session_state["simulazione_attiva"] = False
+    st.session_state["simulazione_in_pausa"] = False
+    st.session_state["giorni_simulati"] = 0
+    st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
+    st.session_state["scelta_in_sospeso"] = None
 
 def get_soglia_esaurimento():
     with get_connection() as conn:
@@ -787,6 +793,8 @@ with tab2:
         incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
         costi_lotti_tot = movimenti_df[movimenti_df['tipo'] == 'CARICO']['costo_totale'].sum() if not movimenti_df.empty else 0
         costi_xme_tot = movimenti_df[movimenti_df['tipo'] == 'XME']['costo_totale'].sum() if not movimenti_df.empty else 0
+        
+        # Cassa reale: parte da 500 € netti di base e calcola solo i movimenti reali (senza stipendi bot fittizi)
         cassa_reale = 500.0 + incasso_tot - costi_lotti_tot - costi_xme_tot
 
         margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
@@ -1122,11 +1130,6 @@ with tab6:
     with col_btn3:
         if st.button("🗑️ RESET TOTALE DATI", use_container_width=True):
             reset_database_totale()
-            st.session_state["simulazione_attiva"] = False
-            st.session_state["simulazione_in_pausa"] = False
-            st.session_state["giorni_simulati"] = 0
-            st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
-            st.session_state["scelta_in_sospeso"] = None
             st.success("✅ Reset generale completato con successo!")
             st.rerun()
 
@@ -1213,25 +1216,15 @@ with tab6:
                 else:
                     st.session_state["ultime_notizie"].append(random.choice(notizie_live_pool))
 
-                # ACCREDITO STIPENDIO MENSILE
+                # ACCREDITO STIPENDIO MENSILE (narrativo/simulativo)
                 if data_corrente.day == 1:
-                    azione_principale_avvenuta = True
                     stipendio_netto = random.uniform(1650.0, 1800.0)
-                    cursor.execute("""
-                        INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
-                        VALUES (1, 'VENDITA', 0, 0, ?, 0, ?, 'Fabbrica', 'Subito', 'Accredito Stipendio Mensile', ?)
-                    """, (stipendio_netto, stipendio_netto, ts_giorno))
                     trigger_tiktok_effect("#38bdf8")
                     st.session_state["ultime_notizie"].append(f"💶 STIPENDIO DI FABBRICA: Bonifico di € {stipendio_netto:,.2f} accreditato sul conto di {p_name}!")
 
                 # TREDICESIMA A DICEMBRE
                 if data_corrente.month == 12 and data_corrente.day == 15:
-                    azione_principale_avvenuta = True
                     tredicesima = random.uniform(1650.0, 1800.0)
-                    cursor.execute("""
-                        INSERT INTO movimenti (prodotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note, data)
-                        VALUES (1, 'VENDITA', 0, 0, ?, 0, ?, 'Fabbrica', 'Subito', 'Accredito Tredicesima', ?)
-                    """, (tredicesima, tredicesima, ts_giorno))
                     trigger_tiktok_effect("#38bdf8")
                     st.session_state["ultime_notizie"].append(f"🎄 TREDICESIMA: Arrivata la tanto attesa tredicesima di € {tredicesima:,.2f} per {p_name}!")
 
@@ -1249,7 +1242,7 @@ with tab6:
                 cursor.execute("SELECT SUM(quantita_attuale) FROM lotti")
                 giacenza_totale = cursor.fetchone()[0] or 0.0
 
-                cursor.execute("SELECT SUM(ricavo_totale) FROM movimenti WHERE tipo = 'VENDITA' OR note LIKE '%Stipendio%' OR note LIKE '%Tredicesima%' OR note LIKE '%Premio%'")
+                cursor.execute("SELECT SUM(ricavo_totale) FROM movimenti WHERE tipo = 'VENDITA'")
                 incassi_totali = cursor.fetchone()[0] or 0.0
                 
                 cursor.execute("SELECT SUM(costo_totale) FROM movimenti WHERE tipo = 'CARICO'")
@@ -1359,7 +1352,7 @@ with tab6:
                                     costo_totale = 50.0
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nuova_qta == 0 else None
+                                    data_comp = data_corrente if nueva_qta == 0 else None
 
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                     cliente = random.choice(clienti_disponibili)
@@ -1392,7 +1385,7 @@ with tab6:
                                     costo_totale = 20.0
                                     margine = ricavo_totale - costo_totale
                                     nuova_qta = qta_disp - qta_vendita
-                                    data_comp = data_corrente if nuova_qta == 0 else None
+                                    data_comp = data_corrente if nueva_qta == 0 else None
 
                                     cursor.execute("UPDATE lotti SET quantita_attuale = ?, data_completamento = ? WHERE id = ?", (nuova_qta, data_comp, l_id))
                                     cliente = random.choice(clienti_disponibili)
@@ -1421,10 +1414,5 @@ with tab6:
     
     if st.button("🗑️ ESEGUI RESET GENERALE DI TUTTI I DATI", use_container_width=True):
         reset_database_totale()
-        st.session_state["simulazione_attiva"] = False
-        st.session_state["simulazione_in_pausa"] = False
-        st.session_state["giorni_simulati"] = 0
-        st.session_state["ultime_notizie"] = ["Benvenuto in questo pazzo mondo del cazzo."]
-        st.session_state["scelta_in_sospeso"] = None
         st.success("✅ Reset generale completato con successo!")
         st.rerun()
