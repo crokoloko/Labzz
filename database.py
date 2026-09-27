@@ -1,5 +1,4 @@
 import sqlite3
-from datetime import date
 import pandas as pd
 
 DB_NAME = "magazzino.db"
