@@ -830,7 +830,6 @@ with tab1:
         tipo_operazione = st.radio("Seleziona Modalità", ["Incontra Cliente (Manuale)", "Automazione Turno AI", "XME (Perk)"], horizontal=True)
         
         if tipo_operazione == "Incontra Cliente (Manuale)":
-            # LOG / REGISTRO EVENTI SPOSTATO SOPRA LA LISTA DEL CLIENTE
             st.markdown("##### 📜 Registro Eventi Turno")
             with st.container(border=True):
                 for log in st.session_state.log_gioco[:10]:
@@ -1049,9 +1048,15 @@ with tab1:
                         st.rerun()
 
     # --------------------------------------
-    # COLONNA 2: LEDGER LIVE & EVENT LOG
+    # COLONNA 2: REGISTRO EVENTI SOPRA, LEDGER IN FONDO
     # --------------------------------------
     with col_ledger:
+        st.subheader("📜 Registro Eventi Turno")
+        with st.container(border=True):
+            for log in st.session_state.log_gioco[:10]:
+                st.caption(log)
+
+        st.markdown("---")
         st.subheader("📖 Ledger & Movimenti Live")
         
         movimenti_df = get_movimenti_dettagliati_df()
@@ -1064,11 +1069,6 @@ with tab1:
             )
         else:
             st.info("Nessun movimento registrato nel ledger.")
-
-        st.markdown("##### 📜 Registro Eventi Turno")
-        with st.container(border=True):
-            for log in st.session_state.log_gioco[:10]:
-                st.caption(log)
 
 # ------------------------------------------
 # TAB 2: DASHBOARD & ANALYTICS
