@@ -191,18 +191,14 @@ def get_movimenti_dettagliati_df():
             m.id, 
             m.data, 
             p.nome AS prodotto, 
-            COALESCE(l.codice_lotto, 'N/D - Lotto Rimosso') AS codice_lotto,
+            COALESCE(l.codice_lotto, 'N/D') AS lotto,
             m.tipo, 
             m.quantita, 
-            'g' AS unita_misura,
-            m.prezzo_unitario, 
-            m.ricavo_totale, 
-            m.costo_totale, 
+            m.prezzo_unitario AS prezzo_g, 
+            m.ricavo_totale AS incasso, 
             m.margine, 
             COALESCE(m.cliente, 'Anonimo') AS cliente,
-            COALESCE(m.pagamento, 'Subito') AS pagamento,
-            m.note, 
-            m.lotto_id
+            COALESCE(m.pagamento, 'Subito') AS stato_pagamento
         FROM movimenti m
         JOIN prodotti p ON m.prodotto_id = p.id
         LEFT JOIN lotti l ON m.lotto_id = l.id
@@ -270,12 +266,6 @@ def segna_debito_pagato(nome_cliente):
         cursor = conn.cursor()
         cursor.execute("UPDATE movimenti SET pagamento = 'Subito' WHERE cliente = ? AND pagamento = 'Dopo (Credito)'", (nome_cliente,))
 
-def elimina_lotto_db(lotto_id):
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE movimenti SET lotto_id = NULL WHERE lotto_id = ?", (lotto_id,))
-        cursor.execute("DELETE FROM lotti WHERE id = ?", (lotto_id,))
-
 def spara_fuochi_d_artificio():
     js_code = """
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
@@ -295,7 +285,7 @@ def spara_fuochi_d_artificio():
     st.components.v1.html(js_code, height=0)
 
 # ==========================================
-# GENERAZIONE OFFERTE & CLIENTE ATTUALE IN NEGOZIO
+# GENERAZIONE OFFERTE & CLIENTE ATTUALE
 # ==========================================
 def genera_offerta_fornitore_casuale():
     prodotti_df = get_prodotti_tutti_df()
@@ -583,15 +573,18 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ------------------------------------------
-# TAB 1: CASSA OPERATIVA (INTERATTIVA)
+# TAB 1: CASSA INTEGRATA CON LOG LEDGER LIVE
 # ------------------------------------------
 with tab1:
-    st.subheader("💸 Cassa Operativa & Modalità Vendita")
+    col_cassa, col_ledger = st.columns([1.2, 1])
     
-    col_t1, col_t2 = st.columns([2, 1])
-    
-    with col_t1:
-        tipo_operazione = st.radio("Seleziona Tipo Registrazione", ["Incontra Cliente (Manuale)", "Automazione Turno AI", "XME (Perk)"], horizontal=True)
+    # --------------------------------------
+    # COLONNA 1: PANNELLO DI VENDITA AZIONE
+    # --------------------------------------
+    with col_cassa:
+        st.subheader("💸 Cassa Operativa")
+        
+        tipo_operazione = st.radio("Seleziona Modalità", ["Incontra Cliente (Manuale)", "Automazione Turno AI", "XME (Perk)"], horizontal=True)
         prodotti_disp_df = get_prodotti_disponibili_df()
         
         if prodotti_disp_df.empty:
@@ -615,18 +608,15 @@ with tab1:
                         else:
                             st.info(f"Disponibilità in magazzino: {qta_disp_tot:.1f} g")
                             
-                            col_p1, col_p2 = st.columns(2)
-                            with col_p1:
-                                prezzo_proposto = st.number_input("Imposta il Tuo Prezzo al Grammo (€/g)", min_value=0.5, value=6.0, step=0.5, format="%.2f")
-                                totale_proposto = prezzo_proposto * cli_att['quantita_richiesta']
-                                st.write(f"**Totale Incasso Proposto:** € {totale_proposto:.2f}")
+                            prezzo_proposto = st.number_input("Imposta il Tuo Prezzo al Grammo (€/g)", min_value=0.5, value=6.0, step=0.5, format="%.2f")
+                            totale_proposto = prezzo_proposto * cli_att['quantita_richiesta']
+                            st.write(f"**Totale Incasso Proposto:** € {totale_proposto:.2f}")
 
                             tipo_pagamento = st.radio("Modalità Pagamento", ["Subito", "Dopo (Credito)"], horizontal=True)
 
                             col_act1, col_act2 = st.columns(2)
                             with col_act1:
-                                if st.button("🤝 Proponi Offerta e Vendi"):
-                                    # Verifica se il prezzo proposto supera la tolleranza del cliente
+                                if st.button("🤝 Proponi Offerta e Vendi", use_container_width=True):
                                     if prezzo_proposto <= cli_att['budget_max_g']:
                                         aggiungi_cliente_se_nuovo(cli_att['nome'])
                                         with get_connection() as conn:
@@ -658,58 +648,50 @@ with tab1:
 
                                         st.session_state.energia = max(0, st.session_state.energia - 10)
                                         st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 3)
+                                        aggiungi_log(f"✅ VENDITA: {cli_att['nome']} ha comprato {cli_att['quantita_richiesta']}g per €{totale_proposto:.2f}")
                                         spara_fuochi_d_artificio()
-                                        st.success(f"🎉 {cli_att['nome']} ha ACCETTATO! Incassati € {totale_proposto:.2f}")
+                                        st.success(f"🎉 {cli_att['nome']} ha ACCETTATO!")
                                         genera_cliente_in_negozio()
                                         st.rerun()
                                     else:
                                         st.session_state.fedelta_clienti = max(0, st.session_state.fedelta_clienti - 2)
-                                        st.error(f"❌ {cli_att['nome']} ritiene che €{prezzo_proposto:.2f}/g sia troppo caro e se n'è andato!")
+                                        aggiungi_log(f"❌ RIFIUTATO: {cli_att['nome']} ha rifiutato €{prezzo_proposto:.2f}/g")
+                                        st.error(f"❌ {cli_att['nome']} se n'è andato perché troppo caro!")
                                         genera_cliente_in_negozio()
                                         st.rerun()
 
                             with col_act2:
-                                if st.button("🚪 Rifiuta / Prossimo Cliente"):
+                                if st.button("🚪 Rifiuta / Prossimo", use_container_width=True):
                                     st.info("Cliente congedato.")
                                     genera_cliente_in_negozio()
                                     st.rerun()
 
             elif tipo_operazione == "Automazione Turno AI":
-                st.markdown("##### 🏪 Automazione Sales Engine (Istruisci il Bot di Vendita)")
+                st.markdown("##### 🏪 Automazione Sales Engine")
                 
-                prod_target = st.selectbox("Seleziona Prodotto da Vendere nel Turno", prodotti_disp_df['nome'].tolist(), key="select_prod_target")
+                prod_target = st.selectbox("Seleziona Prodotto da Vendere", prodotti_disp_df['nome'].tolist(), key="select_prod_target")
                 p_target_row = prodotti_disp_df[prodotti_disp_df['nome'] == prod_target].iloc[0]
                 p_target_id = int(p_target_row['id'])
                 val_mercato_ref = float(p_target_row['valore_mercato_unitario'])
                 
-                prezzo_target_bot = st.number_input("Prezzo al Grammo Desiderato per il Bot (€/g)", min_value=0.1, value=val_mercato_ref, step=0.2, format="%.2f")
-                
-                if prezzo_target_bot > val_mercato_ref * 1.3:
-                    st.warning("⚠️ Il prezzo impostato è MOLTO ALTO rispetto al valore di mercato. Molti clienti potrebbero rifiutare l'offerta!")
-                elif prezzo_target_bot < val_mercato_ref * 0.9:
-                    st.info("💡 Prezzo conveniente! I clienti accetteranno volentieri e aumenterà la loro fedeltà.")
+                prezzo_target_bot = st.number_input("Prezzo Target Bot (€/g)", min_value=0.1, value=val_mercato_ref, step=0.2, format="%.2f")
 
-                if st.button("🚀 Avvia Automazione Turno (-20% Energia)"):
+                if st.button("🚀 Avvia Automazione Turno (-20% Energia)", use_container_width=True):
                     if st.session_state.energia < 20:
-                        st.error("Sei troppo stanco! Esegui un'uscita XME o riposa.")
+                        st.error("Sei troppo stanco! Riposa.")
                     else:
                         st.session_state.energia -= 20
                         with get_connection() as conn:
                             cursor = conn.cursor()
                             
-                            num_clienti_base = random.randint(2, 5)
-                            bonus_clienti_fedeli = int(st.session_state.fedelta_clienti / 20)
-                            num_clienti_tot = num_clienti_base + bonus_clienti_fedeli
-                            
+                            num_clienti_tot = random.randint(2, 5) + int(st.session_state.fedelta_clienti / 20)
                             clienti_nomi = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP", "Matteo"]
                             vendite_accettate = 0
                             
                             for _ in range(num_clienti_tot):
                                 cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", (p_target_id,))
                                 lotti = cursor.fetchall()
-                                if not lotti: 
-                                    aggiungi_log("Scorte esaurite durante il turno!")
-                                    break
+                                if not lotti: break
                                 
                                 cli = random.choice(clienti_nomi)
                                 tolleranza_cliente = val_mercato_ref * random.uniform(0.85, 1.35) * (1 + (st.session_state.fedelta_clienti / 200))
@@ -725,18 +707,10 @@ with tab1:
                                     
                                     cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento) VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, 'Subito')", (p_target_id, l_id, qta, prezzo_target_bot, ricavo, qta * l_costo, margine, cli))
                                     vendite_accettate += 1
-                                    aggiungi_log(f"✅ {cli} ha ACCETTATO: comprati {qta}g per €{ricavo:.2f}")
+                                    aggiungi_log(f"✅ BOT: {cli} ha comprato {qta}g per €{ricavo:.2f}")
                                 else:
-                                    aggiungi_log(f"❌ {cli} ha RIFIUTATO: prezzo €{prezzo_target_bot:.2f}/g ritenuto troppo alto.")
+                                    aggiungi_log(f"❌ BOT: {cli} ha rifiutato €{prezzo_target_bot:.2f}/g")
 
-                        if vendite_accettate > (num_clienti_tot / 2):
-                            st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 5)
-                            st.session_state.reputazione = min(100, st.session_state.reputazione + 2)
-                            st.success(f"Turno completato! Accettate {vendite_accettate} vendite su {num_clienti_tot} clienti. Fedeltà Clienti +5%!")
-                        else:
-                            st.session_state.fedelta_clienti = max(0, st.session_state.fedelta_clienti - 3)
-                            st.warning(f"Turno fiacco: Solo {vendite_accettate} su {num_clienti_tot} clienti hanno acquistato. Rivedi i prezzi!")
-                        
                         st.rerun()
 
             elif tipo_operazione == "XME":
@@ -759,23 +733,41 @@ with tab1:
                                 cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, margine, cliente, note) VALUES (?, ?, 'XME', ?, ?, ?, 'XME', 'Consumo Perk')", (p_id, lotto_id, qta_xme, qta_xme * float(lotto_row['costo_acquisto_unitario']), -qta_xme * float(lotto_row['costo_acquisto_unitario'])))
                             
                             st.session_state.energia = min(100, st.session_state.energia + 30)
-                            st.warning("Uscita XME registrata! Energia aumentata (+30%).")
+                            aggiungi_log(f"🧪 XME: Consumati {qta_xme}g dal lotto.")
                             st.rerun()
 
-    with col_t2:
+        st.markdown("---")
         st.markdown("### 💤 Turno Notturno")
         if st.button("🌙 Riposa e Passa al Giorno Successivo", use_container_width=True):
             st.session_state.giorno += 1
             st.session_state.energia = 100
             verifica_arrivo_offerta_dinamica()
             genera_cliente_in_negozio()
-            aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Energia al 100%.")
+            aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Energia 100%.")
             st.rerun()
 
-        st.markdown("---")
-        st.markdown("##### 📜 Log Eventi Live")
-        for log in st.session_state.log_gioco[:6]:
-            st.caption(log)
+    # --------------------------------------
+    # COLONNA 2: LEDGER LIVE & EVENT LOG
+    # --------------------------------------
+    with col_ledger:
+        st.subheader("📖 Ledger & Movimenti Live")
+        
+        # Tabella Movimenti Live dal Database
+        movimenti_df = get_movimenti_dettagliati_df()
+        if not movimenti_df.empty:
+            st.dataframe(
+                movimenti_df[['data', 'cliente', 'tipo', 'prodotto', 'quantita', 'incasso', 'margine']],
+                use_container_width=True,
+                hide_index=True,
+                height=300
+            )
+        else:
+            st.info("Nessun movimento registrato nel ledger.")
+
+        st.markdown("##### 📜 Registro Eventi Turno")
+        with st.container(border=True):
+            for log in st.session_state.log_gioco[:10]:
+                st.caption(log)
 
 # ------------------------------------------
 # TAB 2: DASHBOARD & ANALYTICS
@@ -788,7 +780,7 @@ with tab2:
     if not df_stato_disp.empty or not movimenti_df.empty:
         val_costo = df_stato_disp['valore_totale_costo'].sum() if not df_stato_disp.empty else 0
         val_mercato = df_stato_disp['valore_totale_mercato'].sum() if not df_stato_disp.empty else 0
-        incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
+        incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['incasso'].sum() if not movimenti_df.empty else 0
         margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
 
         st.markdown(f"""
@@ -804,14 +796,13 @@ with tab2:
             mov_df = movimenti_df.copy()
             mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
             mov_df = mov_df.sort_values('Data_Ora')
-            mov_df['Spesi Totali'] = mov_df.apply(lambda r: r['costo_totale'] if r['tipo'] == 'CARICO' else 0, axis=1).cumsum()
-            mov_df['Incasso Totale'] = mov_df['ricavo_totale'].cumsum()
+            mov_df['Incasso Totale'] = mov_df['incasso'].cumsum()
             mov_df['Margine Netto'] = mov_df['margine'].cumsum()
             
-            chart_df = mov_df.melt(id_vars=['Data_Ora', 'prodotto', 'tipo'], value_vars=['Spesi Totali', 'Incasso Totale', 'Margine Netto'], var_name='Metrica', value_name='Valore (€)')
+            chart_df = mov_df.melt(id_vars=['Data_Ora', 'prodotto', 'tipo'], value_vars=['Incasso Totale', 'Margine Netto'], var_name='Metrica', value_name='Valore (€)')
             chart = alt.Chart(chart_df).mark_line(point=True, strokeWidth=3).encode(
                 x=alt.X('Data_Ora:T', title='Data e Ora'), y=alt.Y('Valore (€):Q', title='Importo (€)'),
-                color=alt.Color('Metrica:N', scale=alt.Scale(domain=['Spesi Totali', 'Incasso Totale', 'Margine Netto'], range=['#ff4757', '#2ed573', '#38bdf8']))
+                color=alt.Color('Metrica:N', scale=alt.Scale(domain=['Incasso Totale', 'Margine Netto'], range=['#2ed573', '#38bdf8']))
             ).properties(height=350).interactive()
             st.altair_chart(chart, use_container_width=True)
 
@@ -891,13 +882,13 @@ with tab4:
     movimenti_df = get_movimenti_dettagliati_df()
     
     if not movimenti_df.empty:
-        clienti_debito = movimenti_df[(movimenti_df['tipo'] == 'VENDITA') & (movimenti_df['pagamento'] == 'Dopo (Credito)')]
+        clienti_debito = movimenti_df[(movimenti_df['tipo'] == 'VENDITA') & (movimenti_df['stato_pagamento'] == 'Dopo (Credito)')]
         if not clienti_debito.empty:
-            debito_per_cliente = clienti_debito.groupby('cliente')['ricavo_totale'].sum().reset_index()
+            debito_per_cliente = clienti_debito.groupby('cliente')['incasso'].sum().reset_index()
             st.markdown("##### 💳 Clienti con Debiti Attivi")
             for _, r_d in debito_per_cliente.iterrows():
                 col_d1, col_d2 = st.columns([3, 1])
-                col_d1.write(f"**{r_d['cliente']}**: € {r_d['ricavo_totale']:,.2f}")
+                col_d1.write(f"**{r_d['cliente']}**: € {r_d['incasso']:,.2f}")
                 if col_d2.button(f"Salda Debito", key=f"btn_s_{r_d['cliente']}"):
                     segna_debito_pagato(r_d['cliente'])
                     st.success("Debito saldato!")
