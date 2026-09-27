@@ -1135,7 +1135,6 @@ with tab1:
                     if st.session_state.energia < 20:
                         st.error("Sei troppo stanco per avviare il ciclo automatico! Riposa.")
                     else:
-                        # Esegue tutte le fasce restanti in autonomia con un timer visivo di 2.5 secondi
                         placeholder_progresso = st.empty()
                         
                         while st.session_state.indice_fascia_oraria < len(FASCE_ORARIE):
@@ -1220,7 +1219,7 @@ with tab1:
                                 }
 
                             st.session_state.indice_fascia_oraria += 1
-                            time.sleep(2.5) # Pausa di 2.5 secondi tra un turno e l'altro per godersi l'aggiornamento
+                            time.sleep(2.5)
                             
                         placeholder_progresso.success("🎉 Tutti i turni della giornata sono stati completati con successo!")
                         time.sleep(1)
@@ -1452,7 +1451,7 @@ with tab4:
 
             if 'minigioco_risultato' in st.session_state and st.session_state.minigioco_risultato:
                 res = st.session_state.minigioco_risultato
-                st.info(f"💬 Accordo raggiunto: **{res['qta_offerta']}g** a **€{res['costo_u']:.2f}/g** per un totale di **€{res['budget']:.2f**.")
+                st.info(f"💬 Accordo raggiunto: **{res['qta_offerta']}g** a **€{res['costo_u']:.2f}/g** per un totale di **€{res['budget']:,.2f}**.")
                 if st.button("✅ ACCETTA ACCORDO NEL FANGO", use_container_width=True, disabled=st.session_state.soldi_cassa < res['budget']):
                     st.session_state.soldi_cassa -= res['budget']
                     with get_connection() as conn:
