@@ -1066,18 +1066,9 @@ with tab1:
                             SELECT m.*, p.nome as prodotto_nome 
                             FROM movimenti m 
                             JOIN prodotti p ON m.prodotto_id = p.id 
-                            WHERE m.tipo = 'VENDITA' AND date(m.data) = date('now')
-                        0""", conn)
-                        
-                        # Fallback se non ci sono record filtrati esattamente su date('now') per test locali offline
-                        if mov_oggi_df.empty:
-                            mov_oggi_df = pd.read_sql_query("""
-                                SELECT m.*, p.nome as prodotto_nome 
-                                FROM movimenti m 
-                                JOIN prodotti p ON m.prodotto_id = p.id 
-                                WHERE m.tipo = 'VENDITA'
-                                ORDER BY m.data DESC LIMIT 15
-                            """, conn)
+                            WHERE m.tipo = 'VENDITA'
+                            ORDER BY m.data DESC LIMIT 15
+                        """, conn)
 
                     tot_incasso_giorno = mov_oggi_df['ricavo_totale'].sum() if not mov_oggi_df.empty else 0.0
                     tot_margine_giorno = mov_oggi_df['margine'].sum() if not mov_oggi_df.empty else 0.0
