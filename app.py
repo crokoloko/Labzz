@@ -17,154 +17,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# FUNZIONE GENERAZIONE CODICE LOTTO
-# ==========================================
-def genera_codice_lotto_automatico(data_riferimento=None):
-    if data_riferimento is None:
-        data_riferimento = date.today()
-    
-    giorno = data_riferimento.strftime("%d").lstrip("0")
-    MESE_INIZIALI = ['g', 'f', 'm', 'a', 'm', 'g', 'l', 'a', 's', 'o', 'n', 'd']
-    iniziale_mese = MESE_INIZIALI[data_riferimento.month - 1]
-    anno_2_cifre = data_riferimento.strftime("%y")
-    
-    return f"{giorno}{iniziale_mese}{anno_2_cifre}"
-
-# ==========================================
-# CARICAMENTO VIDEO BASE64 PER LOGO
-# ==========================================
-def get_video_base64(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, "rb") as f:
-            data = f.read()
-        return base64.b64encode(data).decode('utf-8')
-    return None
-
-# ==========================================
-# INIEZIONE CSS CUSTOM ORIGINALE
-# ==========================================
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Titan+One&display=swap');
-
-    .stApp {
-        background-color: #090c17 !important;
-        background: linear-gradient(180deg, #070a14 0%, #090c17 50%, #0d1222 100%) !important;
-        color: #f8fafc !important;
-        font-family: 'Fredoka', sans-serif !important;
-        font-weight: 500;
-    }
-
-    header[data-testid="stHeader"] {
-        display: none !important;
-    }
-
-    .block-container {
-        padding-top: 2.8rem !important;
-        padding-bottom: 6rem !important;
-        padding-left: 0.8rem !important;
-        padding-right: 0.8rem !important;
-    }
-
-    .logo-container {
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-        text-align: center !important;
-        width: 100% !important;
-        margin: 0 auto 1.5rem auto !important;
-        padding: 0 !important;
-    }
-
-    .logo-container video {
-        display: block !important;
-        margin: 0 auto !important;
-        max-width: 420px !important;
-        width: 100% !important;
-        height: auto !important;
-        border-radius: 12px !important;
-        object-fit: contain !important;
-        background-color: transparent !important;
-    }
-
-    div[data-testid="stTabs"] {
-        margin-top: 0rem !important;
-        padding-top: 0rem !important;
-    }
-
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px !important;
-        background-color: transparent !important;
-        border-bottom: none !important;
-        padding: 0px 0 12px 0 !important;
-        justify-content: center !important;
-        flex-wrap: wrap !important;
-    }
-
-    h1, h2, h3, h4, h5, h6 {
-        font-family: 'Titan One', cursive, sans-serif !important;
-        color: #ffffff !important;
-        text-align: center !important;
-        line-height: 1.4 !important;
-        margin-top: 15px !important;
-        margin-bottom: 15px !important;
-    }
-
-    .dashboard-grid {
-        display: grid !important;
-        grid-template-columns: repeat(2, 1fr) !important;
-        gap: 12px !important;
-        width: 100% !important;
-        margin-bottom: 25px !important;
-    }
-
-    .custom-card {
-        background: rgba(15, 23, 42, 0.75) !important;
-        backdrop-filter: blur(16px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 16px !important;
-        padding: 14px 8px !important;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: center !important;
-        align-items: center !important;
-        text-align: center !important;
-        width: 100% !important;
-    }
-
-    .card-label {
-        color: #94a3b8 !important;
-        font-size: 0.75rem !important;
-        font-weight: 600 !important;
-        text-transform: uppercase;
-        margin-bottom: 6px !important;
-    }
-
-    .card-value {
-        font-size: 1.2rem !important;
-        font-weight: 700 !important;
-        color: #38bdf8 !important;
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        font-family: 'Fredoka', sans-serif !important;
-        background: rgba(15, 23, 42, 0.7) !important;
-        border: 1px solid rgba(255, 255, 255, 0.05) !important;
-        border-radius: 14px !important;
-        color: #94a3b8 !important;
-        font-weight: 700 !important;
-        padding: 10px 16px !important;
-    }
-
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
-        color: #ffffff !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# ==========================================
-# INIZIALIZZAZIONE DATABASE SQLITE
+# HELPER & FUNZIONI DATABASE (DEFINITE PRIMA)
 # ==========================================
 DB_NAME = "magazzino.db"
 
@@ -233,76 +86,24 @@ def init_db():
 
 init_db()
 
-# ==========================================
-# STATO DEL GIOCATORE (SESSION STATE)
-# ==========================================
-if 'energia' not in st.session_state:
-    st.session_state.energia = 100
-if 'giorno' not in st.session_state:
-    st.session_state.giorno = 1
-if 'reputazione' not in st.session_state:
-    st.session_state.reputazione = 50
-if 'fedelta_clienti' not in st.session_state:
-    st.session_state.fedelta_clienti = 10
-if 'log_gioco' not in st.session_state:
-    st.session_state.log_gioco = ["🎮 Benvenuto! Il sistema gestionale e Tycoon è attivo."]
-if 'offerta_fornitore' not in st.session_state:
-    st.session_state.offerta_fornitore = None
-
-def aggiungi_log(testo):
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    st.session_state.log_gioco.insert(0, f"[{timestamp}] {testo}")
-
-def genera_offerta_fornitore_casuale():
-    prodotti_df = get_prodotti_tutti_df()
-    if not prodotti_df.empty:
-        prod_row = prodotti_df.sample(n=1).iloc[0]
-        qta = float(random.choice([100, 250, 500, 1000]))
-        costo_u = round(random.uniform(0.4, 2.2), 2)
-        tipo_offerta = "🔥 Affarone Super Scontato!" if costo_u < 0.9 else ("⚠️ Offerta Cara/Fuori Mercato" if costo_u > 1.8 else "📦 Offerta Standard")
-        
-        st.session_state.offerta_fornitore = {
-            "prodotto_id": int(prod_row['id']),
-            "prodotto_nome": prod_row['nome'],
-            "quantita": qta,
-            "costo_unitario": costo_u,
-            "costo_totale": qta * costo_u,
-            "tipo": tipo_offerta,
-            "codice_lotto": f"OFF-{random.randint(100,999)}"
-        }
-
-if st.session_state.offerta_fornitore is None:
-    genera_offerta_fornitore_casuale()
-
-# ==========================================
-# FUNZIONE DI RESET COMPLETO NUOVA PARTITA
-# ==========================================
-def reset_completo_nuova_partita():
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM movimenti;")
-        cursor.execute("DELETE FROM lotti;")
-        cursor.execute("DELETE FROM prodotti;")
-        cursor.execute("DELETE FROM clienti;")
-        
-        # Inserisce un prodotto e un lotto di partenza puliti
-        cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario, scorta_minima_g) VALUES ('Varietà Iniziale', 2.0, 20.0);")
-        p_id = cursor.lastrowid
-        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, 'START-01', 300.0, 300.0, 1.0, ?, ?);", (p_id, date.today(), date.today()))
-        l_id = cursor.lastrowid
-        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', 300.0, 300.0, 'Fornitore Iniziale', 'Capitale di partenza')", (p_id, l_id))
+def genera_codice_lotto_automatico(data_riferimento=None):
+    if data_riferimento is None:
+        data_riferimento = date.today()
     
-    st.session_state.giorno = 1
-    st.session_state.energia = 100
-    st.session_state.reputazione = 50
-    st.session_state.fedelta_clienti = 10
-    st.session_state.log_gioco = ["✨ Nuova Avventura Iniziata! Tutti i dati sono stati resettati a zero."]
-    st.session_state.offerta_fornitore = None
-    genera_offerta_fornitore_casuale()
+    giorno = data_riferimento.strftime("%d").lstrip("0")
+    MESE_INIZIALI = ['g', 'f', 'm', 'a', 'm', 'g', 'l', 'a', 's', 'o', 'n', 'd']
+    iniziale_mese = MESE_INIZIALI[data_riferimento.month - 1]
+    anno_2_cifre = data_riferimento.strftime("%y")
+    
+    return f"{giorno}{iniziale_mese}{anno_2_cifre}"
 
-# ==========================================
-# HELPER DATABASE
-# ==========================================
+def get_video_base64(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode('utf-8')
+    return None
+
 def get_soglia_esaurimento():
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -469,6 +270,12 @@ def segna_debito_pagato(nome_cliente):
         cursor = conn.cursor()
         cursor.execute("UPDATE movimenti SET pagamento = 'Subito' WHERE cliente = ? AND pagamento = 'Dopo (Credito)'", (nome_cliente,))
 
+def elimina_lotto_db(lotto_id):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE movimenti SET lotto_id = NULL WHERE lotto_id = ?", (lotto_id,))
+        cursor.execute("DELETE FROM lotti WHERE id = ?", (lotto_id,))
+
 def spara_fuochi_d_artificio():
     js_code = """
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
@@ -486,6 +293,192 @@ def spara_fuochi_d_artificio():
     </script>
     """
     st.components.v1.html(js_code, height=0)
+
+# ==========================================
+# LOGICA OFFERTA FORNITORE E STATO DI GIOCO
+# ==========================================
+def genera_offerta_fornitore_casuale():
+    prodotti_df = get_prodotti_tutti_df()
+    if not prodotti_df.empty:
+        prod_row = prodotti_df.sample(n=1).iloc[0]
+        qta = float(random.choice([100, 250, 500, 1000]))
+        costo_u = round(random.uniform(0.4, 2.2), 2)
+        tipo_offerta = "🔥 Affarone Super Scontato!" if costo_u < 0.9 else ("⚠️ Offerta Cara/Fuori Mercato" if costo_u > 1.8 else "📦 Offerta Standard")
+        
+        st.session_state.offerta_fornitore = {
+            "prodotto_id": int(prod_row['id']),
+            "prodotto_nome": prod_row['nome'],
+            "quantita": qta,
+            "costo_unitario": costo_u,
+            "costo_totale": qta * costo_u,
+            "tipo": tipo_offerta,
+            "codice_lotto": f"OFF-{random.randint(100,999)}"
+        }
+
+if 'energia' not in st.session_state:
+    st.session_state.energia = 100
+if 'giorno' not in st.session_state:
+    st.session_state.giorno = 1
+if 'reputazione' not in st.session_state:
+    st.session_state.reputazione = 50
+if 'fedelta_clienti' not in st.session_state:
+    st.session_state.fedelta_clienti = 10
+if 'log_gioco' not in st.session_state:
+    st.session_state.log_gioco = ["🎮 Benvenuto! Il sistema gestionale e Tycoon è attivo."]
+if 'offerta_fornitore' not in st.session_state:
+    st.session_state.offerta_fornitore = None
+
+if st.session_state.offerta_fornitore is None:
+    genera_offerta_fornitore_casuale()
+
+def aggiungi_log(testo):
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    st.session_state.log_gioco.insert(0, f"[{timestamp}] {testo}")
+
+def reset_completo_nuova_partita():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM movimenti;")
+        cursor.execute("DELETE FROM lotti;")
+        cursor.execute("DELETE FROM prodotti;")
+        cursor.execute("DELETE FROM clienti;")
+        
+        cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario, scorta_minima_g) VALUES ('Varietà Iniziale', 2.0, 20.0);")
+        p_id = cursor.lastrowid
+        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, 'START-01', 300.0, 300.0, 1.0, ?, ?);", (p_id, date.today(), date.today()))
+        l_id = cursor.lastrowid
+        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', 300.0, 300.0, 'Fornitore Iniziale', 'Capitale di partenza')", (p_id, l_id))
+    
+    st.session_state.giorno = 1
+    st.session_state.energia = 100
+    st.session_state.reputazione = 50
+    st.session_state.fedelta_clienti = 10
+    st.session_state.log_gioco = ["✨ Nuova Avventura Iniziata! Tutti i dati sono stati resettati a zero."]
+    st.session_state.offerta_fornitore = None
+    genera_offerta_fornitore_casuale()
+
+# ==========================================
+# INIEZIONE CSS CUSTOM ORIGINALE
+# ==========================================
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Titan+One&display=swap');
+
+    .stApp {
+        background-color: #090c17 !important;
+        background: linear-gradient(180deg, #070a14 0%, #090c17 50%, #0d1222 100%) !important;
+        color: #f8fafc !important;
+        font-family: 'Fredoka', sans-serif !important;
+        font-weight: 500;
+    }
+
+    header[data-testid="stHeader"] {
+        display: none !important;
+    }
+
+    .block-container {
+        padding-top: 2.8rem !important;
+        padding-bottom: 6rem !important;
+        padding-left: 0.8rem !important;
+        padding-right: 0.8rem !important;
+    }
+
+    .logo-container {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        text-align: center !important;
+        width: 100% !important;
+        margin: 0 auto 1.5rem auto !important;
+        padding: 0 !important;
+    }
+
+    .logo-container video {
+        display: block !important;
+        margin: 0 auto !important;
+        max-width: 420px !important;
+        width: 100% !important;
+        height: auto !important;
+        border-radius: 12px !important;
+        object-fit: contain !important;
+        background-color: transparent !important;
+    }
+
+    div[data-testid="stTabs"] {
+        margin-top: 0rem !important;
+        padding-top: 0rem !important;
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px !important;
+        background-color: transparent !important;
+        border-bottom: none !important;
+        padding: 0px 0 12px 0 !important;
+        justify-content: center !important;
+        flex-wrap: wrap !important;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Titan One', cursive, sans-serif !important;
+        color: #ffffff !important;
+        text-align: center !important;
+        line-height: 1.4 !important;
+        margin-top: 15px !important;
+        margin-bottom: 15px !important;
+    }
+
+    .dashboard-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px !important;
+        width: 100% !important;
+        margin-bottom: 25px !important;
+    }
+
+    .custom-card {
+        background: rgba(15, 23, 42, 0.75) !important;
+        backdrop-filter: blur(16px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 16px !important;
+        padding: 14px 8px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        text-align: center !important;
+        width: 100% !important;
+    }
+
+    .card-label {
+        color: #94a3b8 !important;
+        font-size: 0.75rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        margin-bottom: 6px !important;
+    }
+
+    .card-value {
+        font-size: 1.2rem !important;
+        font-weight: 700 !important;
+        color: #38bdf8 !important;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        font-family: 'Fredoka', sans-serif !important;
+        background: rgba(15, 23, 42, 0.7) !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        border-radius: 14px !important;
+        color: #94a3b8 !important;
+        font-weight: 700 !important;
+        padding: 10px 16px !important;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+        color: #ffffff !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # ==========================================
 # RENDER LOGO IN CIMA
@@ -516,7 +509,7 @@ c_g4.metric("❤️ Fedeltà Clienti", f"{st.session_state.fedelta_clienti}%")
 st.markdown("---")
 
 # ==========================================
-# SCHEDE / TAB DELL'APPLICAZIONE (ORDINE ORIGINALE)
+# SCHEDE / TAB DELL'APPLICAZIONE
 # ==========================================
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "💸 Cassa", 
@@ -527,7 +520,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ------------------------------------------
-# TAB 1: CASSA OPERATIVA & AUTOMAZIONE VENDITE
+# TAB 1: CASSA OPERATIVA
 # ------------------------------------------
 with tab1:
     st.subheader("💸 Cassa Operativa & Modalità Vendita")
@@ -842,7 +835,6 @@ with tab5:
     
     st.markdown("---")
     
-    # SEZIONE DI RESET COMPLETO (NUOVA PARTITA)
     with st.expander("⚠️ DANGER ZONE: Resetta Dati e Inizia Nuova Partita", expanded=False):
         st.error("Questa operazione cancellerà permanentemente tutto lo storico vendite, i clienti, i lotti e azzererà la tua partita riportandoti al Giorno 1.")
         conferma_reset = st.checkbox("Sono sicuro di voler piallare tutti i dati e ricominciare da capo.")
