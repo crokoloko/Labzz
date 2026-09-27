@@ -295,7 +295,7 @@ def spara_fuochi_d_artificio():
     st.components.v1.html(js_code, height=0)
 
 # ==========================================
-# LOGICA NUOVA GENERAZIONE OFFERTE RICALIBRATA
+# LOGICA GENERAZIONE OFFERTE RARA & CASUALE
 # ==========================================
 def genera_offerta_fornitore_casuale():
     prodotti_df = get_prodotti_tutti_df()
@@ -306,28 +306,28 @@ def genera_offerta_fornitore_casuale():
         
         roll_tipo = random.random()
         
-        # 1. RARO: Prezzo Strazziato Base (< 3.50€/g) - Probabilità ~10%
+        # 1. RARO: Prezzo Stracciato Base (< 3.50€/g)
         if roll_tipo < 0.10:
             qta = float(random.choice([200, 300, 500]))
             costo_u = round(random.uniform(2.80, 3.40), 2)
             tipo_offerta = "🔥 Sottocosto Raro (Standard Base)"
             valore_mercato_suggerito = 5.00
             
-        # 2. SPECIAL / TOP QUALITY: Prezzi Superiori ad Alto Ricavo - Probabilità ~20%
+        # 2. SPECIAL / TOP QUALITY: Prezzi Superiori ad Alto Ricavo
         elif roll_tipo < 0.30:
             qta = float(random.choice([200, 300, 400]))
             costo_u = round(random.uniform(6.50, 9.00), 2)
             tipo_offerta = "💎 Special Top Quality (Vendita ad Alto Margine)"
             valore_mercato_suggerito = costo_u * 1.6
             
-        # 3. QUANTITÀ ELEVATE (Sopra i 2 etti: 200g - 500g) -> 3.50€ - 4.50€ - Probabilità ~40%
+        # 3. QUANTITÀ ELEVATE (>2 etti: 200g - 500g) -> 3.50€ - 4.50€
         elif roll_tipo < 0.70:
             qta = float(random.choice([200, 300, 500]))
             costo_u = round(random.uniform(3.50, 4.50), 2)
             tipo_offerta = "📦 Stock Volume (>2 etti)"
             valore_mercato_suggerito = 6.00
             
-        # 4. QUANTITÀ BASE (1 Etto / 100g) -> 4.50€ - 6.00€ - Probabilità ~30%
+        # 4. QUANTITÀ BASE (1 Etto / 100g) -> 4.50€ - 6.00€
         else:
             qta = 100.0
             costo_u = round(random.uniform(4.50, 6.00), 2)
@@ -345,6 +345,26 @@ def genera_offerta_fornitore_casuale():
             "codice_lotto": f"OFF-{random.randint(100,999)}"
         }
 
+def verifica_arrivo_offerta_dinamica():
+    """Determina se un'offerta deve essere generata in base alle scorte e al tempo"""
+    if st.session_state.offerta_fornitore is not None:
+        return  # Esiste già un'offerta in attesa di risposta
+
+    df_disp = calcola_stato_magazzino(solo_disponibili=True)
+    scorta_totale = df_disp['qta_disponibile'].sum() if not df_disp.empty else 0
+    soglia_alert = get_soglia_esaurimento()
+
+    # Se le scorte stanno finendo, la probabilità sale all'80%
+    if scorta_totale <= soglia_alert:
+        probabilita = 0.80
+    else:
+        # Frequenza normale: circa 1.5 offerte a settimana (~22% al giorno)
+        probabilita = 0.22
+
+    if random.random() < probabilita:
+        genera_offerta_fornitore_casuale()
+        aggiungi_log("📨 Un fornitore ti ha inviato una nuova proposta di stock!")
+
 if 'energia' not in st.session_state:
     st.session_state.energia = 100
 if 'giorno' not in st.session_state:
@@ -358,7 +378,8 @@ if 'log_gioco' not in st.session_state:
 if 'offerta_fornitore' not in st.session_state:
     st.session_state.offerta_fornitore = None
 
-if st.session_state.offerta_fornitore is None:
+# Prima offerta di partenza all'avvio
+if st.session_state.giorno == 1 and st.session_state.offerta_fornitore is None:
     genera_offerta_fornitore_casuale()
 
 def aggiungi_log(testo):
@@ -720,8 +741,8 @@ with tab1:
         if st.button("🌙 Riposa e Passa al Giorno Successivo", use_container_width=True):
             st.session_state.giorno += 1
             st.session_state.energia = 100
-            genera_offerta_fornitore_casuale()
-            aggiungi_log("🌙 Riposo completato. Generata nuova offerta fornitore!")
+            verifica_arrivo_offerta_dinamica()
+            aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Energia al 100%.")
             st.rerun()
 
         st.markdown("---")
@@ -797,13 +818,15 @@ with tab3:
                         cursor.execute("UPDATE prodotti SET valore_mercato_unitario = ? WHERE id = ?", (off['valore_mercato_suggerito'], off['prodotto_id']))
 
                     st.success(f"✅ Offerta accettata! Lotto {off['codice_lotto']} aggiunto al magazzino.")
-                    genera_offerta_fornitore_casuale()
+                    st.session_state.offerta_fornitore = None
                     st.rerun()
             with col_b2:
                 if st.button("❌ RIFIUTA OFFERTA", use_container_width=True):
                     st.info("Offerta rifiutata e scartata.")
-                    genera_offerta_fornitore_casuale()
+                    st.session_state.offerta_fornitore = None
                     st.rerun()
+    else:
+        st.info("ℹ️ Nessuna offerta attiva al momento. I fornitori ti contatteranno periodicamente o quando le tue scorte saranno basse.")
 
     st.markdown("---")
     soglia_attuale = get_soglia_esaurimento()
