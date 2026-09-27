@@ -94,6 +94,15 @@ FASCE_ORARIE = [
     "🌌 5. Notte (22:00 - 02:00)"
 ]
 
+# LISTA NOMINATIVI EUROPEI / UNDERGROUND PRAGA
+LISTA_NOMI_PRAGA = [
+    "Jan", "Petra", "Maxim", "Klara", "Tomas", "Lenka", "Wanja", 
+    "Milan", "Zuzana", "Marek", "Sonja", "Ondra", "Katka", "Pavel", 
+    "Hana", "Lukas", "Eliška", "Jakub", "Nikola", "David", "Veronika",
+    "Martin", "Štěpán", "Markéta", "Filip", "Dominik", "Magda", "Sven",
+    "Dmitri", "Natasha", "Alex", "Borislav", "Evelin", "Goran", "Ivana"
+]
+
 def get_data_corrente_gioco():
     data_base = date(2026, 9, 27)
     giorni_trascorsi = st.session_state.giorni_trascorsi_offset
@@ -431,8 +440,7 @@ def genera_cliente_in_negozio():
     prodotti_tutti = get_prodotti_tutti_df()
     if not prodotti_tutti.empty:
         prod = prodotti_tutti.sample(n=1).iloc[0]
-        nomi_clienti = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP", "Matteo", "Valentina"]
-        nome_c = random.choice(nomi_clienti)
+        nome_c = random.choice(LISTA_NOMI_PRAGA)
         
         qta_req = float(random.choices([1, 2, 5, 10, 15, 20, 30], weights=[25, 30, 25, 12, 4, 3, 1], k=1)[0])
         
@@ -926,7 +934,7 @@ if st.session_state.evento_attivo:
                     qta_disp_vip = float(qta_disp_vip) if qta_disp_vip else 0.0
                     
                     if qta_disp_vip >= ev['quantita']:
-                        cli_vip_obj = {"nome": "Cliente VIP", "prodotto_id": ev['prodotto_id'], "prodotto_nome": ev['prodotto_nome'], "quantita_richiesta": ev['quantita']}
+                        cli_vip_obj = {"nome": "Cliente VIP (Praga)", "prodotto_id": ev['prodotto_id'], "prodotto_nome": ev['prodotto_nome'], "quantita_richiesta": ev['quantita']}
                         esegui_transazione_vendita(cli_vip_obj, ev['prezzo_offerto'], "Subito")
                         st.success(f"🎉 Ordine VIP completato con successo! Incasso super: €{ev['quantita'] * ev['prezzo_offerto']:.2f}")
                         st.session_state.reputazione = min(100, st.session_state.reputazione + 4)
@@ -1119,7 +1127,7 @@ with tab1:
             else:
                 fascia_corrente = FASCE_ORARIE[idx_corrente]
 
-                st.markdown(f"##### 🏪 Automazione Sales Engine")
+                st.markdown(f"##### 🏪 Automazione Sales Engine (Praga Underground)")
                 st.info(f"Fascia oraria corrente: **{fascia_corrente}** ({idx_corrente + 1} di 5)")
 
                 strategia_bot = st.selectbox("Strategia Bot", ["Onesta / Valore di Mercato", "Aggressiva (+20%)", "Generosa (-15%)"])
@@ -1133,29 +1141,35 @@ with tab1:
                         
                         if not prodotti_tutti.empty:
                             is_f, _ = e_festivo_o_weekend(get_data_corrente_gioco())
-                            moltiplicatore_festivo = 1.45 if is_f else 1.0
+                            moltiplicatore_festivo = 1.35 if is_f else 1.0
                             
+                            # FLUSSO BILANCIATO E REALISTICO (EVITA SPAM DI 150 ORDINI)
                             if idx_corrente >= 3:
-                                base_clienti = random.randint(6, 10)
-                            elif idx_corrente == 1:
-                                base_clienti = random.randint(4, 7)
-                            else:
                                 base_clienti = random.randint(3, 6)
+                            elif idx_corrente == 1:
+                                base_clienti = random.randint(2, 5)
+                            else:
+                                base_clienti = random.randint(2, 4)
                                 
-                            num_clienti_tot = int((base_clienti + int(st.session_state.fedelta_clienti / 15)) * moltiplicatore_festivo)
-                            clienti_nomi = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP", "Matteo", "Valentina"]
+                            num_clienti_tot = int((base_clienti + int(st.session_state.fedelta_clienti / 25)) * moltiplicatore_festivo)
+                            
+                            # Selezioniamo nomi unici europei per la sessione del turno
+                            nomi_turno_disponibili = random.sample(LISTA_NOMI_PRAGA, min(len(LISTA_NOMI_PRAGA), max(4, num_clienti_tot + 2)))
                             
                             vendite_ok = 0
                             incasso_turno = 0.0
                             vendite_prodotti_turno = {}
                             clienti_contrattato = 0
                             
-                            for _ in range(num_clienti_tot):
+                            for i in range(num_clienti_tot):
+                                if not nomi_turno_disponibili:
+                                    break
+                                cli_nome = nomi_turno_disponibili.pop(0)
+
                                 prod_req = prodotti_tutti.sample(n=1).iloc[0]
                                 p_id = int(prod_req['id'])
                                 p_nome = prod_req['nome']
                                 val_m = float(prod_req['valore_mercato_unitario'])
-                                cli_nome = random.choice(clienti_nomi)
                                 
                                 with get_connection() as conn:
                                     cursor = conn.cursor()
@@ -1177,7 +1191,7 @@ with tab1:
                                         clienti_contrattato += 1
                                         continue
 
-                                    qta_req = float(random.choices([1, 2, 5, 10, 15, 20], weights=[30, 30, 25, 10, 3, 2], k=1)[0])
+                                    qta_req = float(random.choices([1, 2, 5, 10, 15, 20], weights=[35, 30, 20, 10, 3, 2], k=1)[0])
                                     qta_req = min(lotti[0][1], qta_req)
                                     if qta_req <= 0: continue
                                     
