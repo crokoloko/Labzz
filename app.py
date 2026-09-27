@@ -601,6 +601,8 @@ if 'minigioco_trattativa' not in st.session_state:
     st.session_state.minigioco_trattativa = False
 if 'ultimo_report_bot' not in st.session_state:
     st.session_state.ultimo_report_bot = None
+if 'recap_giornata_corrente' not in st.session_state:
+    st.session_state.recap_giornata_corrente = None
 
 if st.session_state.cliente_in_negozio is None:
     genera_cliente_in_negozio()
@@ -644,6 +646,7 @@ def reset_completo_nuova_partita():
     st.session_state.evento_attivo = None
     st.session_state.minigioco_trattativa = False
     st.session_state.ultimo_report_bot = None
+    st.session_state.recap_giornata_corrente = None
     if st.session_state.max_fornitori_oggi > 0:
         genera_offerta_fornitore_casuale()
     genera_cliente_in_negozio()
@@ -934,6 +937,7 @@ with st.container(border=True):
             st.session_state.max_fornitori_oggi = random.choice([0, 1, 1, 2])
             st.session_state.minigioco_trattativa = False
             st.session_state.ultimo_report_bot = None
+            st.session_state.recap_giornata_corrente = None
             
             if st.session_state.max_fornitori_oggi > 0 and random.random() < 0.60:
                 genera_offerta_fornitore_casuale()
@@ -1090,34 +1094,22 @@ with tab1:
                 with st.container(border=True):
                     st.markdown("### 📊 RECAP TOTALE GIORNATA NEL BOSCO (FINE TURNI)")
                     
-                    with get_connection() as conn:
-                        data_str_oggi = data_oggi.strftime("%Y-%m-%d")
-                        mov_oggi_df = pd.read_sql_query("""
-                            SELECT m.*, p.nome as prodotto_nome 
-                            FROM movimenti m 
-                            JOIN prodotti p ON m.prodotto_id = p.id 
-                            WHERE m.tipo = 'VENDITA' AND DATE(m.data) = ?
-                            ORDER BY m.data DESC
-                        """, conn, params=(data_str_oggi,))
-
-                    tot_incasso_giorno = mov_oggi_df['ricavo_totale'].sum() if not mov_oggi_df.empty else 0.0
-                    tot_margine_giorno = mov_oggi_df['margine'].sum() if not mov_oggi_df.empty else 0.0
-                    clienti_serviti_giorno = mov_oggi_df['cliente'].nunique() if not mov_oggi_df.empty else 0
-                    transazioni_totali = len(mov_oggi_df)
-                    
-                    col_r1, col_r2 = st.columns(2)
-                    col_r1.metric("💵 Incasso Totale Giorno", f"€ {tot_incasso_giorno:,.2f}")
-                    col_r2.metric("📈 Margine Netto Giorno", f"€ {tot_margine_giorno:,.2f}")
-                    
-                    st.write(f"• **Raver Unici Serviti:** 👥 {clienti_serviti_giorno} (Transazioni totali: {transazioni_totali})")
-                    
-                    st.markdown("##### 📦 Quantità Distribuite per Prodotto:")
-                    if not mov_oggi_df.empty:
-                        qta_per_prodotto = mov_oggi_df.groupby('prodotto_nome')['quantita'].sum().reset_index()
-                        for _, row_p in qta_per_prodotto.iterrows():
-                            st.write(f"&bull; **{row_p['prodotto_nome']}**: {row_p['quantita']:.1f} g")
+                    recap_data = st.session_state.get('recap_giornata_corrente')
+                    if recap_data:
+                        col_r1, col_r2 = st.columns(2)
+                        col_r1.metric("💵 Incasso Totale Giorno", f"€ {recap_data['incasso_totale']:,.2f}")
+                        col_r2.metric("📈 Margine Netto Giorno", f"€ {recap_data['margine_totale']:,.2f}")
+                        
+                        st.write(f"• **Raver Unici Serviti:** 👥 {recap_data['clienti_serviti']} (Transazioni totali: {recap_data['transazioni_totali']})")
+                        
+                        st.markdown("##### 📦 Quantità Distribuite per Prodotto:")
+                        if recap_data['prodotti_distribuiti']:
+                            for prod_n, q_v in recap_data['prodotti_distribuiti'].items():
+                                st.write(f"&bull; **{prod_n}**: {q_v:.1f} g")
+                        else:
+                            st.write("Nessuna quantità distribuita oggi.")
                     else:
-                        st.write("Nessuna transazione registrata oggi.")
+                        st.info("Nessun dato di recap registrato per questa sessione.")
             else:
                 st.markdown(f"##### 🔊 Automazione Spaccio Sound System (Autonoma)")
                 st.info(f"Fascia oraria corrente: **{FASCE_ORARIE[idx_corrente]}** ({idx_corrente + 1} di 5)")
@@ -1136,6 +1128,13 @@ with tab1:
                         st.error("Sei troppo stanco per avviare il ciclo automatico! Riposa.")
                     else:
                         placeholder_progresso = st.empty()
+                        
+                        # Accumulatori per il recap giornaliero
+                        incasso_totale_giorno = 0.0
+                        margine_totale_giorno = 0.0
+                        clienti_serviti_set = set()
+                        transazioni_totali_giorno = 0
+                        prodotti_distribuiti_giorno = {}
                         
                         while st.session_state.indice_fascia_oraria < len(FASCE_ORARIE):
                             idx_c = st.session_state.indice_fascia_oraria
@@ -1207,6 +1206,13 @@ with tab1:
                                         vendite_ok += 1
                                         vendite_prodotti_turno[p_nome] = vendite_prodotti_turno.get(p_nome, 0.0) + qta_req
 
+                                        # Aggiorna accumulatori giornalieri
+                                        incasso_totale_giorno += ricavo
+                                        margine_totale_giorno += margine
+                                        clienti_serviti_set.add(cli_nome)
+                                        transazioni_totali_giorno += 1
+                                        prodotti_distribuiti_giorno[p_nome] = prodotti_distribuiti_giorno.get(p_nome, 0.0) + qta_req
+
                                 if vendite_ok > 0:
                                     st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 4)
                                     set_sospetto(get_sospetto() + (vendite_ok * 0.7))
@@ -1220,6 +1226,15 @@ with tab1:
 
                             st.session_state.indice_fascia_oraria += 1
                             time.sleep(2.5)
+
+                        # Salva il recap strutturato nella sessione
+                        st.session_state.recap_giornata_corrente = {
+                            "incasso_totale": incasso_totale_giorno,
+                            "margine_totale": margine_totale_giorno,
+                            "clienti_serviti": len(clienti_serviti_set),
+                            "transazioni_totali": transazioni_totali_giorno,
+                            "prodotti_distribuiti": prodotti_distribuiti_giorno
+                        }
                             
                         placeholder_progresso.success("🎉 Tutti i turni della giornata sono stati completati con successo!")
                         time.sleep(1)
