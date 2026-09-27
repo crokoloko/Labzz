@@ -342,10 +342,48 @@ def genera_cliente_in_negozio():
             "prodotto_id": int(prod['id']),
             "prodotto_nome": prod['nome'],
             "quantita_richiesta": qta_req,
-            "budget_max_g": round(budget_u, 2)
+            "budget_max_g": round(budget_u, 2),
+            "controfferta_attiva": False
         }
     else:
         st.session_state.cliente_in_negozio = None
+
+def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento):
+    aggiungi_cliente_se_nuovo(cli_att['nome'])
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        lotti_df = pd.read_sql_query("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", conn, params=(cli_att['prodotto_id'],))
+        
+        qta_da_scaricare = cli_att['quantita_richiesta']
+        totale_incasso = 0.0
+        
+        for _, lotto in lotti_df.iterrows():
+            if qta_da_scaricare <= 0: break
+            l_id = int(lotto['id'])
+            qta_lotto_disp = float(lotto['quantita_attuale'])
+            prelievo = min(qta_lotto_disp, qta_da_scaricare)
+            nuova_qta = qta_lotto_disp - prelievo
+            qta_da_scaricare -= prelievo
+            
+            ricavo_q = prelievo * prezzo_per_g
+            costo_q = prelievo * float(lotto['costo_acquisto_unitario'])
+            margine_q = ricavo_q - costo_q
+            totale_incasso += ricavo_q
+            
+            if nuova_qta == 0:
+                cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (date.today(), l_id))
+            else:
+                cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, l_id))
+            
+            cursor.execute("""
+                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
+                VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (cli_att['prodotto_id'], l_id, prelievo, prezzo_per_g, ricavo_q, costo_q, margine_q, cli_att['nome'], tipo_pagamento, f"Lotto {lotto['codice_lotto']}"))
+
+    st.session_state.energia = max(0, st.session_state.energia - 10)
+    st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 3)
+    aggiungi_log(f"✅ VENDITA: {cli_att['nome']} ha comprato {cli_att['quantita_richiesta']}g a €{prezzo_per_g:.2f}/g (Tot: €{totale_incasso:.2f})")
+    spara_fuochi_d_artificio()
 
 def verifica_arrivo_offerta_dinamica():
     if st.session_state.offerta_fornitore is not None:
@@ -573,14 +611,11 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ------------------------------------------
-# TAB 1: CASSA INTEGRATA CON LOG LEDGER LIVE
+# TAB 1: CASSA CON TRATTATIVA E CONTROFFERTA
 # ------------------------------------------
 with tab1:
     col_cassa, col_ledger = st.columns([1.2, 1])
     
-    # --------------------------------------
-    # COLONNA 1: PANNELLO DI VENDITA AZIONE
-    # --------------------------------------
     with col_cassa:
         st.subheader("💸 Cassa Operativa")
         
@@ -600,71 +635,76 @@ with tab1:
                         st.write(f"• **Richiesta:** {cli_att['quantita_richiesta']} g di *{cli_att['prodotto_nome']}*")
                         
                         with get_connection() as conn:
-                            lotti_disp = pd.read_sql_query("SELECT SUM(quantita_attuale) FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0", conn, params=(cli_att['prodotto_id'],)).iloc[0, 0]
-                        qta_disp_tot = float(lotti_disp) if lotti_disp else 0.0
+                            lotti_disp_q = pd.read_sql_query("SELECT SUM(quantita_attuale) FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0", conn, params=(cli_att['prodotto_id'],)).iloc[0, 0]
+                            costo_lotto_ref = pd.read_sql_query("SELECT costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC LIMIT 1", conn, params=(cli_att['prodotto_id'],)).iloc[0, 0]
+                            
+                        qta_disp_tot = float(lotti_disp_q) if lotti_disp_q else 0.0
+                        costo_base_u = float(costo_lotto_ref) if costo_lotto_ref else 0.0
 
                         if qta_disp_tot < cli_att['quantita_richiesta']:
                             st.error(f"⚠️ Non hai abbastanza scorte! Servono {cli_att['quantita_richiesta']}g ma ne hai solo {qta_disp_tot:.1f}g.")
                         else:
                             st.info(f"Disponibilità in magazzino: {qta_disp_tot:.1f} g")
                             
-                            prezzo_proposto = st.number_input("Imposta il Tuo Prezzo al Grammo (€/g)", min_value=0.5, value=6.0, step=0.5, format="%.2f")
-                            totale_proposto = prezzo_proposto * cli_att['quantita_richiesta']
-                            st.write(f"**Totale Incasso Proposto:** € {totale_proposto:.2f}")
+                            # SE IL CLIENTE HA FATTO UNA CONTROFFERTA
+                            if cli_att.get("controfferta_attiva", False):
+                                st.warning(f"🗣️ **CONTROFFERTA DI {cli_att['nome'].upper()}:**")
+                                st.write(f"«Troppo caro quello che chiedi! Io ti offro **€ {cli_att['budget_max_g']:.2f} / g** per tutti i {cli_att['quantita_richiesta']}g.»")
+                                
+                                incasso_contro = cli_att['budget_max_g'] * cli_att['quantita_richiesta']
+                                costo_tot_contro = costo_base_u * cli_att['quantita_richiesta']
+                                margine_contro = incasso_contro - costo_tot_contro
+                                
+                                st.markdown("##### 🧮 I tuoi conti sulla controfferta:")
+                                col_c1, col_c2, col_c3 = st.columns(3)
+                                col_c1.metric("Incasso Totale", f"€ {incasso_contro:.2f}")
+                                col_c2.metric("Costo Stock", f"€ {costo_tot_contro:.2f}")
+                                col_c3.metric("Guadagno Netto", f"€ {margine_contro:.2f}")
 
-                            tipo_pagamento = st.radio("Modalità Pagamento", ["Subito", "Dopo (Credito)"], horizontal=True)
+                                tipo_pagamento = st.radio("Modalità Pagamento", ["Subito", "Dopo (Credito)"], horizontal=True, key="pag_contro")
 
-                            col_act1, col_act2 = st.columns(2)
-                            with col_act1:
-                                if st.button("🤝 Proponi Offerta e Vendi", use_container_width=True):
-                                    if prezzo_proposto <= cli_att['budget_max_g']:
-                                        aggiungi_cliente_se_nuovo(cli_att['nome'])
-                                        with get_connection() as conn:
-                                            cursor = conn.cursor()
-                                            lotti_df = pd.read_sql_query("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", conn, params=(cli_att['prodotto_id'],))
-                                            
-                                            qta_da_scaricare = cli_att['quantita_richiesta']
-                                            for _, lotto in lotti_df.iterrows():
-                                                if qta_da_scaricare <= 0: break
-                                                l_id = int(lotto['id'])
-                                                qta_lotto_disp = float(lotto['quantita_attuale'])
-                                                prelievo = min(qta_lotto_disp, qta_da_scaricare)
-                                                nuova_qta = qta_lotto_disp - prelievo
-                                                qta_da_scaricare -= prelievo
-                                                
-                                                ricavo_q = prelievo * prezzo_proposto
-                                                costo_q = prelievo * float(lotto['costo_acquisto_unitario'])
-                                                margine_q = ricavo_q - costo_q
-                                                
-                                                if nuova_qta == 0:
-                                                    cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (date.today(), l_id))
-                                                else:
-                                                    cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, l_id))
-                                                
-                                                cursor.execute("""
-                                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
-                                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?)
-                                                """, (cli_att['prodotto_id'], l_id, prelievo, prezzo_proposto, ricavo_q, costo_q, margine_q, cli_att['nome'], tipo_pagamento, f"Lotto {lotto['codice_lotto']}"))
-
-                                        st.session_state.energia = max(0, st.session_state.energia - 10)
-                                        st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 3)
-                                        aggiungi_log(f"✅ VENDITA: {cli_att['nome']} ha comprato {cli_att['quantita_richiesta']}g per €{totale_proposto:.2f}")
-                                        spara_fuochi_d_artificio()
-                                        st.success(f"🎉 {cli_att['nome']} ha ACCETTATO!")
+                                col_co1, col_co2 = st.columns(2)
+                                with col_co1:
+                                    if st.button("✅ ACCETTA CONTROFFERTA", use_container_width=True):
+                                        esegui_transazione_vendita(cli_att, cli_att['budget_max_g'], tipo_pagamento)
+                                        st.success("Accettata la controfferta del cliente!")
                                         genera_cliente_in_negozio()
                                         st.rerun()
-                                    else:
+                                with col_co2:
+                                    if st.button("❌ RIFIUTA E MANDA VIA", use_container_width=True):
                                         st.session_state.fedelta_clienti = max(0, st.session_state.fedelta_clienti - 2)
-                                        aggiungi_log(f"❌ RIFIUTATO: {cli_att['nome']} ha rifiutato €{prezzo_proposto:.2f}/g")
-                                        st.error(f"❌ {cli_att['nome']} se n'è andato perché troppo caro!")
+                                        aggiungi_log(f"❌ RIFIUTATO: Rifiutata la controfferta di {cli_att['nome']}")
+                                        st.info("Hai rifiutato la controfferta. Il cliente è andato via.")
                                         genera_cliente_in_negozio()
                                         st.rerun()
 
-                            with col_act2:
-                                if st.button("🚪 Rifiuta / Prossimo", use_container_width=True):
-                                    st.info("Cliente congedato.")
-                                    genera_cliente_in_negozio()
-                                    st.rerun()
+                            # TRATTATIVA NORMALE INIZIALE
+                            else:
+                                prezzo_proposto = st.number_input("Imposta il Tuo Prezzo al Grammo (€/g)", min_value=0.5, value=6.0, step=0.5, format="%.2f")
+                                totale_proposto = prezzo_proposto * cli_att['quantita_richiesta']
+                                st.write(f"**Totale Incasso Proposto:** € {totale_proposto:.2f}")
+
+                                tipo_pagamento = st.radio("Modalità Pagamento", ["Subito", "Dopo (Credito)"], horizontal=True, key="pag_init")
+
+                                col_act1, col_act2 = st.columns(2)
+                                with col_act1:
+                                    if st.button("🤝 Proponi Offerta e Vendi", use_container_width=True):
+                                        if prezzo_proposto <= cli_att['budget_max_g']:
+                                            esegui_transazione_vendita(cli_att, prezzo_proposto, tipo_pagamento)
+                                            st.success(f"🎉 {cli_att['nome']} ha ACCETTATO!")
+                                            genera_cliente_in_negozio()
+                                            st.rerun()
+                                        else:
+                                            # Il cliente rifiuta e fa la sua controfferta
+                                            st.session_state.cliente_in_negozio['controfferta_attiva'] = True
+                                            st.warning(f"⚠️ {cli_att['nome']} ha rifiutato la tua offerta e ti sta facendo una controfferta!")
+                                            st.rerun()
+
+                                with col_act2:
+                                    if st.button("🚪 Rifiuta / Prossimo", use_container_width=True):
+                                        st.info("Cliente congedato.")
+                                        genera_cliente_in_negozio()
+                                        st.rerun()
 
             elif tipo_operazione == "Automazione Turno AI":
                 st.markdown("##### 🏪 Automazione Sales Engine")
@@ -752,7 +792,6 @@ with tab1:
     with col_ledger:
         st.subheader("📖 Ledger & Movimenti Live")
         
-        # Tabella Movimenti Live dal Database
         movimenti_df = get_movimenti_dettagliati_df()
         if not movimenti_df.empty:
             st.dataframe(
