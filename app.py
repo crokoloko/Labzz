@@ -1056,6 +1056,48 @@ with tab1:
 
             if idx_corrente >= len(FASCE_ORARIE):
                 st.warning("⚠️ Hai completato tutte le 5 fasce orarie della giornata! Clicca su **'🌙 Riposa e Passa al Giorno Successivo'** in cima per continuare.")
+                
+                # --- RECAP COMPLETO DELLA GIORNATA APPENA CONCLUSA ---
+                with st.container(border=True):
+                    st.markdown("### 📊 RECAP TOTALE GIORNATA (FINE TURNI)")
+                    
+                    with get_connection() as conn:
+                        mov_oggi_df = pd.read_sql_query("""
+                            SELECT m.*, p.nome as prodotto_nome 
+                            FROM movimenti m 
+                            JOIN prodotti p ON m.prodotto_id = p.id 
+                            WHERE m.tipo = 'VENDITA' AND date(m.data) = date('now')
+                        0""", conn)
+                        
+                        # Fallback se non ci sono record filtrati esattamente su date('now') per test locali offline
+                        if mov_oggi_df.empty:
+                            mov_oggi_df = pd.read_sql_query("""
+                                SELECT m.*, p.nome as prodotto_nome 
+                                FROM movimenti m 
+                                JOIN prodotti p ON m.prodotto_id = p.id 
+                                WHERE m.tipo = 'VENDITA'
+                                ORDER BY m.data DESC LIMIT 15
+                            """, conn)
+
+                    tot_incasso_giorno = mov_oggi_df['ricavo_totale'].sum() if not mov_oggi_df.empty else 0.0
+                    tot_margine_giorno = mov_oggi_df['margine'].sum() if not mov_oggi_df.empty else 0.0
+                    clienti_serviti_giorno = mov_oggi_df['cliente'].nunique() if not mov_oggi_df.empty else 0
+                    transazioni_totali = len(mov_oggi_df)
+                    
+                    qta_top_giorno = mov_oggi_df[mov_oggi_df['prodotto_nome'].str.contains("Top Quality", case=False, na=False)]['quantita'].sum() if not mov_oggi_df.empty else 0.0
+                    qta_classica_giorno = mov_oggi_df[~mov_oggi_df['prodotto_nome'].str.contains("Top Quality", case=False, na=False)]['quantita'].sum() if not mov_oggi_df.empty else 0.0
+
+                    col_r1, col_r2 = st.columns(2)
+                    col_r1.metric("💵 Incasso Totale Giorno", f"€ {tot_incasso_giorno:,.2f}")
+                    col_r2.metric("📈 Margine Netto Giorno", f"€ {tot_margine_giorno:,.2f}")
+                    
+                    st.write(f"• **Clienti Unici Serviti:** 👥 {clienti_serviti_giorno} (Transazioni totali: {transazioni_totali})")
+                    st.write(f"• **Top Quality Venduta:** ⭐ {qta_top_giorno:.1f} g")
+                    st.write(f"• **Merce Classica/Standard Venduta:** 📦 {qta_classica_giorno:.1f} g")
+                    
+                    if not mov_oggi_df.empty:
+                        st.markdown("##### 🛒 Dettaglio Ultimi Clienti Serviti Oggi:")
+                        st.dataframe(mov_oggi_df[['data', 'cliente', 'prodotto_nome', 'quantita', 'ricavo_totale']], use_container_width=True, hide_index=True)
             else:
                 fascia_corrente = FASCE_ORARIE[idx_corrente]
 
@@ -1161,7 +1203,7 @@ with tab1:
                         st.session_state.indice_fascia_oraria += 1
                         st.rerun()
 
-            if st.session_state.ultimo_report_bot:
+            if st.session_state.ultimo_report_bot and st.session_state.indice_fascia_oraria < len(FASCE_ORARIE):
                 rep_bot = st.session_state.ultimo_report_bot
                 with st.container(border=True):
                     st.markdown(f"##### 📋 Report Fascia: {rep_bot['fascia']}")
@@ -1353,10 +1395,8 @@ with tab3:
                     esito_txt = "Mossa ad altissimo rischio nel vicolo buio!"
                     
                 nuovo_costo_u = round(off['costo_unitario'] * sconto, 2)
-                # Calcoliamo i grammi che ti danno con i soldi che hai messo
                 qta_calcolata = round(budget_proposto / nuovo_costo_u, 2) if nuovo_costo_u > 0 else 0.0
                 
-                # Non puoi comprare più grammi di quelli che il fornitore ha effettivamente in stock nell'offerta
                 if qta_calcolata > off['quantita']:
                     qta_calcolata = float(off['quantita'])
                     budget_proposto = round(qta_calcolata * nuovo_costo_u, 2)
