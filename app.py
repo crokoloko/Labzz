@@ -11,7 +11,7 @@ import altair as alt
 # CONFIGURAZIONE PAGINA STREAMLIT
 # ==========================================
 st.set_page_config(
-    page_title="LaBzz - Tycoon Management",
+    page_title="LaBzz - Praga Underground Tycoon",
     page_icon="📦",
     layout="wide"
 )
@@ -59,6 +59,15 @@ def init_db():
         )""")
 
         cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pusher (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT UNIQUE NOT NULL,
+            stipendio_giornaliero REAL NOT NULL,
+            efficienza REAL NOT NULL,
+            assunto INTEGER DEFAULT 0
+        )""")
+
+        cursor.execute("""
         CREATE TABLE IF NOT EXISTS movimenti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             prodotto_id INTEGER NOT NULL,
@@ -83,6 +92,7 @@ def init_db():
             valore REAL NOT NULL
         )""")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('soglia_esaurimento', 10.0)")
+        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('sospetto_polizia', 10.0)")
 
 init_db()
 
@@ -94,7 +104,6 @@ FASCE_ORARIE = [
     "🌌 5. Notte (22:00 - 02:00)"
 ]
 
-# LISTA NOMINATIVI EUROPEI / UNDERGROUND PRAGA
 LISTA_NOMI_PRAGA = [
     "Jan", "Petra", "Maxim", "Klara", "Tomas", "Lenka", "Wanja", 
     "Milan", "Zuzana", "Marek", "Sonja", "Ondra", "Katka", "Pavel", 
@@ -103,6 +112,19 @@ LISTA_NOMI_PRAGA = [
     "Dmitri", "Natasha", "Alex", "Borislav", "Evelin", "Goran", "Ivana"
 ]
 
+PUSHER_DISPONIBILI = [
+    {"nome": "Vojta 'Il Veloce'", "stipendio": 15.0, "efficienza": 0.8},
+    {"nome": "Kamil 'Ghost'", "stipendio": 25.0, "efficienza": 1.3},
+    {"nome": "Anetka 'Bassi'", "stipendio": 10.0, "efficienza": 0.5}
+]
+
+def inizializza_pusher_db():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        for p in PUSHER_DISPONIBILI:
+            cursor.execute("INSERT OR IGNORE INTO pusher (nome, stipendio_giornaliero, efficienza, assunto) VALUES (?, ?, ?, 0)", (p['nome'], p['stipendio'], p['efficienza']))
+inizializza_pusher_db()
+
 def get_data_corrente_gioco():
     data_base = date(2026, 9, 27)
     giorni_trascorsi = st.session_state.giorni_trascorsi_offset
@@ -110,23 +132,16 @@ def get_data_corrente_gioco():
 
 def e_festivo_o_weekend(data_rif):
     if data_rif.weekday() >= 5:
-        return True, "Fine Settimana (Weekend 🎉)"
-    
-    feste_fisse = [(1, 1), (6, 1), (25, 4), (1, 5), (2, 6), (15, 8), (1, 11), (8, 12), (25, 12), (26, 12)]
-    if (data_rif.day, data_rif.month) in feste_fisse:
-        return True, "Festività Nazionale 🇮🇹"
-        
+        return True, "Weekend / Rave in corso 🎉"
     return False, "Giorno Lavorativo 💼"
 
 def genera_codice_lotto_automatico(data_riferimento=None):
     if data_riferimento is None:
         data_riferimento = get_data_corrente_gioco()
-    
     giorno = data_riferimento.strftime("%d").lstrip("0")
     MESE_INIZIALI = ['g', 'f', 'm', 'a', 'm', 'g', 'l', 'a', 's', 'o', 'n', 'd']
     iniziale_mese = MESE_INIZIALI[data_riferimento.month - 1]
     anno_2_cifre = data_riferimento.strftime("%y")
-    
     return f"{giorno}{iniziale_mese}{anno_2_cifre}"
 
 def get_video_base64(file_path):
@@ -136,12 +151,18 @@ def get_video_base64(file_path):
         return base64.b64encode(data).decode('utf-8')
     return None
 
-def get_soglia_esaurimento():
+def get_sospetto():
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT valore FROM impostazioni WHERE chiave = 'soglia_esaurimento'")
+        cursor.execute("SELECT valore FROM impostazioni WHERE chiave = 'sospetto_polizia'")
         row = cursor.fetchone()
         return float(row[0]) if row else 10.0
+
+def set_sospetto(valore):
+    v_clamped = max(0.0, min(100.0, valore))
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO impostazioni (chiave, valore) VALUES ('sospetto_polizia', ?)", (v_clamped,))
 
 def get_prodotti_disponibili_df():
     query = """
@@ -207,9 +228,7 @@ def get_report_lotti_integrato_df(soglia_esaurimento_g=10.0):
                 return f"⚠️ In Esaurimento ({qta:.1f} g rimasti)"
             else:
                 return "🔵 Attivo"
-
         df['stato_lotto'] = df.apply(calcola_stato, axis=1)
-
     return df
 
 def get_movimenti_dettagliati_df():
@@ -243,13 +262,13 @@ def aggiungi_cliente_se_nuovo(nome):
 
 def calcola_grado_reputazione(rep):
     if rep < 30:
-        return "🌱 Principiante di Quartiere"
+        return "🌱 Principiante di Žižkov"
     elif rep < 60:
-        return "🥈 Spacciatore Rispettato"
+        return "🥈 Player Rispettato a Praga"
     elif rep < 85:
-        return "🥇 Boss della Zona"
+        return "🥇 Boss Underground"
     else:
-        return "👑 Re del Quartiere"
+        return "👑 Re della Notte di Praga"
 
 def calcola_stato_magazzino(solo_disponibili=False):
     with get_connection() as conn:
@@ -289,7 +308,6 @@ def calcola_stato_magazzino(solo_disponibili=False):
             'incasso_totale': incasso_totale,
             'margine_totale': margine_totale
         })
-
     return pd.DataFrame(risultati)
 
 def segna_debito_pagato(nome_cliente):
@@ -297,7 +315,6 @@ def segna_debito_pagato(nome_cliente):
         cursor = conn.cursor()
         cursor.execute("SELECT SUM(ricavo_totale) FROM movimenti WHERE cliente = ? AND pagamento = 'Dopo (Credito)'", (nome_cliente,))
         tot_incassato = cursor.fetchone()[0] or 0.0
-        
         cursor.execute("UPDATE movimenti SET pagamento = 'Subito' WHERE cliente = ? AND pagamento = 'Dopo (Credito)'", (nome_cliente,))
         st.session_state.soldi_cassa += tot_incassato
 
@@ -338,7 +355,7 @@ def trigger_effetto_notte():
         font-size: 2.5rem;
         letter-spacing: 3px;
         text-shadow: 0 0 20px rgba(251, 191, 36, 0.6);
-    ">🌙 PASSAGGIO DELLA NOTTE... ALBA IN ARRIVO ☀️</div>
+    ">🌙 PASSAGGIO DELLA NOTTE PRAGHESE... ALBA IN ARRIVO ☀️</div>
     <script>
         const overlay = document.getElementById('night-overlay');
         setTimeout(() => {
@@ -357,19 +374,17 @@ def trigger_effetto_notte():
 # GANGSTER E FORNITORI
 # ==========================================
 GANGSTER_FORNITORI = [
-    {"nome": "Don Cornetto", "frase": "«Un'offerta che non puoi rifiutare... o finisci a fare i cappucci!»"},
+    {"nome": "Don Cornetto", "frase": "«Un'offerta da Praga che non puoi rifiutare...»"},
     {"nome": "Tony Pesto", "frase": "«O compri questo stock o stasera le cotolette le fai coi denti!»"},
-    {"nome": "Al Cacio", "frase": "«Robina fresca fresca di contrabbando, scesa dal camion mezz'ora fa.»"},
-    {"nome": "Franky 'Cinque Dita'", "frase": "«Guarda che qualità, sfiorala soltanto e ti senti già ricchissimo!»"},
-    {"nome": "Peppe 'u Scannatore", "frase": "«Vedi di fare in fretta prima che arrivi la finanza...»"},
-    {"nome": "Luigi 'O Calibro", "frase": "«Prezzo da amico, ma non farmi domande su dove l'ho preso.»"},
-    {"nome": "Gaetano 'Er Siringa'", "frase": "«Trattativa pulita, niente sbirri, solo contanti e saluti.»"},
-    {"nome": "Mimmo 'Er Cipolla'", "frase": "«Questa ti fa piangere da quanto è buona. Prendi prima che cambi idea!»"}
+    {"nome": "Al Cacio", "frase": "«Robina fresca fresca di contrabbando, scesa dal treno da Berlino.»"},
+    {"nome": "Franky 'Cinque Dita'", "frase": "«Guarda che qualità, sfiorala soltanto e ti senti a Karlin!»"},
+    {"nome": "Peppe 'u Scannatore", "frase": "«Vedi di fare in fretta prima che arrivi la polizia ceca...»"},
+    {"nome": "Luigi 'O Calibro", "frase": "«Prezzo da amico, ma non farmi domande su dove l'ho preso nei club.»"}
 ]
 
 def genera_offerta_fornitore_casuale():
     if st.session_state.fornitori_visti_oggi >= st.session_state.max_fornitori_oggi:
-        st.info("Per oggi non ci sono altri contatti disponibili.")
+        st.info("Per oggi non ci sono altri contatti disponibili nei vicoli.")
         return
 
     st.session_state.fornitori_visti_oggi += 1
@@ -378,7 +393,7 @@ def genera_offerta_fornitore_casuale():
     giorno_corrente = st.session_state.giorno
     moltiplicatore_giornaliero = 1.0 + min(2.5, (giorno_corrente - 1) * 0.18)
     
-    rischio_sola = random.random() < (0.20 + min(0.30, giorno_corrente * 0.02))
+    rischio_sola = random.random() < (0.18 + min(0.30, giorno_corrente * 0.02))
     
     if rischio_sola:
         tipo_offerta = "⚠️ ATTENZIONE: Sospetta 'Sola' / Pacco!"
@@ -388,21 +403,26 @@ def genera_offerta_fornitore_casuale():
         valore_mercato_suggerito = 7.0
         gangster_frase_sola = f"«{gangster['nome']} ti guarda con un ghigno strano...» " + gangster['frase']
     else:
-        varieta_scelta = random.choice(["Skunk", "Hash Dry", "Lemon Haze", "Frozen Hash"])
+        # RARITÀ RIFORNIMENTI: Skunk (40%), Hash Dry (35%), Lemon Haze (18%), Frozen Hash (7% Raro)
+        varieta_scelta = random.choices(
+            ["Skunk", "Hash Dry", "Lemon Haze", "Frozen Hash"],
+            weights=[40, 35, 18, 7],
+            k=1
+        )[0]
         
         if varieta_scelta == "Skunk":
             p_nome = "Skunk"
             qta = float(random.choice([60, 100, 150, 200]) * moltiplicatore_giornaliero)
             costo_u = round(random.uniform(2.50, 3.50), 2)
             valore_mercato_suggerito = 7.0
-            tipo_offerta = "🌿 Skunk Economica (Bassa Qualità)"
+            tipo_offerta = "🌿 Skunk Economica"
 
         elif varieta_scelta == "Hash Dry":
             p_nome = "Hash Dry"
             qta = float(random.choice([40, 80, 120, 160]) * moltiplicatore_giornaliero)
             costo_u = round(random.uniform(4.00, 5.50), 2)
             valore_mercato_suggerito = 10.0
-            tipo_offerta = "🧱 Hash Dry Commerciale (Buona Qualità)"
+            tipo_offerta = "🧱 Hash Dry Commerciale"
 
         elif varieta_scelta == "Lemon Haze":
             p_nome = "Lemon Haze"
@@ -413,10 +433,10 @@ def genera_offerta_fornitore_casuale():
 
         else:
             p_nome = "Frozen Hash"
-            qta = float(random.choice([20, 40, 70, 100]) * moltiplicatore_giornaliero)
+            qta = float(random.choice([20, 35, 50, 70]) * moltiplicatore_giornaliero)
             costo_u = round(random.uniform(10.00, 13.50), 2)
             valore_mercato_suggerito = 22.0
-            tipo_offerta = "❄️ Frozen Hash (Top del Mercato)"
+            tipo_offerta = "❄️ Frozen Hash (💎 Stock Estremamente Raro)"
 
         gangster_frase_sola = gangster['frase']
 
@@ -433,7 +453,7 @@ def genera_offerta_fornitore_casuale():
         "valore_mercato_suggerito": valore_mercato_suggerito,
         "tipo": tipo_offerta,
         "is_sola": rischio_sola,
-        "codice_lotto": f"OFF-{random.randint(100,999)}"
+        "codice_lotto": f"PRG-{random.randint(100,999)}"
     }
 
 def genera_cliente_in_negozio():
@@ -441,9 +461,7 @@ def genera_cliente_in_negozio():
     if not prodotti_tutti.empty:
         prod = prodotti_tutti.sample(n=1).iloc[0]
         nome_c = random.choice(LISTA_NOMI_PRAGA)
-        
         qta_req = float(random.choices([1, 2, 5, 10, 15, 20, 30], weights=[25, 30, 25, 12, 4, 3, 1], k=1)[0])
-        
         val_ref = float(prod['valore_mercato_unitario'])
         budget_u = val_ref * random.uniform(0.85, 1.35)
         
@@ -459,25 +477,27 @@ def genera_cliente_in_negozio():
         st.session_state.cliente_in_negozio = None
 
 def genera_evento_casuale_giorno():
-    if random.random() < 0.38:
-        evento_tipo = random.choice(["polizia", "vip", "tossici"])
+    # Gestione sospetto e polizia automatica
+    sosp = get_sospetto()
+    if sosp >= 75.0 or random.random() < 0.35:
+        evento_tipo = random.choice(["polizia", "vip", "tossici", "festival"])
         
         if evento_tipo == "polizia":
             st.session_state.evento_attivo = {
                 "tipo": "polizia",
-                "titolo": "🚨 BLITZ / POSTO DI BLOCCO DELLA FINANZA!",
-                "testo": "Voci di corridoio dicono che le forze dell'ordine stanno setacciando la zona con controlli a tappeto vicino al locale. Tensione alle stelle!"
+                "titolo": "🚨 BLITZ POLIZIA CECA / CONTROLLI METRO!",
+                "testo": f"Il livello di sospetto è alto ({sosp:.1f}%). Pattuglie in borghese stazionano vicino al locale!"
             }
         elif evento_tipo == "vip":
             prodotti_disp = get_prodotti_disponibili_df()
             if not prodotti_disp.empty:
                 prod_vip = prodotti_disp.sample(n=1).iloc[0]
                 qta_vip = float(random.choice([5, 10, 15]))
-                prezzo_vip = float(prod_vip['valore_mercato_unitario']) * 1.40
+                prezzo_vip = float(prod_vip['valore_mercato_unitario']) * 1.45
                 st.session_state.evento_attivo = {
                     "tipo": "vip",
-                    "titolo": "📱 NOTIFICA VIP URGENTE",
-                    "testo": f"Un cliente VIP misterioso ti ha scritto sul telefono: «Mi servono urgentemente **{qta_vip}g di {prod_vip['nome']}**. Ti pago a peso d'oro (**€{prezzo_vip:.2f}/g**) se me li procuri oggi stesso!»",
+                    "titolo": "📱 NOTIFICA PROMOTORE CLUB VIP",
+                    "testo": f"Un contatto underground ti scrive da Žižkov: «Mi servono urgentemente **{qta_vip}g di {prod_vip['nome']}** per un DJ set privato. Ti pago **€{prezzo_vip:.2f}/g**!»",
                     "prodotto_id": int(prod_vip['id']),
                     "prodotto_nome": prod_vip['nome'],
                     "quantita": qta_vip,
@@ -485,11 +505,17 @@ def genera_evento_casuale_giorno():
                 }
             else:
                 st.session_state.evento_attivo = None
+        elif evento_tipo == "festival":
+            st.session_state.evento_attivo = {
+                "tipo": "festival",
+                "titolo": "🎉 RAVER & TURISTI IN CITÀ!",
+                "testo": "C'è un enorme festival di musica elettronica underground a Praga oggi! La richiesta di mercato schizza alle stelle (+20% sui prezzi di vendita per oggi)."
+            }
         else:
             st.session_state.evento_attivo = {
                 "tipo": "tossici",
-                "titolo": "🧟 IRRUZIONE DI TOSSICI IN ASTINENZA!",
-                "testo": "Un gruppo di disperati in astinenza si aggira con fare minaccioso intorno al locale urlando e strattonando la porta. Vogliono rubare scorte perché non hanno un centesimo!"
+                "titolo": "🧟 GRUPPO DI RIVALI LOCALI!",
+                "testo": "Dei teppisti locali si aggirano fuori dal locale chiedendo il pizzo o minacciando scompiglio!"
             }
     else:
         st.session_state.evento_attivo = None
@@ -532,7 +558,14 @@ def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento):
     st.session_state.energia = max(0, st.session_state.energia - 10)
     st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 3)
     st.session_state.reputazione = min(100, st.session_state.reputazione + 1)
-    aggiungi_log(f"✅ VENDITA: {cli_att['nome']} ha comprato {cli_att['quantita_richiesta']}g di '{cli_att['prodotto_nome']}' a €{prezzo_per_g:.2f}/g (+€{totale_incasso:.2f})")
+    
+    # Aumenta leggermente il sospetto polizia in base alla quantità e al tipo venduto
+    incremento_sospetto = cli_att['quantita_richiesta'] * 0.15
+    if "Frozen" in cli_att['prodotto_nome']:
+        incremento_sospetto *= 1.8
+    set_sospetto(get_sospetto() + incremento_sospetto)
+
+    aggiungi_log(f"✅ VENDITA: {cli_att['nome']} ha comprato {cli_att['quantita_richiesta']}g di '{cli_att['prodotto_nome']}' (+€{totale_incasso:.2f})")
     spara_fuochi_d_artificio()
 
 # INITIAL STATE
@@ -551,7 +584,7 @@ if 'reputazione' not in st.session_state:
 if 'fedelta_clienti' not in st.session_state:
     st.session_state.fedelta_clienti = 10
 if 'log_gioco' not in st.session_state:
-    st.session_state.log_gioco = ["🎮 Benvenuto nel mondo Tycoon! Capitale iniziale: €200."]
+    st.session_state.log_gioco = ["🎮 Benvenuto nel Praga Underground Tycoon! Capitale: €200."]
 if 'offerta_fornitore' not in st.session_state:
     st.session_state.offerta_fornitore = None
 if 'cliente_in_negozio' not in st.session_state:
@@ -585,13 +618,15 @@ def reset_completo_nuova_partita():
         cursor.execute("DELETE FROM lotti;")
         cursor.execute("DELETE FROM prodotti;")
         cursor.execute("DELETE FROM clienti;")
+        cursor.execute("UPDATE pusher SET assunto = 0;")
         
         cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario, scorta_minima_g) VALUES ('Skunk', 7.0, 20.0);")
         p_id = cursor.lastrowid
-        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, 'START-01', 50.0, 50.0, 2.50, ?, ?);", (p_id, date.today(), date.today()))
+        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, 'PRG-START', 50.0, 50.0, 2.50, ?, ?);", (p_id, date.today(), date.today()))
         l_id = cursor.lastrowid
-        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', 50.0, 125.0, 'Fornitore Iniziale', 'Stock Start')", (p_id, l_id))
+        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', 50.0, 125.0, 'Fornitore Praga', 'Stock Iniziale')", (p_id, l_id))
     
+    set_sospetto(10.0)
     st.session_state.soldi_cassa = 200.0
     st.session_state.giorno = 1
     st.session_state.giorni_trascorsi_offset = 0
@@ -599,7 +634,7 @@ def reset_completo_nuova_partita():
     st.session_state.energia = 100
     st.session_state.reputazione = 15
     st.session_state.fedelta_clienti = 10
-    st.session_state.log_gioco = ["✨ Nuova Partita Iniziata! Reset completo eseguito. Budget: €200."]
+    st.session_state.log_gioco = ["✨ Nuova Partita Iniziata! Praga ti aspetta. Budget: €200."]
     st.session_state.offerta_fornitore = None
     st.session_state.cliente_in_negozio = None
     st.session_state.fornitori_visti_oggi = 0
@@ -613,15 +648,15 @@ def reset_completo_nuova_partita():
     genera_evento_casuale_giorno()
 
 # ==========================================
-# INIEZIONE CSS CUSTOM — STILE GTA / LAVAGNA CRIMINALE
+# INIEZIONE CSS CUSTOM — STILE PRAGA UNDERGROUND
 # ==========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Anton&family=Special+Elite&family=Rajdhani:wght@500;600;700&display=swap');
 
     .stApp {
-        background-color: #0b0f19 !important;
-        background: linear-gradient(135deg, #05070c 0%, #0b0f19 50%, #111827 100%) !important;
+        background-color: #05070c !important;
+        background: linear-gradient(135deg, #020408 0%, #0b0f19 50%, #111827 100%) !important;
         color: #f3f4f6 !important;
         font-family: 'Rajdhani', sans-serif !important;
         font-weight: 600;
@@ -632,7 +667,7 @@ st.markdown("""
     }
 
     .block-container {
-        padding-top: 2.2rem !important;
+        padding-top: 2rem !important;
         padding-bottom: 6rem !important;
         padding-left: 0.8rem !important;
         padding-right: 0.8rem !important;
@@ -650,7 +685,7 @@ st.markdown("""
     .logo-container video {
         display: block !important;
         margin: 0 auto !important;
-        max-width: 400px !important;
+        max-width: 380px !important;
         width: 100% !important;
         height: auto !important;
         border-radius: 8px !important;
@@ -662,7 +697,7 @@ st.markdown("""
         color: #ffffff !important;
         letter-spacing: 1.5px !important;
         text-transform: uppercase !important;
-        text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.8);
+        text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.9);
     }
 
     .top-metrics-grid {
@@ -694,7 +729,7 @@ st.markdown("""
         text-align: center !important;
         width: 100% !important;
         min-height: 85px !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.6);
     }
 
     .card-label {
@@ -714,7 +749,7 @@ st.markdown("""
     }
 
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px !important;
+        gap: 6px !important;
         background-color: transparent !important;
         border-bottom: none !important;
         justify-content: center !important;
@@ -729,8 +764,8 @@ st.markdown("""
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
         border-radius: 4px !important;
         color: #9ca3af !important;
-        font-size: 0.95rem !important;
-        padding: 8px 14px !important;
+        font-size: 0.9rem !important;
+        padding: 8px 12px !important;
     }
 
     .stTabs [aria-selected="true"] {
@@ -775,7 +810,6 @@ st.markdown("""
 # RENDER LOGO IN CIMA
 # ==========================================
 video_b64 = get_video_base64("logo.gif.mp4")
-
 if video_b64:
     st.markdown(f"""
         <div class="logo-container">
@@ -788,10 +822,10 @@ else:
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
     else:
-        st.title("LaBzz Tycoon")
+        st.title("Praga Underground Tycoon")
 
 # ==========================================
-# HEADER METRICHE TYCOON GRIGLIA COMPATTA
+# HEADER METRICHE TYCOON & HEAT METER POLIZIA
 # ==========================================
 with get_connection() as conn:
     df_lotti_scorte = pd.read_sql_query("""
@@ -814,16 +848,18 @@ qta_lemon = get_qta_prodotto("Lemon Haze")
 qta_frozen = get_qta_prodotto("Frozen Hash")
 
 grado_rep_testo = calcola_grado_reputazione(st.session_state.reputazione)
+sospetto_attuale = get_sospetto()
+
+col_m1, col_m2 = st.columns(2)
+col_m1.metric("💵 Cassa Liquida", f"€ {st.session_state.soldi_cassa:,.2f}")
+col_m2.metric("🚨 Sospetto Polizia (Heat)", f"{sospetto_attuale:.1f} / 100")
+st.progress(int(sospetto_attuale))
 
 st.markdown(f"""
 <div class="top-metrics-grid">
     <div class="custom-card">
-        <div class="card-label">💵 Cassa Liquida</div>
-        <div class="card-value">€ {st.session_state.soldi_cassa:,.2f}</div>
-    </div>
-    <div class="custom-card">
         <div class="card-label">📦 Scorte Magazzino</div>
-        <div style="font-size: 0.65rem; font-weight: 700; margin-top: 2px; display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; color: #38bdf8; line-height: 1.3;">
+        <div style="font-size: 0.62rem; font-weight: 700; margin-top: 2px; display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; color: #38bdf8; line-height: 1.3;">
             <span>🌿 {qta_skunk:.1f}g</span> &bull; 
             <span>🧱 {qta_hash:.1f}g</span> &bull; 
             <span>🍋 {qta_lemon:.1f}g</span> &bull; 
@@ -838,9 +874,9 @@ st.markdown(f"""
         <div class="card-label">⚡ Energia</div>
         <div class="card-value">{st.session_state.energia}%</div>
     </div>
-    <div class="custom-card" style="grid-column: span 2;">
-        <div class="card-label">⭐ Reputazione e Rango</div>
-        <div class="card-value">{st.session_state.reputazione} / 100 ({grado_rep_testo})</div>
+    <div class="custom-card">
+        <div class="card-label">⭐ Rango Praga</div>
+        <div style="font-size: 0.8rem; font-family: 'Anton', sans-serif; color: #f59e0b;">{grado_rep_testo}</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -855,7 +891,15 @@ data_formattata = data_oggi.strftime("%d %B %Y")
 with st.container(border=True):
     col_n1, col_n2, col_n3 = st.columns([1, 2, 1])
     with col_n2:
-        if st.button("🌙 Riposa e Passa al Giorno Successivo", use_container_width=True):
+        if st.button("🌙 Riposa, Paga Stipendi e Avanza", use_container_width=True):
+            # Paga stipendi pusher assunti
+            with get_connection() as conn:
+                pusher_assunti = pd.read_sql_query("SELECT * FROM pusher WHERE assunto = 1", conn)
+            tot_stipendi = pusher_assunti['stipendio_giornaliero'].sum() if not pusher_assunti.empty else 0.0
+            
+            st.session_state.soldi_cassa -= tot_stipendi
+            set_sospetto(get_sospetto() - 8.0) # La notte cala il sospetto
+            
             trigger_effetto_notte()
             st.session_state.giorno += 1
             st.session_state.giorni_trascorsi_offset += 1
@@ -873,7 +917,7 @@ with st.container(border=True):
                 
             genera_cliente_in_negozio()
             genera_evento_casuale_giorno()
-            aggiungi_log(f"🌙 Giorno {st.session_state.giorno} ({data_formattata}) iniziato. Energia 100%. Fornitori disponibili: {st.session_state.max_fornitori_oggi}")
+            aggiungi_log(f"🌙 Notte trascorsa a Praga. Stipendi pusher pagati: -€{tot_stipendi:.2f}")
             st.rerun()
 
     st.markdown(f"""
@@ -885,7 +929,7 @@ with st.container(border=True):
 st.markdown("---")
 
 # ==========================================
-# GESTIONE EVENTI SPECIALI (POLIZIA / VIP / TOSSICI) IN EVIDENZA
+# GESTIONE EVENTI SPECIALI (POLIZIA / VIP / FESTIVAL)
 # ==========================================
 if st.session_state.evento_attivo:
     ev = st.session_state.evento_attivo
@@ -896,32 +940,33 @@ if st.session_state.evento_attivo:
         if ev['tipo'] == 'polizia':
             col_ev1, col_ev2, col_ev3 = st.columns(3)
             with col_ev1:
-                if st.button("💰 Paga Tangente (€45)", use_container_width=True):
-                    if st.session_state.soldi_cassa >= 45.0:
-                        st.session_state.soldi_cassa -= 45.0
-                        st.success("Hai corrotto la pattuglia! Sgomberati i controlli.")
-                        aggiungi_log("🚨 POLIZIA: Pagata tangente di €45 per evitare guai.")
+                if st.button("💰 Corrompi Poliziotto (€50)", use_container_width=True):
+                    if st.session_state.soldi_cassa >= 50.0:
+                        st.session_state.soldi_cassa -= 50.0
+                        set_sospetto(get_sospetto() - 35.0)
+                        st.success("Tangente accettata! Il livello di allerta è sceso.")
+                        aggiungi_log("🚨 POLIZIA: Pagata tangente di €50.")
                         st.session_state.evento_attivo = None
                         st.rerun()
                     else:
-                        st.error("Non hai abbastanza contanti per la tangente!")
+                        st.error("Fondi insufficienti per corrompere la pattuglia!")
             with col_ev2:
-                if st.button("🏃 Rischia e Nascondi Merce", use_container_width=True):
-                    if random.random() < 0.55:
-                        st.success("Sei riuscito a nascondere tutto in tempo! Sgommati senza danni.")
-                        aggiungi_log("🚨 POLIZIA: Controlli superati nascondendo la merce.")
+                if st.button("🏃 Rischia Retata e Nascondi", use_container_width=True):
+                    if random.random() < (0.60 - (get_sospetto() / 200)):
+                        st.success("Sei sfuggito ai controlli di polizia nei vicoli!")
+                        set_sospetto(get_sospetto() - 15.0)
                     else:
-                        st.warning("Ti hanno perquisito il magazzino e sequestrato un po' di scorte!")
-                        aggiungi_log("🚨 POLIZIA: Perquisizione subita! Sequestro parziale di scorte.")
+                        st.warning("Retata subita! Sequestrata parte della cassa e delle scorte!")
+                        st.session_state.soldi_cassa = max(0.0, st.session_state.soldi_cassa - 80.0)
                         with get_connection() as conn:
-                            cursor = conn.cursor()
-                            cursor.execute("UPDATE lotti SET quantita_attuale = MAX(0.0, quantita_attuale - 8.0) WHERE quantita_attuale > 0 LIMIT 3")
+                            conn.execute("UPDATE lotti SET quantita_attuale = MAX(0.0, quantita_attuale - 10.0) WHERE quantita_attuale > 0 LIMIT 3")
+                        set_sospetto(10.0)
                     st.session_state.evento_attivo = None
                     st.rerun()
             with col_ev3:
                 if st.button("🚪 Chiudi Locale per Oggi", use_container_width=True):
-                    st.info("Hai tenuto chiuso per evitare rogne. Giornata persa.")
-                    aggiungi_log("🚨 POLIZIA: Locale chiuso per l'intera giornata.")
+                    set_sospetto(get_sospetto() - 25.0)
+                    st.info("Locale blindato per tutta la giornata per evitare guai.")
                     st.session_state.evento_attivo = None
                     st.rerun()
 
@@ -934,55 +979,40 @@ if st.session_state.evento_attivo:
                     qta_disp_vip = float(qta_disp_vip) if qta_disp_vip else 0.0
                     
                     if qta_disp_vip >= ev['quantita']:
-                        cli_vip_obj = {"nome": "Cliente VIP (Praga)", "prodotto_id": ev['prodotto_id'], "prodotto_nome": ev['prodotto_nome'], "quantita_richiesta": ev['quantita']}
+                        cli_vip_obj = {"nome": "Promotore VIP Praga", "prodotto_id": ev['prodotto_id'], "prodotto_nome": ev['prodotto_nome'], "quantita_richiesta": ev['quantita']}
                         esegui_transazione_vendita(cli_vip_obj, ev['prezzo_offerto'], "Subito")
-                        st.success(f"🎉 Ordine VIP completato con successo! Incasso super: €{ev['quantita'] * ev['prezzo_offerto']:.2f}")
-                        st.session_state.reputazione = min(100, st.session_state.reputazione + 4)
-                        aggiungi_log(f"📱 VIP: Completato ordine speciale di {ev['quantita']}g di {ev['prodotto_nome']}.")
+                        st.success(f"🎉 Ordine VIP completato! Incasso: €{ev['quantita'] * ev['prezzo_offerto']:.2f}")
+                        st.session_state.reputazione = min(100, st.session_state.reputazione + 5)
                         st.session_state.evento_attivo = None
                         st.rerun()
                     else:
-                        st.error(f"Non hai abbastanza scorte di {ev['prodotto_nome']} (Disponibili: {qta_disp_vip:.1f}g)!")
+                        st.error("Scorte insufficienti per soddisfare il VIP!")
             with col_vip2:
-                if st.button("❌ RIFIUTA ORDINE", use_container_width=True):
-                    st.info("Hai declinato l'offerta VIP.")
+                if st.button("❌ Rifiuta", use_container_width=True):
                     st.session_state.evento_attivo = None
                     st.rerun()
 
-        elif ev['tipo'] == 'tossici':
-            col_tox1, col_tox2 = st.columns(2)
-            with col_tox1:
-                if st.button("🛡️ Affrontali e Difendi il Locale", use_container_width=True):
-                    if random.random() < 0.60:
-                        st.success("Sei riuscito a cacciarli via a malo modo senza subire perdite!")
-                        aggiungi_log("🧟 TOSSICI: Cacciati via con successo dal locale.")
-                    else:
-                        st.warning("Hanno sfondato e arraffato un po' di merce prima di darsi alla fuga!")
-                        aggiungi_log("🧟 TOSSICI: Subito saccheggio! Perdita di scorte dal magazzino.")
-                        with get_connection() as conn:
-                            cursor = conn.cursor()
-                            cursor.execute("UPDATE lotti SET quantita_attuale = MAX(0.0, quantita_attuale - 10.0) WHERE quantita_attuale > 0 LIMIT 2")
-                    st.session_state.evento_attivo = None
-                    st.rerun()
-            with col_tox2:
-                if st.button("🏃 Scappa e Lascia Fare", use_container_width=True):
-                    st.error("I tossici sono entrati e hanno ripulito parte delle scorte senza incontrare resistenza!")
-                    aggiungi_log("🧟 TOSSICI: Locale saccheggiato in tua assenza.")
-                    with get_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("UPDATE lotti SET quantita_attuale = MAX(0.0, quantita_attuale - 12.0) WHERE quantita_attuale > 0 LIMIT 2")
-                    st.session_state.evento_attivo = None
-                    st.rerun()
+        elif ev['tipo'] == 'festival':
+            if st.button("🎉 Ottimo! Sfrutta il Festival", use_container_width=True):
+                st.session_state.evento_attivo = None
+                st.rerun()
+
+        else:
+            if st.button("🛡️ Allontana Teppisti", use_container_width=True):
+                st.success("Li hai cacciati via dal quartiere senza danni.")
+                st.session_state.evento_attivo = None
+                st.rerun()
 
 # ==========================================
 # SCHEDE / TAB DELL'APPLICAZIONE
 # ==========================================
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "💸 Cassa", 
+    "👥 Pusher",
     "📊 Dashboard", 
-    "🚚 Rifornimenti & Fornitori",
+    "🚚 Fornitori",
     "📈 Statistiche",
-    "📜 Report & Storico"
+    "📜 Storico & Obiettivi"
 ])
 
 # ------------------------------------------
@@ -992,19 +1022,16 @@ with tab1:
     col_cassa, col_ledger = st.columns([1.2, 1])
     
     with col_cassa:
-        st.subheader("💸 Cassa Operativa")
-        
+        st.subheader("💸 Cassa Operativa (Praga)")
         tipo_operazione = st.radio("Seleziona Modalità", ["Incontra Cliente (Manuale)", "Automazione Turno AI", "XME (Perk)"], horizontal=True)
         
         if tipo_operazione == "Incontra Cliente (Manuale)":
-            st.markdown("##### 👤 Cliente Attualmente alla Cassa")
-            
+            st.markdown("##### 👤 Cliente alla Cassa")
             cli_att = st.session_state.cliente_in_negozio
             if cli_att:
                 with st.container(border=True):
-                    st.markdown(f"### **{cli_att['nome']}** è qui per comprare!")
-                    st.write(f"• **Varietà Richiesta:** ⭐ **{cli_att['prodotto_nome']}**")
-                    st.write(f"• **Quantità Richiesta:** {cli_att['quantita_richiesta']} g")
+                    st.markdown(f"### **{cli_att['nome']}** (Praga)")
+                    st.write(f"• **Richiesta:** ⭐ **{cli_att['prodotto_nome']}** ({cli_att['quantita_richiesta']} g)")
                     
                     with get_connection() as conn:
                         qta_disp_query = pd.read_sql_query("SELECT SUM(quantita_attuale) FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0", conn, params=(cli_att['prodotto_id'],)).iloc[0, 0]
@@ -1014,125 +1041,39 @@ with tab1:
                     costo_base_u = float(costo_lotto_ref.iloc[0,0]) if not costo_lotto_ref.empty else 0.0
 
                     if qta_disp_tot < cli_att['quantita_richiesta']:
-                        st.error(f"❌ NON HAI QUESTO PRODOTTO IN MAGAZZINO! (Disponibili: {qta_disp_tot:.1f}g di {cli_att['prodotto_nome']})")
-                        st.write(f"«Pessimo servizio! Volevo proprio della **{cli_att['prodotto_nome']}**. Tornerò quando ti sarai rifornito!»")
-                        
-                        if st.button("👋 Congeda Cliente Deluso", use_container_width=True):
+                        st.error(f"❌ Scorte insufficienti! (Disponibili: {qta_disp_tot:.1f}g)")
+                        if st.button("👋 Congeda Cliente", use_container_width=True):
                             st.session_state.fedelta_clienti = max(0, st.session_state.fedelta_clienti - 1)
-                            aggiungi_log(f"⚠️ VENDITA FALLITA: {cli_att['nome']} voleva {cli_att['prodotto_nome']} ma non ne avevi abbastanza.")
+                            genera_cliente_in_negozio()
+                            st.rerun()
+                    else:
+                        prezzo_proposto = st.number_input("Prezzo al Grammo (€/g)", min_value=0.5, value=float(cli_att['budget_max_g']), step=0.5, format="%.2f")
+                        totale_proposto = prezzo_proposto * cli_att['quantita_richiesta']
+                        st.write(f"**Totale:** € {totale_proposto:.2f}")
+
+                        tipo_pagamento = st.radio("Pagamento", ["Subito", "Dopo (Credito)"], horizontal=True, key="pag_init")
+
+                        if st.button("🤝 Vendi", use_container_width=True):
+                            esegui_transazione_vendita(cli_att, prezzo_proposto, tipo_pagamento)
                             genera_cliente_in_negozio()
                             st.rerun()
 
-                    else:
-                        st.info(f"Disponibilità in magazzino: {qta_disp_tot:.1f} g di {cli_att['prodotto_nome']}")
-                        
-                        if cli_att.get("controfferta_attiva", False):
-                            st.warning(f"🗣️ **CONTROFFERTA DI {cli_att['nome'].upper()}:**")
-                            st.write(f"«Troppo caro! Io ti offro **€ {cli_att['budget_max_g']:.2f} / g** per {cli_att['quantita_richiesta']}g di **{cli_att['prodotto_nome']}**.»")
-                            
-                            incasso_contro = cli_att['budget_max_g'] * cli_att['quantita_richiesta']
-                            costo_tot_contro = costo_base_u * cli_att['quantita_richiesta']
-                            margine_contro = incasso_contro - costo_tot_contro
-                            
-                            st.markdown("##### 🧮 I tuoi conti sulla controfferta:")
-                            col_c1, col_c2, col_c3 = st.columns(3)
-                            col_c1.metric("Incasso Totale", f"€ {incasso_contro:.2f}")
-                            col_c2.metric("Costo Stock", f"€ {costo_tot_contro:.2f}")
-                            col_c3.metric("Guadagno Netto", f"€ {margine_contro:.2f}")
-
-                            tipo_pagamento = st.radio("Modalità Pagamento", ["Subito", "Dopo (Credito)"], horizontal=True, key="pag_contro")
-
-                            col_co1, col_co2 = st.columns(2)
-                            with col_co1:
-                                if st.button("✅ ACCETTA CONTROFFERTA", use_container_width=True):
-                                    esegui_transazione_vendita(cli_att, cli_att['budget_max_g'], tipo_pagamento)
-                                    st.success("Accettata la controfferta del cliente!")
-                                    genera_cliente_in_negozio()
-                                    st.rerun()
-                            with col_co2:
-                                if st.button("❌ RIFIUTA E MANDA VIA", use_container_width=True):
-                                    st.session_state.fedelta_clienti = max(0, st.session_state.fedelta_clienti - 2)
-                                    aggiungi_log(f"❌ RIFIUTATO: Rifiutata controfferta di {cli_att['nome']}")
-                                    st.info("Hai rifiutato la controfferta. Il cliente è andato via.")
-                                    genera_cliente_in_negozio()
-                                    st.rerun()
-
-                        else:
-                            prezzo_proposto = st.number_input("Imposta il Tuo Prezzo al Grammo (€/g)", min_value=0.5, value=float(cli_att['budget_max_g']), step=0.5, format="%.2f")
-                            totale_proposto = prezzo_proposto * cli_att['quantita_richiesta']
-                            st.write(f"**Totale Incasso Proposto:** € {totale_proposto:.2f}")
-
-                            tipo_pagamento = st.radio("Modalità Pagamento", ["Subito", "Dopo (Credito)"], horizontal=True, key="pag_init")
-
-                            col_act1, col_act2 = st.columns(2)
-                            with col_act1:
-                                if st.button("🤝 Proponi Offerta e Vendi", use_container_width=True):
-                                    if prezzo_proposto <= cli_att['budget_max_g']:
-                                        esegui_transazione_vendita(cli_att, prezzo_proposto, tipo_pagamento)
-                                        st.success(f"🎉 {cli_att['nome']} ha ACCETTATO!")
-                                        genera_cliente_in_negozio()
-                                        st.rerun()
-                                    else:
-                                        st.session_state.cliente_in_negozio['controfferta_attiva'] = True
-                                        st.warning(f"⚠️ {cli_att['nome']} ritiene la cifra alta e ti sta facendo una controfferta!")
-                                        st.rerun()
-
-                            with col_act2:
-                                if st.button("🚪 Rifiuta / Prossimo", use_container_width=True):
-                                    st.info("Cliente congedato.")
-                                    genera_cliente_in_negozio()
-                                    st.rerun()
-
         elif tipo_operazione == "Automazione Turno AI":
             idx_corrente = st.session_state.indice_fascia_oraria
-
             if idx_corrente >= len(FASCE_ORARIE):
-                st.warning("⚠️ Hai completato tutte le 5 fasce orarie della giornata! Clicca su **'🌙 Riposa e Passa al Giorno Successivo'** in cima per continuare.")
-                
-                # --- RECAP COMPLETO DINAMICO DI TUTTI I PRODOTTI DELLA GIORNATA ---
-                with st.container(border=True):
-                    st.markdown("### 📊 RECAP TOTALE GIORNATA (FINE TURNI)")
-                    
-                    with get_connection() as conn:
-                        mov_oggi_df = pd.read_sql_query("""
-                            SELECT m.*, p.nome as prodotto_nome 
-                            FROM movimenti m 
-                            JOIN prodotti p ON m.prodotto_id = p.id 
-                            WHERE m.tipo = 'VENDITA'
-                            ORDER BY m.data DESC
-                        """, conn)
-
-                    tot_incasso_giorno = mov_oggi_df['ricavo_totale'].sum() if not mov_oggi_df.empty else 0.0
-                    tot_margine_giorno = mov_oggi_df['margine'].sum() if not mov_oggi_df.empty else 0.0
-                    clienti_serviti_giorno = mov_oggi_df['cliente'].nunique() if not mov_oggi_df.empty else 0
-                    transazioni_totali = len(mov_oggi_df)
-                    
-                    col_r1, col_r2 = st.columns(2)
-                    col_r1.metric("💵 Incasso Totale Giorno", f"€ {tot_incasso_giorno:,.2f}")
-                    col_r2.metric("📈 Margine Netto Giorno", f"€ {tot_margine_giorno:,.2f}")
-                    
-                    st.write(f"• **Clienti Unici Serviti:** 👥 {clienti_serviti_giorno} (Transazioni totali: {transazioni_totali})")
-                    
-                    st.markdown("##### 📦 Quantità Vendute per Prodotto:")
-                    if not mov_oggi_df.empty:
-                        qta_per_prodotto = mov_oggi_df.groupby('prodotto_nome')['quantita'].sum().reset_index()
-                        for _, row_p in qta_per_prodotto.iterrows():
-                            st.write(f"&bull; **{row_p['prodotto_nome']}**: {row_p['quantita']:.1f} g")
-                    else:
-                        st.write("Nessuna vendita registrata oggi.")
-                    
-                    if not mov_oggi_df.empty:
-                        st.markdown("##### 🛒 Dettaglio Ultimi Clienti Serviti Oggi:")
-                        st.dataframe(mov_oggi_df[['data', 'cliente', 'prodotto_nome', 'quantita', 'ricavo_totale']].head(15), use_container_width=True, hide_index=True)
+                st.warning("⚠️ Turni giornalieri completati! Clicca su **'🌙 Riposa, Paga Stipendi e Avanza'** in cima.")
             else:
                 fascia_corrente = FASCE_ORARIE[idx_corrente]
+                st.markdown(f"##### 🏪 Turno: **{fascia_corrente}** ({idx_corrente + 1}/5)")
+                
+                # Calcola bonus vendite se pusher assunti lavorano in automatico
+                with get_connection() as conn:
+                    pusher_attivi = pd.read_sql_query("SELECT * FROM pusher WHERE assunto = 1", conn)
+                bonus_pusher = pusher_attivi['efficienza'].sum() if not pusher_attivi.empty else 0.0
+                if bonus_pusher > 0:
+                    st.info(f"👥 Pusher attivi sul campo (+{bonus_pusher*100:.0f}% efficienza automatica)!")
 
-                st.markdown(f"##### 🏪 Automazione Sales Engine (Praga Underground)")
-                st.info(f"Fascia oraria corrente: **{fascia_corrente}** ({idx_corrente + 1} di 5)")
-
-                strategia_bot = st.selectbox("Strategia Bot", ["Onesta / Valore di Mercato", "Aggressiva (+20%)", "Generosa (-15%)"])
-
-                if st.button("🚀 Avvia Turno Fascia Corrente (-20% Energia)", use_container_width=True):
+                if st.button("🚀 Avvia Turno Fascia (-20% Energia)", use_container_width=True):
                     if st.session_state.energia < 20:
                         st.error("Sei troppo stanco! Riposa.")
                     else:
@@ -1140,32 +1081,17 @@ with tab1:
                         prodotti_tutti = get_prodotti_tutti_df()
                         
                         if not prodotti_tutti.empty:
-                            is_f, _ = e_festivo_o_weekend(get_data_corrente_gioco())
-                            moltiplicatore_festivo = 1.35 if is_f else 1.0
-                            
-                            # FLUSSO BILANCIATO E REALISTICO (EVITA SPAM DI 150 ORDINI)
-                            if idx_corrente >= 3:
-                                base_clienti = random.randint(3, 6)
-                            elif idx_corrente == 1:
-                                base_clienti = random.randint(2, 5)
-                            else:
-                                base_clienti = random.randint(2, 4)
-                                
-                            num_clienti_tot = int((base_clienti + int(st.session_state.fedelta_clienti / 25)) * moltiplicatore_festivo)
-                            
-                            # Selezioniamo nomi unici europei per la sessione del turno
-                            nomi_turno_disponibili = random.sample(LISTA_NOMI_PRAGA, min(len(LISTA_NOMI_PRAGA), max(4, num_clienti_tot + 2)))
+                            base_c = random.randint(3, 6)
+                            num_clienti = int((base_c + int(st.session_state.fedelta_clienti / 25)) * (1.0 + bonus_pusher))
+                            nomi_turno = random.sample(LISTA_NOMI_PRAGA, min(len(LISTA_NOMI_PRAGA), max(4, num_clienti + 2)))
                             
                             vendite_ok = 0
                             incasso_turno = 0.0
                             vendite_prodotti_turno = {}
-                            clienti_contrattato = 0
                             
-                            for i in range(num_clienti_tot):
-                                if not nomi_turno_disponibili:
-                                    break
-                                cli_nome = nomi_turno_disponibili.pop(0)
-
+                            for _ in range(num_clienti):
+                                if not nomi_turno: break
+                                cli_nome = nomi_turno.pop(0)
                                 prod_req = prodotti_tutti.sample(n=1).iloc[0]
                                 p_id = int(prod_req['id'])
                                 p_nome = prod_req['nome']
@@ -1175,23 +1101,10 @@ with tab1:
                                     cursor = conn.cursor()
                                     cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", (p_id,))
                                     lotti = cursor.fetchall()
-                                    
                                     if not lotti: continue
                                     
-                                    prezzo_bot = val_m * 1.25 if "Aggressiva" in strategia_bot else (val_m * 0.85 if "Generosa" in strategia_bot else val_m)
-                                    budget_cli = val_m * random.uniform(0.85, 1.35) * (1 + (st.session_state.fedelta_clienti / 200))
-                                    
-                                    if prezzo_bot > budget_cli and prezzo_bot <= budget_cli * 1.15:
-                                        clienti_contrattato += 1
-                                        if random.random() < 0.60:
-                                            prezzo_bot = budget_cli
-                                        else:
-                                            continue
-                                    elif prezzo_bot > budget_cli * 1.15:
-                                        clienti_contrattato += 1
-                                        continue
-
-                                    qta_req = float(random.choices([1, 2, 5, 10, 15, 20], weights=[35, 30, 20, 10, 3, 2], k=1)[0])
+                                    prezzo_bot = val_m * (1.2 if st.session_state.evento_attivo and st.session_state.evento_attivo['tipo']=='festival' else 1.0)
+                                    qta_req = float(random.choice([1, 2, 5, 10, 15]))
                                     qta_req = min(lotti[0][1], qta_req)
                                     if qta_req <= 0: continue
                                     
@@ -1208,90 +1121,83 @@ with tab1:
                                     st.session_state.soldi_cassa += ricavo
                                     incasso_turno += ricavo
                                     vendite_ok += 1
-                                    
                                     vendite_prodotti_turno[p_nome] = vendite_prodotti_turno.get(p_nome, 0.0) + qta_req
-                                        
-                                    aggiungi_log(f"✅ BOT ({fascia_corrente[:10]}): {cli_nome} ha comprato {qta_req}g di '{p_nome}' (+€{ricavo:.2f})")
 
                             if vendite_ok > 0:
-                                st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 4)
-                                st.session_state.reputazione = min(100, st.session_state.reputazione + 2)
+                                set_sospetto(get_sospetto() + (vendite_ok * 0.8))
                             
                             st.session_state.ultimo_report_bot = {
                                 "fascia": fascia_corrente,
                                 "vendite_ok": vendite_ok,
                                 "incasso": incasso_turno,
-                                "vendite_prodotti": vendite_prodotti_turno,
-                                "contrattati": clienti_contrattato
+                                "vendite_prodotti": vendite_prodotti_turno
                             }
 
                         st.session_state.indice_fascia_oraria += 1
                         st.rerun()
 
-            if st.session_state.ultimo_report_bot and st.session_state.indice_fascia_oraria < len(FASCE_ORARIE):
-                rep_bot = st.session_state.ultimo_report_bot
-                with st.container(border=True):
-                    st.markdown(f"##### 📋 Report Fascia: {rep_bot['fascia']}")
-                    col_rb1, col_rb2 = st.columns(2)
-                    col_rb1.metric("💵 Incasso Fascia", f"€ {rep_bot['incasso']:,.2f}")
-                    col_rb2.metric("👥 Clienti Serviti", rep_bot['vendite_ok'])
-                    
-                    st.write("##### Quantità Vendute:")
-                    for prod_n, q_v in rep_bot['vendite_prodotti'].items():
-                        st.write(f"&bull; **{prod_n}**: {q_v:.1f} g")
-                    st.write(f"• **Contrattazioni:** 💬 {rep_bot['contrattati']}")
-
-        elif tipo_operazione == "XME":
-            st.markdown("##### 🧪 Registra Uso Personale XME (+30% Energia)")
+        else:
+            st.markdown("##### 🧪 Uso Personale XME (+30% Energia)")
             lotti_df = get_lotti_attivi_df()
             if not lotti_df.empty:
                 with st.form("form_xme"):
                     opzioni_lotto = {f"{r['prodotto']} - Lotto: {r['codice_lotto']} (Disp: {r['quantita_attuale']:,.1f} g)": r['id'] for _, r in lotti_df.iterrows()}
-                    lotto_sel = st.selectbox("Seleziona Lotto", list(opzioni_lotto.keys()))
+                    lotto_sel = st.selectbox("Lotto", list(opzioni_lotto.keys()))
                     lotto_id = opzioni_lotto[lotto_sel]
                     qta_xme = st.number_input("Quantità (g)", min_value=0.5, value=5.0, step=0.5)
 
-                    if st.form_submit_button("Conferma Uscita XME"):
+                    if st.form_submit_button("Usa XME"):
                         lotto_row = lotti_df[lotti_df['id'] == lotto_id].iloc[0]
                         with get_connection() as conn:
                             cursor = conn.cursor()
                             nuova_q = float(lotto_row['quantita_attuale']) - qta_xme
                             p_id = int(get_prodotti_tutti_df()[get_prodotti_tutti_df()['nome'] == lotto_row['prodotto']].iloc[0]['id'])
                             cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_q, lotto_id))
-                            cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, margine, cliente, note) VALUES (?, ?, 'XME', ?, ?, ?, 'XME', 'Consumo Perk')", (p_id, lotto_id, qta_xme, qta_xme * float(lotto_row['costo_acquisto_unitario']), -qta_xme * float(lotto_row['costo_acquisto_unitario'])))
-                        
+                            cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, margine, cliente, note) VALUES (?, ?, 'XME', ?, ?, ?, 'XME', 'Consumo Personale')", (p_id, lotto_id, qta_xme, qta_xme * float(lotto_row['costo_acquisto_unitario']), -qta_xme * float(lotto_row['costo_acquisto_unitario'])))
                         st.session_state.energia = min(100, st.session_state.energia + 30)
-                        aggiungi_log(f"🧪 XME: Consumati {qta_xme}g dal lotto.")
                         st.rerun()
 
-    # --------------------------------------
-    # COLONNA 2: REGISTRO EVENTI SOPRA, MOVIMENTI LIVE (LEDGER) SOTTO
-    # --------------------------------------
     with col_ledger:
-        st.subheader("📜 Registro Eventi Turno")
+        st.subheader("📜 Registro Eventi")
         with st.container(border=True):
-            for log in st.session_state.log_gioco[:10]:
+            for log in st.session_state.log_gioco[:8]:
                 st.caption(log)
 
-        st.markdown("---")
-        st.subheader("📖 Ledger & Movimenti Live")
-        
-        movimenti_df = get_movimenti_dettagliati_df()
-        if not movimenti_df.empty:
-            st.dataframe(
-                movimenti_df[['data', 'cliente', 'tipo', 'prodotto', 'quantita', 'incasso', 'margine']],
-                use_container_width=True,
-                hide_index=True,
-                height=300
-            )
-        else:
-            st.info("Nessun movimento registrato nel ledger.")
-
 # ------------------------------------------
-# TAB 2: DASHBOARD & ANALYTICS
+# TAB 2: GESTIONE PUSHER E PERSONALE
 # ------------------------------------------
 with tab2:
-    st.subheader("📊 Dashboard & Analytics")
+    st.subheader("👥 Gestione Pusher & Collaboratori a Praga")
+    st.write("Assumi collaboratori locali per automatizzare parte delle vendite durante i turni e aumentare il volume d'affari.")
+    
+    with get_connection() as conn:
+        pusher_df = pd.read_sql_query("SELECT * FROM pusher", conn)
+        
+    for _, p in pusher_df.iterrows():
+        with st.container(border=True):
+            col_p1, col_p2, col_p3 = st.columns([2, 2, 1])
+            col_p1.markdown(f"### **{p['nome']}**")
+            col_p2.write(f"• **Stipendio:** €{p['stipendio_giornaliero']:.1f}/giorno\n• **Efficienza:** +{p['efficienza']*100:.0f}%")
+            
+            is_assunto = bool(p['assunto'])
+            if is_assunto:
+                if col_p3.button("Licenzia", key=f"lic_{p['id']}"):
+                    with get_connection() as conn:
+                        conn.execute("UPDATE pusher SET assunto = 0 WHERE id = ?", (p['id'],))
+                    st.success(f"Hai licenziato {p['nome']}.")
+                    st.rerun()
+            else:
+                if col_p3.button("Assumi", key=f"ass_{p['id']}"):
+                    with get_connection() as conn:
+                        conn.execute("UPDATE pusher SET assunto = 1 WHERE id = ?", (p['id'],))
+                    st.success(f"Hai assunti {p['nome']}!")
+                    st.rerun()
+
+# ------------------------------------------
+# TAB 3: DASHBOARD & ANALYTICS
+# ------------------------------------------
+with tab3:
+    st.subheader("📊 Dashboard Finanziaria")
     df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
     movimenti_df = get_movimenti_dettagliati_df()
 
@@ -1310,244 +1216,103 @@ with tab2:
         </div>
         """, unsafe_allow_html=True)
 
-        if not movimenti_df.empty:
-            mov_df = movimenti_df.copy()
-            mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
-            mov_df = mov_df.sort_values('Data_Ora')
-            mov_df['Incasso Totale'] = mov_df['incasso'].cumsum()
-            mov_df['Margine Netto'] = mov_df['margine'].cumsum()
-            
-            chart_df = mov_df.melt(id_vars=['Data_Ora', 'prodotto', 'tipo'], value_vars=['Incasso Totale', 'Margine Netto'], var_name='Metrica', value_name='Valore (€)')
-            chart = alt.Chart(chart_df).mark_line(point=True, strokeWidth=3).encode(
-                x=alt.X('Data_Ora:T', title='Data e Ora'), y=alt.Y('Valore (€):Q', title='Importo (€)'),
-                color=alt.Color('Metrica:N', scale=alt.Scale(domain=['Incasso Totale', 'Margine Netto'], range=['#f59e0b', '#38bdf8']))
-            ).properties(height=350).interactive()
-            st.altair_chart(chart, use_container_width=True)
-
 # ------------------------------------------
-# TAB 3: RIFORNIMENTI & FORNITORI (STILE HEIST BOARD GTA)
+# TAB 4: RIFORNIMENTI & FORNITORI
 # ------------------------------------------
-with tab3:
-    st.subheader("🚚 Rifornimenti & Canali Clandestini")
+with tab4:
+    st.subheader("🚚 Contatti Clandestini (Praga)")
     
     if st.session_state.offerta_fornitore:
         off = st.session_state.offerta_fornitore
         costo_tot = off['costo_totale']
-        ha_abbastanza_soldi = st.session_state.soldi_cassa >= costo_tot
+        ha_soldi = st.session_state.soldi_cassa >= costo_tot
 
         st.markdown(f"""
         <div class="heist-board">
-            <div class="heist-title">🎯 OBIETTIVO / CONTATTO: {off['fornitore_nome'].upper()}</div>
+            <div class="heist-title">🎯 CONTATTO: {off['fornitore_nome'].upper()}</div>
             <div class="heist-quote">{off['fornitore_frase']}</div>
-            <div style="display: flex; justify-content: space-around; text-align: center; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
-                <div>
-                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Merce</span><br>
-                    <strong style="color: #f59e0b; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['prodotto_nome']}</strong><br>
-                    <span style="font-size: 0.65rem; color: #ef4444; font-weight: 700;">{off['tipo']}</span>
-                </div>
-                <div>
-                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Quantità Lotto</span><br>
-                    <strong style="color: #38bdf8; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['quantita']:,.1f} g</strong>
-                </div>
-                <div>
-                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Costo Unitario</span><br>
-                    <strong style="color: #10b981; font-size: 1.1rem; font-family: 'Anton', sans-serif;">€ {off['costo_unitario']:.2f} / g</strong>
-                </div>
-            </div>
-            <div style="text-align: center; margin-top: 18px; font-size: 1.25rem; font-family: 'Anton', sans-serif; color: #ffffff; letter-spacing: 1px;">
-                INVESTIMENTO INTERO LOTTO: <span style="color: #f59e0b;">€ {costo_tot:,.2f}</span>
+            <div style="text-align: center; margin-top: 10px; color: #38bdf8;">
+                <strong>{off['prodotto_nome']}</strong> &bull; {off['quantita']}g a €{off['costo_unitario']:.2f}/g (Tot: €{costo_tot:.2f})
             </div>
         </div>
         """, unsafe_allow_html=True)
-            
-        if not ha_abbastanza_soldi:
-            st.warning(f"⚠️ Fondi insufficienti in cassa (€{st.session_state.soldi_cassa:.2f}) per l'intero lotto da €{costo_tot:.2f}. Usa la trattativa per investire un budget ridotto.")
 
         col_b1, col_b2 = st.columns(2)
         with col_b1:
-            if st.button("💼 COMPRA INTERO LOTTO (SUBITO)", use_container_width=True, disabled=not ha_abbastanza_soldi):
+            if st.button("💼 COMPRA INTERO LOTTO", use_container_width=True, disabled=not ha_soldi):
                 st.session_state.soldi_cassa -= costo_tot
+                set_sospetto(get_sospetto() + 6.0)
                 with get_connection() as conn:
                     cursor = conn.cursor()
                     cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
-                    cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],))
-                    p_id = cursor.fetchone()[0]
+                    p_id = cursor.fetchone() or cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],)).fetchone()[0]
+                    if isinstance(p_id, tuple): p_id = p_id[0]
 
                     cursor.execute("""
                         INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     """, (p_id, off['codice_lotto'], off['quantita'], off['quantita'], off['costo_unitario'], date.today(), date.today()))
-                    l_id = cursor.lastrowid
-                    cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto Intero Lotto')", (p_id, l_id, off['quantita'], costo_tot, off['fornitore_nome']))
-
-                aggiungi_log(f"🚚 ACQUISTO: Comprati {off['quantita']}g di {off['prodotto_nome']} da {off['fornitore_nome']} per €{costo_tot:.2f}")
-                st.success(f"✅ Accordo chiuso con {off['fornitore_nome']}!")
+                st.success("Acquisto completato!")
                 st.session_state.offerta_fornitore = None
-                st.session_state.minigioco_trattativa = False
                 st.rerun()
-
         with col_b2:
-            if st.button("❌ BRUCIA CONTATTO E VATTENE", use_container_width=True):
-                aggiungi_log(f"❌ Rifiutata offerta di {off['fornitore_nome']}.")
-                st.info(f"Hai scartato il contatto di {off['fornitore_nome']}.")
+            if st.button("❌ Rifiuta", use_container_width=True):
                 st.session_state.offerta_fornitore = None
-                st.session_state.minigioco_trattativa = False
                 st.rerun()
-
-        st.markdown("---")
-        with st.container(border=True):
-            st.markdown("##### 📋 TRATTATIVA CLANDESTINA (OBIETTIVO BUDGET)")
-            st.write("«Imposta quanti **soldi (€)** vuoi investire in questa trattativa: il fornitore calcolerà quanti grammi offrirti in base alla tua offerta e alle tue mosse tattiche.»")
-            
-            max_budget_val = max(5.0, float(st.session_state.soldi_cassa))
-            default_budget_val = min(50.0, max_budget_val)
-            budget_proposto = st.number_input("Il tuo Budget da Spendere (€):", min_value=5.0, max_value=max_budget_val, value=default_budget_val, step=5.0)
-            
-            approccio = st.selectbox("Approccio Negoziazione", [
-                "🤝 Profilo Basso / Affidabile (Rischio minimo)", 
-                "😎 Bluff Tattico (Tenta lo sconto aggressivo)", 
-                "🔥 Pressing Totale (Alto rischio / Margine elevato)"
-            ])
-            
-            if st.button("🎲 ESEGUI TRATTATIVA CON BUDGET", use_container_width=True):
-                tiro = random.randint(1, 100) + int(st.session_state.reputazione / 2)
-                
-                if "Profilo Basso" in approccio:
-                    sconto = 0.93 if tiro > 35 else 1.08
-                    esito_txt = "Il contatto apprezza la tua affidabilità."
-                elif "Bluff" in approccio:
-                    sconto = 0.82 if tiro > 60 else 1.25
-                    esito_txt = "Hai giocato d'azzardo sulla tua reputazione."
-                else:
-                    sconto = 0.70 if tiro > 82 else 1.40
-                    esito_txt = "Mossa ad altissimo rischio nel vicolo buio!"
-                    
-                nuovo_costo_u = round(off['costo_unitario'] * sconto, 2)
-                qta_calcolata = round(budget_proposto / nuovo_costo_u, 2) if nuovo_costo_u > 0 else 0.0
-                
-                if qta_calcolata > off['quantita']:
-                    qta_calcolata = float(off['quantita'])
-                    budget_proposto = round(qta_calcolata * nuovo_costo_u, 2)
-
-                st.session_state.minigioco_risultato = {
-                    "budget": budget_proposto,
-                    "costo_u": nuovo_costo_u,
-                    "qta_offerta": qta_calcolata,
-                    "testo_esito": esito_txt
-                }
-                st.rerun()
-
-            if 'minigioco_risultato' in st.session_state and st.session_state.minigioco_risultato:
-                res = st.session_state.minigioco_risultato
-                st.info(f"💬 **Esito:** _{res['testo_esito']}_ -> Con il tuo budget di **€{res['budget']:.2f}** ti propongono **{res['qta_offerta']:.1f}g** (a €{res['costo_u']:.2f}/g).")
-                
-                ha_soldi_trattativa = st.session_state.soldi_cassa >= res['budget']
-                if st.button("✅ CONFERMA ACCORDO E RITIRA MERCE", use_container_width=True, disabled=not ha_soldi_trattativa):
-                    st.session_state.soldi_cassa -= res['budget']
-                    with get_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
-                        cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],))
-                        p_id = cursor.fetchone()[0]
-
-                        cursor.execute("""
-                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (p_id, f"{off['codice_lotto']}-BUDGET", res['qta_offerta'], res['qta_offerta'], res['costo_u'], date.today(), date.today()))
-                        l_id = cursor.lastrowid
-                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto con Budget')", (p_id, l_id, res['qta_offerta'], res['budget'], off['fornitore_nome']))
-
-                    aggiungi_log(f"🚚 ACQUISTO BUDGET: Presi {res['qta_offerta']}g di {off['prodotto_nome']} da {off['fornitore_nome']} per €{res['budget']:.2f}")
-                    st.success("✅ Accordo chiuso con successo!")
-                    st.session_state.offerta_fornitore = None
-                    st.session_state.minigioco_risultato = None
-                    st.rerun()
-
     else:
         fornitori_rimasti = st.session_state.max_fornitori_oggi - st.session_state.fornitori_visti_oggi
         if fornitori_rimasti > 0:
-            st.info(f"Oggi puoi ancora intercettare fino a {fornitori_rimasti} contatto/i clandestino/i.")
-            if st.button("📞 Sintonizzati su Canale Clandestino", use_container_width=True):
+            if st.button("📞 Cerca Contatto Clandestino", use_container_width=True):
                 genera_offerta_fornitore_casuale()
                 st.rerun()
         else:
-            st.warning("⚠️ Nessun contatto disponibile oggi sui canali sotterranei. Riposa per avanzare.")
+            st.warning("Nessun altro contatto disponibile oggi.")
 
     st.markdown("---")
-    st.markdown("### 📋 Stato Lotti e Scorte Attuali")
     soglia_attuale = get_soglia_esaurimento()
     report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_attuale)
-    
     if not report_lotti_df.empty:
         st.dataframe(report_lotti_df, use_container_width=True, hide_index=True)
 
-    st.markdown("---")
-    with st.expander("➕ Inserimento Manuale Lotto (Emergenza)"):
-        with st.form("form_nuovo_prodotto_lotto"):
-            nome_nuovo = st.text_input("Nome Prodotto")
-            data_acq_m = st.date_input("Data Acquisto", value=date.today())
-            cod_lotto_m = st.text_input("Codice Lotto", value=genera_codice_lotto_automatico(data_acq_m))
-            qta_lotto_m = st.number_input("Quantità (g)", value=25.0)
-            costo_u_lotto_m = st.number_input("Costo d'Acquisto (€/g)", value=4.0)
-            prezzo_v_init = st.number_input("Prezzo Vendita (€/g)", value=9.0)
-
-            if st.form_submit_button("Crea Prodotto e Registra Lotto"):
-                costo_t_m = qta_lotto_m * costo_u_lotto_m
-                if st.session_state.soldi_cassa < costo_t_m:
-                    st.error("Fondi insufficienti in cassa!")
-                else:
-                    st.session_state.soldi_cassa -= costo_t_m
-                    with get_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (nome_nuovo.strip(), prezzo_v_init))
-                        p_id = cursor.lastrowid
-                        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, ?, ?, ?, ?, ?, ?)", (p_id, cod_lotto_m.strip(), qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today()))
-                        lotto_id = cursor.lastrowid
-                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente) VALUES (?, ?, 'CARICO', ?, ?, 'Fornitore Manuale')", (p_id, lotto_id, qta_lotto_m, costo_t_m))
-                    st.success("✅ Prodotto e lotto registrati!")
-                    st.rerun()
-
 # ------------------------------------------
-# TAB 4: STATISTICHE CLIENTI & DEBITI
+# TAB 5: STATISTICHE CLIENTI & DEBITI
 # ------------------------------------------
-with tab4:
-    st.subheader("📈 Statistiche Avanzate Clienti")
+with tab5:
+    st.subheader("📈 Crediti Clienti")
     movimenti_df = get_movimenti_dettagliati_df()
-    
     if not movimenti_df.empty:
         clienti_debito = movimenti_df[(movimenti_df['tipo'] == 'VENDITA') & (movimenti_df['stato_pagamento'] == 'Dopo (Credito)')]
         if not clienti_debito.empty:
             debito_per_cliente = clienti_debito.groupby('cliente')['incasso'].sum().reset_index()
-            st.markdown("##### 💳 Clienti con Debiti Attivi")
             for _, r_d in debito_per_cliente.iterrows():
                 col_d1, col_d2 = st.columns([3, 1])
                 col_d1.write(f"**{r_d['cliente']}**: € {r_d['incasso']:,.2f}")
-                if col_d2.button(f"Salda Debito", key=f"btn_s_{r_d['cliente']}"):
+                if col_d2.button("Salda", key=f"s_{r_d['cliente']}"):
                     segna_debito_pagato(r_d['cliente'])
-                    st.success("Debito saldato e incassato in cassa!")
                     st.rerun()
 
 # ------------------------------------------
-# TAB 5: REPORT STORICO & RESET GAME
+# TAB 6: STORICO & OBIETTIVI CAMPAGNA
 # ------------------------------------------
-with tab5:
-    st.subheader("📜 Registro Storico Transazioni")
+with tab6:
+    st.subheader("🎯 Obiettivi Campagna & Condizioni di Vittoria")
+    
+    # Calcolo utile netto totale per la vittoria
     movimenti_df = get_movimenti_dettagliati_df()
+    utile_totale = movimenti_df['margine'].sum() if not movimenti_df.empty else 0.0
+    
+    st.write("Raggiungi gli obiettivi per completare la tua scalata nel sottosuolo di Praga:")
+    st.progress(min(1.0, utile_totale / 10000.0))
+    st.write(f"• **Utile Netto Attuale:** € {utile_totale:,.2f} / € 10,000.00 obiettivo campagna")
+    st.write(f"• **Sospetto Polizia Attuale:** {get_sospetto():.1f}% (Mantienilo sotto il 50% per evitare retate)")
+
+    st.markdown("---")
+    st.subheader("📜 Storico Completo")
     if not movimenti_df.empty:
         st.dataframe(movimenti_df, use_container_width=True, hide_index=True)
-        csv_data = movimenti_df.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Scarica Report CSV", data=csv_data, file_name="report_storico.csv", mime="text/csv")
-    
+
     st.markdown("---")
-    
-    with st.expander("⚠️ DANGER ZONE: Resetta Dati e Inizia Nuova Partita", expanded=False):
-        st.error("Questa operazione cancellerà permanentemente tutto lo storico vendite, i clienti, i lotti e azzererà la tua partita riportandoti al Giorno 1 con €200.")
-        conferma_reset = st.checkbox("Sono sicuro di voler piallare tutti i dati e ricominciare da capo.")
-        
-        if st.button("💥 RESETTA TUTTO E RICOMINCIA DA ZERO", use_container_width=True):
-            if conferma_reset:
-                reset_completo_nuova_partita()
-                st.success("🎉 Reset eseguito! Benvenuto nella tua nuova partita.")
-                st.rerun()
-            else:
-                st.warning("Spunta la casella di conferma qui sopra per poter procedere col reset.")
+    with st.expander("⚠️ Danger Zone: Reset Partita"):
+        if st.button("💥 Reset Totale"):
+            reset_completo_nuova_partita()
+            st.rerun()
