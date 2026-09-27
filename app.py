@@ -278,7 +278,7 @@ def spara_fuochi_d_artificio():
     st.components.v1.html(js_code, height=0)
 
 # ==========================================
-# GENERAZIONE FORNITORI GANGSTER COMICI
+# GENERAZIONE FORNITORI GANGSTER EQUILIBRATA
 # ==========================================
 GANGSTER_FORNITORI = [
     {"nome": "Don Cornetto", "frase": "«Un'offerta che non puoi rifiutare... o finisci a fare i cappucci!»"},
@@ -295,36 +295,43 @@ def genera_offerta_fornitore_casuale():
     budget_attuale = st.session_state.soldi_cassa
     gangster = random.choice(GANGSTER_FORNITORI)
     
+    # Tetto massimo di spesa: massimo il 50% del budget attuale (minimo 30€)
+    budget_massimo_spesa = max(30.0, budget_attuale * 0.50)
+    
     if budget_attuale < 150:
         p_nome = "Micro Stock Emergenza"
-        qta = float(random.choice([15, 20, 25]))
         costo_u = round(random.uniform(5.50, 7.00), 2)
         tipo_offerta = "⚠️ Micro Stock (Prezzo al g elevato)"
         valore_mercato_suggerito = 8.50
-        
+        qta_max = max(5.0, budget_massimo_spesa / costo_u)
+        qta = round(random.uniform(5.0, min(25.0, qta_max)), 1)
+
     elif budget_attuale <= 500:
         roll = random.random()
         if roll < 0.5:
-            p_nome = "Singolo Etto (100g)"
-            qta = 100.0
+            p_nome = "Varietà Standard"
             costo_u = round(random.uniform(4.50, 5.50), 2)
-            tipo_offerta = "🏷️ Singolo Etto Standard"
+            tipo_offerta = "🏷️ Stock Standard"
             valore_mercato_suggerito = 7.00
         else:
             p_nome = "Top Quality Special"
-            qta = float(random.choice([30, 50]))
             costo_u = round(random.uniform(6.50, 8.50), 2)
             tipo_offerta = "💎 Special Top Quality"
             valore_mercato_suggerito = round(costo_u * 1.5, 2)
+            
+        qta_max = max(10.0, budget_massimo_spesa / costo_u)
+        qta = round(random.uniform(10.0, min(60.0, qta_max)), 1)
 
     else:
-        p_nome = "Stock Volume (200g-500g)"
-        qta = float(random.choice([200, 300, 500]))
+        p_nome = "Stock Volume"
         costo_u = round(random.uniform(3.20, 4.20), 2)
         tipo_offerta = "📦 Stock Volume Scontato"
         valore_mercato_suggerito = 6.00
+        
+        qta_max = max(30.0, budget_massimo_spesa / costo_u)
+        qta = round(random.uniform(30.0, min(150.0, qta_max)), 1)
 
-    costo_tot = qta * costo_u
+    costo_tot = round(qta * costo_u, 2)
 
     st.session_state.offerta_fornitore = {
         "fornitore_nome": gangster["nome"],
