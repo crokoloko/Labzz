@@ -294,7 +294,7 @@ GANGSTER_FORNITORI = [
     {"nome": "Don Cornetto", "frase": "«Un'offerta che non puoi rifiutare... o finisci a fare i cappucci!»"},
     {"nome": "Tony Pesto", "frase": "«O compri questo stock o stasera le cotolette le fai coi denti!»"},
     {"nome": "Al Cacio", "frase": "«Robina fresca fresca di contrabbando, scesa dal camion mezz'ora fa.»"},
-    {"nome": "Franky 'Cinque Dita'", "frase": "«Guarda che kualitasfiorala soltanto e ti senti già ricchissimo!»"},
+    {"nome": "Franky 'Cinque Dita'", "frase": "«Guarda che qualità, sfiorala soltanto e ti senti già ricchissimo!»"},
     {"nome": "Peppe 'u Scannatore", "frase": "«Vedi di fare in fretta prima che arrivi la finanza...»"},
     {"nome": "Luigi 'O Calibro", "frase": "«Prezzo da amico, ma non farmi domande su dove l'ho preso.»"},
     {"nome": "Gaetano 'Er Siringa'", "frase": "«Trattativa pulita, niente sbirri, solo contanti e saluti.»"},
@@ -547,7 +547,7 @@ st.markdown("""
         align-items: center !important;
         text-align: center !important;
         width: 100% !important;
-        margin: 0 auto 1.5rem auto !important;
+        margin: 0 auto 1rem auto !important;
         padding: 0 !important;
     }
 
@@ -671,6 +671,32 @@ else:
         st.image("logo.png", use_container_width=True)
     else:
         st.title("LaBzz Tycoon")
+
+# ==========================================
+# PULSANTE TURNO NOTTURNO (SOTTO IL LOGO, SOPRA LE METRICHE)
+# ==========================================
+with st.container(border=True):
+    col_n1, col_n2, col_n3 = st.columns([1, 2, 1])
+    with col_n2:
+        if st.button("🌙 Riposa e Passa al Giorno Successivo", use_container_width=True):
+            st.session_state.giorno += 1
+            st.session_state.energia = 100
+            
+            st.session_state.offerta_fornitore = None
+            st.session_state.fornitori_visti_oggi = 0
+            st.session_state.max_fornitori_oggi = random.choice([0, 1, 1, 2])
+            st.session_state.minigioco_trattativa = False
+            st.session_state.ultimo_report_bot = None
+            
+            if st.session_state.max_fornitori_oggi > 0 and random.random() < 0.60:
+                genera_offerta_fornitore_casuale()
+                
+            genera_cliente_in_negozio()
+            genera_evento_casuale_giorno()
+            aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Energia 100%. Fornitori disponibili oggi: {st.session_state.max_fornitori_oggi}")
+            st.rerun()
+
+st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
 
 # ==========================================
 # HEADER METRICHE TYCOON GRIGLIA COMPATTA
@@ -804,6 +830,13 @@ with tab1:
         tipo_operazione = st.radio("Seleziona Modalità", ["Incontra Cliente (Manuale)", "Automazione Turno AI", "XME (Perk)"], horizontal=True)
         
         if tipo_operazione == "Incontra Cliente (Manuale)":
+            # LOG / REGISTRO EVENTI SPOSTATO SOPRA LA LISTA DEL CLIENTE
+            st.markdown("##### 📜 Registro Eventi Turno")
+            with st.container(border=True):
+                for log in st.session_state.log_gioco[:10]:
+                    st.caption(log)
+
+            st.markdown("---")
             st.markdown("##### 👤 Cliente Attualmente alla Cassa")
             
             cli_att = st.session_state.cliente_in_negozio
@@ -930,17 +963,15 @@ with tab1:
                                 prezzo_bot = val_m * 1.25 if "Aggressiva" in strategia_bot else (val_m * 0.85 if "Generosa" in strategia_bot else val_m)
                                 budget_cli = val_m * random.uniform(0.85, 1.35) * (1 + (st.session_state.fedelta_clienti / 200))
                                 
-                                # Simulazione contrattazione bot (se il prezzo è un po' sopra il budget del cliente)
                                 if prezzo_bot > budget_cli and prezzo_bot <= budget_cli * 1.15:
                                     clienti_contrattato += 1
-                                    # C'è il 60% di possibilità che il cliente accetti comunque o contratti al ribasso
                                     if random.random() < 0.60:
-                                        prezzo_bot = budget_cli # Accetta al limite del budget
+                                        prezzo_bot = budget_cli
                                     else:
-                                        continue # Rifiuta
+                                        continue
                                 elif prezzo_bot > budget_cli * 1.15:
                                     clienti_contrattato += 1
-                                    continue # Rifiuta se troppo alto
+                                    continue
 
                                 qta_req = float(random.choices([1, 2, 5, 10, 15, 20], weights=[30, 30, 25, 10, 3, 2], k=1)[0])
                                 qta_req = min(lotti[0][1], qta_req)
@@ -971,7 +1002,6 @@ with tab1:
                             st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 4)
                             st.session_state.reputazione = min(100, st.session_state.reputazione + 2)
                         
-                        # Salviamo il report dell'ultimo turno bot nello stato
                         st.session_state.ultimo_report_bot = {
                             "vendite_ok": vendite_ok,
                             "incasso": incasso_turno,
@@ -982,7 +1012,7 @@ with tab1:
 
                     st.rerun()
 
-            # --- VISUALIZZAZIONE SPECIFICHE ULTIMO TURNO BOT ---
+            # --- SPECIFICHE ULTIMO TURNO BOT SOTTO IL PULSANTE ---
             if st.session_state.ultimo_report_bot:
                 rep_bot = st.session_state.ultimo_report_bot
                 with st.container(border=True):
@@ -1017,26 +1047,6 @@ with tab1:
                         st.session_state.energia = min(100, st.session_state.energia + 30)
                         aggiungi_log(f"🧪 XME: Consumati {qta_xme}g dal lotto.")
                         st.rerun()
-
-        st.markdown("---")
-        st.markdown("### 💤 Turno Notturno")
-        if st.button("🌙 Riposa e Passa al Giorno Successivo", use_container_width=True):
-            st.session_state.giorno += 1
-            st.session_state.energia = 100
-            
-            st.session_state.offerta_fornitore = None
-            st.session_state.fornitori_visti_oggi = 0
-            st.session_state.max_fornitori_oggi = random.choice([0, 1, 1, 2])
-            st.session_state.minigioco_trattativa = False
-            st.session_state.ultimo_report_bot = None
-            
-            if st.session_state.max_fornitori_oggi > 0 and random.random() < 0.60:
-                genera_offerta_fornitore_casuale()
-                
-            genera_cliente_in_negozio()
-            genera_evento_casuale_giorno()
-            aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Energia 100%. Fornitori disponibili oggi: {st.session_state.max_fornitori_oggi}")
-            st.rerun()
 
     # --------------------------------------
     # COLONNA 2: LEDGER LIVE & EVENT LOG
