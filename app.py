@@ -294,7 +294,7 @@ GANGSTER_FORNITORI = [
     {"nome": "Don Cornetto", "frase": "«Un'offerta che non puoi rifiutare... o finisci a fare i cappucci!»"},
     {"nome": "Tony Pesto", "frase": "«O compri questo stock o stasera le cotolette le fai coi denti!»"},
     {"nome": "Al Cacio", "frase": "«Robina fresca fresca di contrabbando, scesa dal camion mezz'ora fa.»"},
-    {"nome": "Franky 'Cinque Dita'", "frase": "«Guarda che qualità, sfiorala soltanto e ti senti già ricchissimo!»"},
+    {"nome": "Franky 'Cinque Dita'", "frase": "«Guarda che kualitasfiorala soltanto e ti senti già ricchissimo!»"},
     {"nome": "Peppe 'u Scannatore", "frase": "«Vedi di fare in fretta prima che arrivi la finanza...»"},
     {"nome": "Luigi 'O Calibro", "frase": "«Prezzo da amico, ma non farmi domande su dove l'ho preso.»"},
     {"nome": "Gaetano 'Er Siringa'", "frase": "«Trattativa pulita, niente sbirri, solo contanti e saluti.»"},
@@ -377,7 +377,6 @@ def genera_cliente_in_negozio():
         st.session_state.cliente_in_negozio = None
 
 def genera_evento_casuale_giorno():
-    # 35% di probabilità di un evento casuale (Polizia o VIP) ad inizio giornata
     if random.random() < 0.35:
         evento_tipo = random.choice(["polizia", "vip"])
         if evento_tipo == "polizia":
@@ -470,6 +469,8 @@ if 'evento_attivo' not in st.session_state:
     st.session_state.evento_attivo = None
 if 'minigioco_trattativa' not in st.session_state:
     st.session_state.minigioco_trattativa = False
+if 'ultimo_report_bot' not in st.session_state:
+    st.session_state.ultimo_report_bot = None
 
 if st.session_state.cliente_in_negozio is None:
     genera_cliente_in_negozio()
@@ -508,6 +509,7 @@ def reset_completo_nuova_partita():
     st.session_state.max_fornitori_oggi = random.choice([0, 1, 2])
     st.session_state.evento_attivo = None
     st.session_state.minigioco_trattativa = False
+    st.session_state.ultimo_report_bot = None
     if st.session_state.max_fornitori_oggi > 0:
         genera_offerta_fornitore_casuale()
     genera_cliente_in_negozio()
@@ -759,13 +761,11 @@ if st.session_state.evento_attivo:
             col_vip1, col_vip2 = st.columns(2)
             with col_vip1:
                 if st.button("✅ ACCETTA ORDINE VIP", use_container_width=True):
-                    # Verifica se ha abbastanza scorte
                     with get_connection() as conn:
                         qta_disp_vip = pd.read_sql_query("SELECT SUM(quantita_attuale) FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0", conn, params=(ev['prodotto_id'],)).iloc[0, 0]
                     qta_disp_vip = float(qta_disp_vip) if qta_disp_vip else 0.0
                     
                     if qta_disp_vip >= ev['quantita']:
-                        # Esegui vendita VIP istantanea
                         cli_vip_obj = {"nome": "Cliente VIP", "prodotto_id": ev['prodotto_id'], "prodotto_nome": ev['prodotto_nome'], "quantita_richiesta": ev['quantita']}
                         esegui_transazione_vendita(cli_vip_obj, ev['prezzo_offerto'], "Subito")
                         st.success(f"🎉 Ordine VIP completato con successo! Incasso super: €{ev['quantita'] * ev['prezzo_offerto']:.2f}")
@@ -902,9 +902,14 @@ with tab1:
                     prodotti_tutti = get_prodotti_tutti_df()
                     
                     if not prodotti_tutti.empty:
-                        num_clienti_tot = random.randint(3, 7) + int(st.session_state.fedelta_clienti / 15)
-                        clienti_nomi = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP", "Matteo"]
+                        num_clienti_tot = random.randint(4, 8) + int(st.session_state.fedelta_clienti / 15)
+                        clienti_nomi = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP", "Matteo", "Valentina"]
+                        
                         vendite_ok = 0
+                        incasso_turno = 0.0
+                        qta_top_turno = 0.0
+                        qta_classica_turno = 0.0
+                        clienti_contrattato = 0
                         
                         for _ in range(num_clienti_tot):
                             prod_req = prodotti_tutti.sample(n=1).iloc[0]
@@ -912,6 +917,8 @@ with tab1:
                             p_nome = prod_req['nome']
                             val_m = float(prod_req['valore_mercato_unitario'])
                             cli_nome = random.choice(clienti_nomi)
+                            
+                            is_top = "Top Quality" in p_nome
                             
                             with get_connection() as conn:
                                 cursor = conn.cursor()
@@ -923,31 +930,70 @@ with tab1:
                                 prezzo_bot = val_m * 1.25 if "Aggressiva" in strategia_bot else (val_m * 0.85 if "Generosa" in strategia_bot else val_m)
                                 budget_cli = val_m * random.uniform(0.85, 1.35) * (1 + (st.session_state.fedelta_clienti / 200))
                                 
-                                if prezzo_bot <= budget_cli:
-                                    qta_req = float(random.choices([1, 2, 5, 10, 15, 20], weights=[30, 30, 25, 10, 3, 2], k=1)[0])
-                                    qta_req = min(lotti[0][1], qta_req)
-                                    if qta_req <= 0: continue
+                                # Simulazione contrattazione bot (se il prezzo è un po' sopra il budget del cliente)
+                                if prezzo_bot > budget_cli and prezzo_bot <= budget_cli * 1.15:
+                                    clienti_contrattato += 1
+                                    # C'è il 60% di possibilità che il cliente accetti comunque o contratti al ribasso
+                                    if random.random() < 0.60:
+                                        prezzo_bot = budget_cli # Accetta al limite del budget
+                                    else:
+                                        continue # Rifiuta
+                                elif prezzo_bot > budget_cli * 1.15:
+                                    clienti_contrattato += 1
+                                    continue # Rifiuta se troppo alto
+
+                                qta_req = float(random.choices([1, 2, 5, 10, 15, 20], weights=[30, 30, 25, 10, 3, 2], k=1)[0])
+                                qta_req = min(lotti[0][1], qta_req)
+                                if qta_req <= 0: continue
+                                
+                                l_id, l_qta, l_costo = lotti[0]
+                                cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale - ? WHERE id = ?", (qta_req, l_id))
+                                ricavo = qta_req * prezzo_bot
+                                margine = ricavo - (qta_req * l_costo)
+                                
+                                cursor.execute("""
+                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento)
+                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, 'Subito')
+                                """, (p_id, l_id, qta_req, prezzo_bot, ricavo, qta_req * l_costo, margine, cli_nome))
+                                
+                                st.session_state.soldi_cassa += ricavo
+                                incasso_turno += ricavo
+                                vendite_ok += 1
+                                
+                                if is_top:
+                                    qta_top_turno += qta_req
+                                else:
+                                    qta_classica_turno += qta_req
                                     
-                                    l_id, l_qta, l_costo = lotti[0]
-                                    cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale - ? WHERE id = ?", (qta_req, l_id))
-                                    ricavo = qta_req * prezzo_bot
-                                    margine = ricavo - (qta_req * l_costo)
-                                    
-                                    cursor.execute("""
-                                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento)
-                                        VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, 'Subito')
-                                    """, (p_id, l_id, qta_req, prezzo_bot, ricavo, qta_req * l_costo, margine, cli_nome))
-                                    
-                                    st.session_state.soldi_cassa += ricavo
-                                    vendite_ok += 1
-                                    aggiungi_log(f"✅ BOT: {cli_nome} ha comprato {qta_req}g di '{p_nome}' (+€{ricavo:.2f})")
+                                aggiungi_log(f"✅ BOT: {cli_nome} ha comprato {qta_req}g di '{p_nome}' (+€{ricavo:.2f})")
 
                         if vendite_ok > 0:
                             st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 4)
                             st.session_state.reputazione = min(100, st.session_state.reputazione + 2)
-                            st.success(f"Turno IA Completato! Serviti {vendite_ok} clienti.")
+                        
+                        # Salviamo il report dell'ultimo turno bot nello stato
+                        st.session_state.ultimo_report_bot = {
+                            "vendite_ok": vendite_ok,
+                            "incasso": incasso_turno,
+                            "qta_top": qta_top_turno,
+                            "qta_classica": qta_classica_turno,
+                            "contrattati": clienti_contrattato
+                        }
 
                     st.rerun()
+
+            # --- VISUALIZZAZIONE SPECIFICHE ULTIMO TURNO BOT ---
+            if st.session_state.ultimo_report_bot:
+                rep_bot = st.session_state.ultimo_report_bot
+                with st.container(border=True):
+                    st.markdown("##### 📋 Specifiche Ultimo Turno IA")
+                    col_rb1, col_rb2 = st.columns(2)
+                    col_rb1.metric("💵 Incasso Turno", f"€ {rep_bot['incasso']:,.2f}")
+                    col_rb2.metric("👥 Clienti Soddisfatti", rep_bot['vendite_ok'])
+                    
+                    st.write(f"• **Quantità Top Quality Venduta:** ⭐ {rep_bot['qta_top']:.1f} g")
+                    st.write(f"• **Quantità Classica/Standard Venduta:** 📦 {rep_bot['qta_classica']:.1f} g")
+                    st.write(f"• **Clienti che hanno contrattato:** 💬 {rep_bot['contrattati']}")
 
         elif tipo_operazione == "XME":
             st.markdown("##### 🧪 Registra Uso Personale XME (+30% Energia)")
@@ -982,6 +1028,7 @@ with tab1:
             st.session_state.fornitori_visti_oggi = 0
             st.session_state.max_fornitori_oggi = random.choice([0, 1, 1, 2])
             st.session_state.minigioco_trattativa = False
+            st.session_state.ultimo_report_bot = None
             
             if st.session_state.max_fornitori_oggi > 0 and random.random() < 0.60:
                 genera_offerta_fornitore_casuale()
@@ -1113,7 +1160,6 @@ with tab3:
                 
                 qta_ridotta = st.number_input("Quanti grammi vuoi chiedere?", min_value=1.0, max_value=float(off['quantita'] - 1.0), value=min(10.0, float(off['quantita'] - 1.0)), step=1.0)
                 
-                # Selezione approccio di negoziazione
                 approccio = st.radio("Stile di Negoziazione", [
                     "🤝 Diplomazia (Prezzo onesto, basso rischio)", 
                     "😎 Sicurezza (+ Sconto fortuna se azzecchi il bluff)", 
@@ -1121,7 +1167,6 @@ with tab3:
                 ])
                 
                 if st.button("🎲 Tira per Negoziare con il Fornitore", use_container_width=True):
-                    # Calcolo bonus basato su reputazione e stile
                     tiro = random.randint(1, 100) + int(st.session_state.reputazione / 3)
                     
                     if "Diplomazia" in approccio:
