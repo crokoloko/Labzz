@@ -1081,7 +1081,7 @@ with tab1:
             if idx_corrente >= len(FASCE_ORARIE):
                 st.warning("⚠️ Hai completato tutte le 5 fasce orarie della giornata! Clicca su **'🌙 Riposa e Passa al Giorno Successivo'** in cima per continuare.")
                 
-                # --- RECAP COMPLETO DELLA GIORNATA APPENA CONCLUSA ---
+                # --- RECAP COMPLETO DINAMICO DI TUTTI I PRODOTTI DELLA GIORNATA ---
                 with st.container(border=True):
                     st.markdown("### 📊 RECAP TOTALE GIORNATA (FINE TURNI)")
                     
@@ -1091,7 +1091,7 @@ with tab1:
                             FROM movimenti m 
                             JOIN prodotti p ON m.prodotto_id = p.id 
                             WHERE m.tipo = 'VENDITA'
-                            ORDER BY m.data DESC LIMIT 15
+                            ORDER BY m.data DESC
                         """, conn)
 
                     tot_incasso_giorno = mov_oggi_df['ricavo_totale'].sum() if not mov_oggi_df.empty else 0.0
@@ -1099,20 +1099,23 @@ with tab1:
                     clienti_serviti_giorno = mov_oggi_df['cliente'].nunique() if not mov_oggi_df.empty else 0
                     transazioni_totali = len(mov_oggi_df)
                     
-                    qta_frozen_giorno = mov_oggi_df[mov_oggi_df['prodotto_nome'].str.contains("Frozen Hash", case=False, na=False)]['quantita'].sum() if not mov_oggi_df.empty else 0.0
-                    qta_altre_giorno = mov_oggi_df[~mov_oggi_df['prodotto_nome'].str.contains("Frozen Hash", case=False, na=False)]['quantita'].sum() if not mov_oggi_df.empty else 0.0
-
                     col_r1, col_r2 = st.columns(2)
                     col_r1.metric("💵 Incasso Totale Giorno", f"€ {tot_incasso_giorno:,.2f}")
                     col_r2.metric("📈 Margine Netto Giorno", f"€ {tot_margine_giorno:,.2f}")
                     
                     st.write(f"• **Clienti Unici Serviti:** 👥 {clienti_serviti_giorno} (Transazioni totali: {transazioni_totali})")
-                    st.write(f"• **Frozen Hash Venduto:** ❄️ {qta_frozen_giorno:.1f} g")
-                    st.write(f"• **Altre Varietà Vendute:** 📦 {qta_altre_giorno:.1f} g")
+                    
+                    st.markdown("##### 📦 Quantità Vendute per Prodotto:")
+                    if not mov_oggi_df.empty:
+                        qta_per_prodotto = mov_oggi_df.groupby('prodotto_nome')['quantita'].sum().reset_index()
+                        for _, row_p in qta_per_prodotto.iterrows():
+                            st.write(f"&bull; **{row_p['prodotto_nome']}**: {row_p['quantita']:.1f} g")
+                    else:
+                        st.write("Nessuna vendita registrata oggi.")
                     
                     if not mov_oggi_df.empty:
                         st.markdown("##### 🛒 Dettaglio Ultimi Clienti Serviti Oggi:")
-                        st.dataframe(mov_oggi_df[['data', 'cliente', 'prodotto_nome', 'quantita', 'ricavo_totale']], use_container_width=True, hide_index=True)
+                        st.dataframe(mov_oggi_df[['data', 'cliente', 'prodotto_nome', 'quantita', 'ricavo_totale']].head(15), use_container_width=True, hide_index=True)
             else:
                 fascia_corrente = FASCE_ORARIE[idx_corrente]
 
@@ -1144,8 +1147,7 @@ with tab1:
                             
                             vendite_ok = 0
                             incasso_turno = 0.0
-                            qta_frozen_turno = 0.0
-                            qta_altre_turno = 0.0
+                            vendite_prodotti_turno = {}
                             clienti_contrattato = 0
                             
                             for _ in range(num_clienti_tot):
@@ -1154,8 +1156,6 @@ with tab1:
                                 p_nome = prod_req['nome']
                                 val_m = float(prod_req['valore_mercato_unitario'])
                                 cli_nome = random.choice(clienti_nomi)
-                                
-                                is_frozen = "Frozen Hash" in p_nome
                                 
                                 with get_connection() as conn:
                                     cursor = conn.cursor()
@@ -1195,10 +1195,7 @@ with tab1:
                                     incasso_turno += ricavo
                                     vendite_ok += 1
                                     
-                                    if is_frozen:
-                                        qta_frozen_turno += qta_req
-                                    else:
-                                        qta_altre_turno += qta_req
+                                    vendite_prodotti_turno[p_nome] = vendite_prodotti_turno.get(p_nome, 0.0) + qta_req
                                         
                                     aggiungi_log(f"✅ BOT ({fascia_corrente[:10]}): {cli_nome} ha comprato {qta_req}g di '{p_nome}' (+€{ricavo:.2f})")
 
@@ -1210,8 +1207,7 @@ with tab1:
                                 "fascia": fascia_corrente,
                                 "vendite_ok": vendite_ok,
                                 "incasso": incasso_turno,
-                                "qta_frozen": qta_frozen_turno,
-                                "qta_altre": qta_altre_turno,
+                                "vendite_prodotti": vendite_prodotti_turno,
                                 "contrattati": clienti_contrattato
                             }
 
@@ -1226,8 +1222,9 @@ with tab1:
                     col_rb1.metric("💵 Incasso Fascia", f"€ {rep_bot['incasso']:,.2f}")
                     col_rb2.metric("👥 Clienti Serviti", rep_bot['vendite_ok'])
                     
-                    st.write(f"• **Frozen Hash Venduto:** ❄️ {rep_bot['qta_frozen']:.1f} g")
-                    st.write(f"• **Altre Varietà Vendute:** 📦 {rep_bot['qta_altre']:.1f} g")
+                    st.write("##### Quantità Vendute:")
+                    for prod_n, q_v in rep_bot['vendite_prodotti'].items():
+                        st.write(f"&bull; **{prod_n}**: {q_v:.1f} g")
                     st.write(f"• **Contrattazioni:** 💬 {rep_bot['contrattati']}")
 
         elif tipo_operazione == "XME":
