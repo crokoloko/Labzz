@@ -1,18 +1,48 @@
 import sqlite3
+import base64
+import os
 import random
 from datetime import datetime, date
 import pandas as pd
 import streamlit as st
+import altair as alt
 
 # ==========================================
-# 1. CONFIGURAZIONE PAGINA E CSS CUSTOM
+# CONFIGURAZIONE PAGINA STREAMLIT
 # ==========================================
 st.set_page_config(
-    page_title="LaBzz - Empire Tycoon Manager",
+    page_title="LaBzz - Tycoon Management",
     page_icon="📦",
     layout="wide"
 )
 
+# ==========================================
+# FUNZIONE GENERAZIONE CODICE LOTTO
+# ==========================================
+def genera_codice_lotto_automatico(data_riferimento=None):
+    if data_riferimento is None:
+        data_riferimento = date.today()
+    
+    giorno = data_riferimento.strftime("%d").lstrip("0")
+    MESE_INIZIALI = ['g', 'f', 'm', 'a', 'm', 'g', 'l', 'a', 's', 'o', 'n', 'd']
+    iniziale_mese = MESE_INIZIALI[data_riferimento.month - 1]
+    anno_2_cifre = data_riferimento.strftime("%y")
+    
+    return f"{giorno}{iniziale_mese}{anno_2_cifre}"
+
+# ==========================================
+# CARICAMENTO VIDEO BASE64 PER LOGO
+# ==========================================
+def get_video_base64(file_path):
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode('utf-8')
+    return None
+
+# ==========================================
+# INIEZIONE CSS CUSTOM ORIGINALE
+# ==========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Titan+One&display=swap');
@@ -22,41 +52,121 @@ st.markdown("""
         background: linear-gradient(180deg, #070a14 0%, #090c17 50%, #0d1222 100%) !important;
         color: #f8fafc !important;
         font-family: 'Fredoka', sans-serif !important;
+        font-weight: 500;
     }
 
-    h1, h2, h3 {
-        font-family: 'Titan One', cursive !important;
-        color: #ffffff !important;
-        text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.6) !important;
+    header[data-testid="stHeader"] {
+        display: none !important;
     }
 
-    .stat-card {
-        background: rgba(15, 23, 42, 0.8) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 14px !important;
-        padding: 15px !important;
+    .block-container {
+        padding-top: 2.8rem !important;
+        padding-bottom: 6rem !important;
+        padding-left: 0.8rem !important;
+        padding-right: 0.8rem !important;
+    }
+
+    .logo-container {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
         text-align: center !important;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4) !important;
+        width: 100% !important;
+        margin: 0 auto 1.5rem auto !important;
+        padding: 0 !important;
     }
 
-    .stButton>button {
-        font-family: 'Fredoka', sans-serif !important;
-        font-weight: 700 !important;
-        border-radius: 12px !important;
-        height: 3em !important;
-        background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
-        color: white !important;
-        border: none !important;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+    .logo-container video {
+        display: block !important;
+        margin: 0 auto !important;
+        max-width: 420px !important;
         width: 100% !important;
+        height: auto !important;
+        border-radius: 12px !important;
+        object-fit: contain !important;
+        background-color: transparent !important;
+    }
+
+    div[data-testid="stTabs"] {
+        margin-top: 0rem !important;
+        padding-top: 0rem !important;
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px !important;
+        background-color: transparent !important;
+        border-bottom: none !important;
+        padding: 0px 0 12px 0 !important;
+        justify-content: center !important;
+        flex-wrap: wrap !important;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        font-family: 'Titan One', cursive, sans-serif !important;
+        color: #ffffff !important;
+        text-align: center !important;
+        line-height: 1.4 !important;
+        margin-top: 15px !important;
+        margin-bottom: 15px !important;
+    }
+
+    .dashboard-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px !important;
+        width: 100% !important;
+        margin-bottom: 25px !important;
+    }
+
+    .custom-card {
+        background: rgba(15, 23, 42, 0.75) !important;
+        backdrop-filter: blur(16px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 16px !important;
+        padding: 14px 8px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: center !important;
+        text-align: center !important;
+        width: 100% !important;
+    }
+
+    .card-label {
+        color: #94a3b8 !important;
+        font-size: 0.75rem !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        margin-bottom: 6px !important;
+    }
+
+    .card-value {
+        font-size: 1.2rem !important;
+        font-weight: 700 !important;
+        color: #38bdf8 !important;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        font-family: 'Fredoka', sans-serif !important;
+        background: rgba(15, 23, 42, 0.7) !important;
+        border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        border-radius: 14px !important;
+        color: #94a3b8 !important;
+        font-weight: 700 !important;
+        padding: 10px 16px !important;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
+        color: #ffffff !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. PERSISTENZA DATABASE SQLITE
+# INIZIALIZZAZIONE DATABASE SQLITE
 # ==========================================
-DB_NAME = "game_magazzino_streamlit.db"
+DB_NAME = "magazzino.db"
 
 def get_connection():
     return sqlite3.connect(DB_NAME, timeout=10)
@@ -65,13 +175,17 @@ def init_db():
     with get_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("PRAGMA foreign_keys = ON;")
+        
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS prodotti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT UNIQUE NOT NULL,
-            valore_mercato REAL DEFAULT 5.0,
-            scorta_minima REAL DEFAULT 50.0
-        )""")
+            unita_misura TEXT DEFAULT 'g',
+            valore_mercato_unitario REAL DEFAULT 0,
+            scorta_minima_g REAL DEFAULT 0
+        )
+        """)
+        
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS lotti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,38 +194,53 @@ def init_db():
             quantita_iniziale REAL NOT NULL,
             quantita_attuale REAL NOT NULL,
             costo_acquisto_unitario REAL NOT NULL,
+            data_acquisto DATE,
             data_carico DATE NOT NULL,
+            data_completamento DATE,
             FOREIGN KEY (prodotto_id) REFERENCES prodotti (id) ON DELETE CASCADE
-        )""")
+        )
+        """)
+
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS clienti (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT UNIQUE NOT NULL
+        )
+        """)
+
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS movimenti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            prodotto_id INTEGER,
+            prodotto_id INTEGER NOT NULL,
             lotto_id INTEGER,
-            tipo TEXT,
-            quantita REAL,
-            prezzo_unitario REAL,
-            ricavo_totale REAL,
-            costo_totale REAL,
-            margine REAL,
-            cliente TEXT,
-            pagamento TEXT,
-            data TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        
-        cursor.execute("SELECT COUNT(*) FROM prodotti")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute("INSERT INTO prodotti (nome, valore_mercato, scorta_minima) VALUES ('Varietà Premium', 4.5, 50.0)")
-            p_id = cursor.lastrowid
-            cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_carico) VALUES (?, 'LOTTO-001', 500.0, 500.0, 1.2, ?)", (p_id, date.today()))
+            tipo TEXT NOT NULL,
+            quantita REAL NOT NULL,
+            prezzo_unitario REAL DEFAULT 0,
+            ricavo_totale REAL DEFAULT 0,
+            costo_totale REAL DEFAULT 0,
+            margine REAL DEFAULT 0,
+            note TEXT,
+            cliente TEXT DEFAULT 'Anonimo',
+            pagamento TEXT DEFAULT 'Subito',
+            data TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (prodotto_id) REFERENCES prodotti (id) ON DELETE CASCADE,
+            FOREIGN KEY (lotto_id) REFERENCES lotti (id) ON DELETE SET NULL
+        )
+        """)
+
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS impostazioni (
+            chiave TEXT PRIMARY KEY,
+            valore REAL NOT NULL
+        )
+        """)
+        cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('soglia_esaurimento', 10.0)")
 
 init_db()
 
 # ==========================================
-# 3. STATO DEL GIOCATORE (SESSION STATE)
+# STATO DEL GIOCATORE (SESSION STATE)
 # ==========================================
-if 'cassa' not in st.session_state:
-    st.session_state.cassa = 750.00
 if 'energia' not in st.session_state:
     st.session_state.energia = 100
 if 'giorno' not in st.session_state:
@@ -119,185 +248,492 @@ if 'giorno' not in st.session_state:
 if 'reputazione' not in st.session_state:
     st.session_state.reputazione = 50
 if 'log_gioco' not in st.session_state:
-    st.session_state.log_gioco = ["🎮 Benvenuto in LaBzz Tycoon! Imposta la tua strategia e scala il mercato."]
-if 'evento_attivo' not in st.session_state:
-    st.session_state.evento_attivo = "☀️ Mercato Stabile: Condizioni normali di vendita."
+    st.session_state.log_gioco = ["🎮 Benvenuto! Il sistema di gioco è pronto."]
 
 def aggiungi_log(testo):
     timestamp = datetime.now().strftime("%H:%M:%S")
     st.session_state.log_gioco.insert(0, f"[{timestamp}] {testo}")
 
-def verifica_evento_casuale():
-    roll = random.random()
-    if roll < 0.15:
-        spesa = round(random.uniform(30, 80), 2)
-        st.session_state.cassa = max(0.0, st.session_state.cassa - spesa)
-        st.session_state.evento_attivo = f"⚠️ Ispezione Fiscale: Multa registrata (-€{spesa:.2f})"
-        aggiungi_log(st.session_state.evento_attivo)
-    elif roll < 0.30:
-        st.session_state.reputazione = min(100, st.session_state.reputazione + 10)
-        st.session_state.evento_attivo = "📈 Trend Virale sui Social! Reputazione in aumento (+10)"
-        aggiungi_log(st.session_state.evento_attivo)
-    else:
-        st.session_state.evento_attivo = "☀️ Mercato Stabile: Condizioni normali di vendita."
-
 # ==========================================
-# 4. AZIONI DI GAMEPLAY
+# LOGICA FUNZIONI DATABASE & HELPER
 # ==========================================
-def az_apri_turno_vendite():
-    if st.session_state.energia < 20:
-        st.error("❌ Energia troppo bassa! Riposa o attiva il Perk XME.")
-        return
-
-    st.session_state.energia -= 20
+def get_soglia_esaurimento():
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT p.id, p.nome, p.valore_mercato, SUM(l.quantita_attuale)
-            FROM prodotti p JOIN lotti l ON p.id = l.prodotto_id
-            WHERE l.quantita_attuale > 0 GROUP BY p.id
-        """)
-        prodotti = cursor.fetchall()
+        cursor.execute("SELECT valore FROM impostazioni WHERE chiave = 'soglia_esaurimento'")
+        row = cursor.fetchone()
+        return float(row[0]) if row else 10.0
 
-        if not prodotti:
-            aggiungi_log("⚠️ Magazzino Vuoto! Impossibile vendere. Ordina un nuovo lotto!")
-            st.warning("Magazzino vuoto!")
-            return
-
-        clienti = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP"]
-        num_clienti = random.randint(2, 6)
-        vendite, incasso_totale = 0, 0.0
-
-        for _ in range(num_clienti):
-            prod_id, prod_nome, prezzo_u, scorta = random.choice(prodotti)
-            cliente = random.choice(clienti)
-            
-            if prezzo_u <= (prezzo_u * random.uniform(0.85, 1.35)) and scorta > 0:
-                qta = min(scorta, float(random.choice([10, 20, 50])))
-                
-                cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", (prod_id,))
-                lotti = cursor.fetchall()
-                qta_restante = qta
-                costo_op = 0.0
-
-                for l_id, l_qta, l_costo in lotti:
-                    if qta_restante <= 0:
-                        break
-                    prelievo = min(l_qta, qta_restante)
-                    cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale - ? WHERE id = ?", (prelievo, l_id))
-                    qta_restante -= prelievo
-                    costo_op += prelievo * l_costo
-
-                ricavo = qta * prezzo_u
-                margine = ricavo - costo_op
-                pagamento = "Dopo (Credito)" if (random.random() < 0.2 and cliente != "ClienteVIP") else "Subito"
-
-                if pagamento == "Subito":
-                    st.session_state.cassa += ricavo
-                    incasso_totale += ricavo
-
-                cursor.execute("""
-                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento)
-                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?)
-                """, (prod_id, lotti[0][0], qta, prezzo_u, ricavo, costo_op, margine, cliente, pagamento))
-
-                vendite += 1
-                aggiungi_log(f"✅ Venduti {qta}g a {cliente} per €{ricavo:.2f} ({pagamento})")
-
-        if vendite > 0:
-            st.session_state.reputazione = min(100, st.session_state.reputazione + 2)
-
-def az_riposa():
-    st.session_state.giorno += 1
-    st.session_state.energia = 100
-    spese_fisse = 25.0
-    st.session_state.cassa = max(0.0, st.session_state.cassa - spese_fisse)
-    aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Pagate spese fisse (€{spese_fisse:.2f}).")
-    verifica_evento_casuale()
-
-def az_xme_perk():
+def set_soglia_esaurimento(valore):
     with get_connection() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE quantita_attuale >= 15 LIMIT 1")
-        lotto = cursor.fetchone()
-        if lotto:
-            l_id, qta_att, costo_u = lotto
-            cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale - 15 WHERE id = ?", (l_id,))
-            cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, margine, cliente, note) VALUES (1, ?, 'XME', 15, ?, ?, 'XME', 'Uso Personale Perk')", (l_id, 15 * costo_u, -(15 * costo_u)))
-            st.session_state.energia = min(100, st.session_state.energia + 35)
-            aggiungi_log("🧪 Scaricati 15g per Uso Personale (XME). Energia +35%!")
-        else:
-            st.error("Servono almeno 15g in un lotto per fare XME!")
+        cursor.execute("UPDATE impostazioni SET valore = ? WHERE chiave = 'soglia_esaurimento'", (valore,))
 
-def az_compra_lotto():
-    costo_lotto = 200.0
-    qta_lotto = 200.0
-    if st.session_state.cassa >= costo_lotto:
-        st.session_state.cassa -= costo_lotto
+def get_prodotti_disponibili_df():
+    query = """
+        SELECT DISTINCT p.id, p.nome, p.valore_mercato_unitario
+        FROM prodotti p
+        JOIN lotti l ON p.id = l.prodotto_id
+        WHERE l.quantita_attuale > 0
+        ORDER BY p.nome ASC
+    """
+    with get_connection() as conn:
+        return pd.read_sql_query(query, conn)
+
+def get_prodotti_tutti_df():
+    with get_connection() as conn:
+        return pd.read_sql_query("SELECT * FROM prodotti ORDER BY nome ASC", conn)
+
+def get_lotti_attivi_df():
+    query = """
+        SELECT l.id, p.nome AS prodotto, l.codice_lotto, l.quantita_iniziale, l.quantita_attuale, 
+               'g' AS unita_misura, l.costo_acquisto_unitario, l.data_acquisto, l.data_carico
+        FROM lotti l
+        JOIN prodotti p ON l.prodotto_id = p.id
+        WHERE l.quantita_attuale > 0
+        ORDER BY l.data_carico ASC, l.id ASC
+    """
+    with get_connection() as conn:
+        return pd.read_sql_query(query, conn)
+
+def get_report_lotti_integrato_df(soglia_esaurimento_g=10.0):
+    query = """
+        SELECT 
+            l.id AS lotto_id,
+            p.nome AS prodotto,
+            l.codice_lotto,
+            l.quantita_iniziale,
+            l.quantita_attuale,
+            'g' AS unita_misura,
+            l.costo_acquisto_unitario,
+            (l.quantita_iniziale * l.costo_acquisto_unitario) AS costo_totale_lotto,
+            COALESCE(SUM(CASE WHEN m.tipo = 'VENDITA' THEN m.quantita ELSE 0 END), 0) AS qta_venduta_lotto,
+            COALESCE(SUM(CASE WHEN m.tipo = 'VENDITA' THEN m.ricavo_totale ELSE 0 END), 0) AS incasso_totale_lotto,
+            COALESCE(SUM(CASE WHEN m.tipo = 'VENDITA' THEN m.margine ELSE 0 END), 0) -
+            COALESCE(SUM(CASE WHEN m.tipo = 'XME' THEN m.costo_totale ELSE 0 END), 0) AS guadagno_netto_lotto,
+            l.data_acquisto,
+            l.data_carico,
+            l.data_completamento
+        FROM lotti l
+        JOIN prodotti p ON l.prodotto_id = p.id
+        LEFT JOIN movimenti m ON l.id = m.lotto_id
+        GROUP BY l.id
+        ORDER BY l.data_carico DESC, l.id DESC
+    """
+    with get_connection() as conn:
+        df = pd.read_sql_query(query, conn)
+
+    if not df.empty:
+        def calcola_stato(row):
+            qta = float(row['quantita_attuale'])
+            if qta == 0:
+                dt_comp = row['data_completamento']
+                return f"✅ Esaurito ({dt_comp})" if dt_comp else "✅ Esaurito"
+            elif qta <= soglia_esaurimento_g:
+                return f"⚠️ In Esaurimento ({qta:.1f} g rimasti)"
+            else:
+                return "🔵 Attivo"
+
+        df['stato_lotto'] = df.apply(calcola_stato, axis=1)
+
+    return df
+
+def get_movimenti_dettagliati_df():
+    query = """
+        SELECT 
+            m.id, 
+            m.data, 
+            p.nome AS prodotto, 
+            COALESCE(l.codice_lotto, 'N/D - Lotto Rimosso') AS codice_lotto,
+            m.tipo, 
+            m.quantita, 
+            'g' AS unita_misura,
+            m.prezzo_unitario, 
+            m.ricavo_totale, 
+            m.costo_totale, 
+            m.margine, 
+            COALESCE(m.cliente, 'Anonimo') AS cliente,
+            COALESCE(m.pagamento, 'Subito') AS pagamento,
+            m.note, 
+            m.lotto_id
+        FROM movimenti m
+        JOIN prodotti p ON m.prodotto_id = p.id
+        LEFT JOIN lotti l ON m.lotto_id = l.id
+        ORDER BY m.data DESC
+    """
+    with get_connection() as conn:
+        return pd.read_sql_query(query, conn)
+
+def get_clienti_registrati():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT nome FROM clienti ORDER BY nome ASC")
+        return [row[0] for row in cursor.fetchall()]
+
+def aggiungi_cliente_se_nuovo(nome):
+    if nome and nome.strip() != "":
+        nome_pulito = nome.strip().capitalize()
         with get_connection() as conn:
             cursor = conn.cursor()
-            cod = f"L-G{st.session_state.giorno}-{random.randint(10,99)}"
-            cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_carico) VALUES (1, ?, ?, ?, 1.0, ?)", (cod, qta_lotto, qta_lotto, date.today()))
-            l_id = cursor.lastrowid
-            cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente) VALUES (1, ?, 'CARICO', ?, ?, 'Fornitore')", (l_id, qta_lotto, costo_lotto))
-        aggiungi_log(f"📦 Acquistato nuovo lotto {cod} (200g) per €{costo_lotto:.2f}")
+            cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (nome_pulito,))
+
+def calcola_stato_magazzino(solo_disponibili=False):
+    with get_connection() as conn:
+        prodotti_df = pd.read_sql_query("SELECT * FROM prodotti", conn)
+        lotti_df = pd.read_sql_query("SELECT * FROM lotti WHERE quantita_attuale > 0", conn)
+        movimenti_df = pd.read_sql_query("SELECT * FROM movimenti", conn)
+
+    risultati = []
+    for _, prod in prodotti_df.iterrows():
+        p_id = prod['id']
+        lotti_prod = lotti_df[lotti_df['prodotto_id'] == p_id]
+        qta_totale = float(lotti_prod['quantita_attuale'].sum())
+        
+        if solo_disponibili and qta_totale <= 0:
+            continue
+
+        valore_costo_totale = float((lotti_prod['quantita_attuale'] * lotti_prod['costo_acquisto_unitario']).sum())
+        costo_medio = valore_costo_totale / qta_totale if qta_totale > 0 else 0.0
+        valore_mercato_totale = qta_totale * prod['valore_mercato_unitario']
+        
+        vendite = movimenti_df[(movimenti_df['prodotto_id'] == p_id) & (movimenti_df['tipo'] == 'VENDITA')]
+        qta_venduta = float(vendite['quantita'].sum())
+        incasso_totale = float(vendite['ricavo_totale'].sum())
+        margine_totale = float(vendite['margine'].sum())
+
+        risultati.append({
+            'prodotto_id': p_id,
+            'prodotto': prod['nome'],
+            'unita_misura': 'g',
+            'qta_disponibile': qta_totale,
+            'scorta_minima_g': float(prod['scorta_minima_g']),
+            'costo_medio_ponderato': costo_medio,
+            'valore_mercato_unitario': float(prod['valore_mercato_unitario']),
+            'valore_totale_costo': valore_costo_totale,
+            'valore_totale_mercato': valore_mercato_totale,
+            'qta_venduta': qta_venduta,
+            'incasso_totale': incasso_totale,
+            'margine_totale': margine_totale
+        })
+
+    return pd.DataFrame(risultati)
+
+def segna_debito_pagato(nome_cliente):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE movimenti SET pagamento = 'Subito' WHERE cliente = ? AND pagamento = 'Dopo (Credito)'", (nome_cliente,))
+
+def elimina_lotto_db(lotto_id):
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE movimenti SET lotto_id = NULL WHERE lotto_id = ?", (lotto_id,))
+        cursor.execute("DELETE FROM lotti WHERE id = ?", (lotto_id,))
+
+def spara_fuochi_d_artificio():
+    js_code = """
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script>
+        var count = 200;
+        var defaults = { origin: { y: 0.7 } };
+        function fire(particleRatio, opts) {
+          confetti(Object.assign({}, defaults, opts, {
+            particleCount: Math.floor(count * particleRatio)
+          }));
+        }
+        fire(0.25, { spread: 26, startVelocity: 55 });
+        fire(0.2, { spread: 60 });
+        fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
+    </script>
+    """
+    st.components.v1.html(js_code, height=0)
+
+# ==========================================
+# RENDER LOGO IN CIMA
+# ==========================================
+video_b64 = get_video_base64("logo.gif.mp4")
+
+if video_b64:
+    st.markdown(f"""
+        <div class="logo-container">
+            <video autoplay loop muted playsinline>
+                <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
+            </video>
+        </div>
+    """, unsafe_allow_html=True)
+else:
+    if os.path.exists("logo.png"):
+        st.image("logo.png", use_container_width=True)
     else:
-        st.error("Cassa insufficiente per acquistare un nuovo lotto!")
+        st.title("LaBzz Tycoon")
 
-# ==========================================
-# 5. DASHBOARD UI STREAMLIT
-# ==========================================
-st.title("📦 LaBzz - Empire Tycoon Manager")
-
-# HEADER STATISTICHE
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("💵 Cassa Liquida", f"€ {st.session_state.cassa:,.2f}")
-c2.metric("⚡ Energia Imprenditore", f"{st.session_state.energia}%")
-c3.metric("⭐ Reputazione", f"{st.session_state.reputazione}/100")
-c4.metric("📅 Giorno", f"Giorno {st.session_state.giorno}")
-
-st.info(f"**Stato Mercato:** {st.session_state.evento_attivo}")
+# HEADER METRICHE TYCOON GIOCATORE
+c_g1, c_g2, c_g3 = st.columns(3)
+c_g1.metric("📅 Turno / Giorno", f"Giorno {st.session_state.giorno}")
+c_g2.metric("⚡ Energia Imprenditore", f"{st.session_state.energia}%")
+c_g3.metric("⭐ Reputazione", f"{st.session_state.reputazione}/100")
 
 st.markdown("---")
 
-col_left, col_right = st.columns([2, 1])
+# ==========================================
+# SCHEDE / TAB DELL'APPLICAZIONE (ORDINE ORIGINALE)
+# ==========================================
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "💸 Cassa", 
+    "📊 Dashboard", 
+    "🚚 Rifornimenti",
+    "📈 Statistiche",
+    "📜 Report & Storico"
+])
 
-with col_left:
-    st.subheader("⚡ Pannello Controllo Operativo")
-    b1, b2, b3, b4 = st.columns(4)
+# ------------------------------------------
+# TAB 1: CASSA OPERATIVA & AUTOMAZIONE VENDITE
+# ------------------------------------------
+with tab1:
+    st.subheader("💸 Cassa Operativa & Modalità Vendita")
     
-    with b1:
-        if st.button("🏪 Apri Turno Vendite"):
-            az_apri_turno_vendite()
+    col_t1, col_t2 = st.columns([2, 1])
+    
+    with col_t1:
+        tipo_operazione = st.radio("Seleziona Tipo Registrazione", ["Vendita Diretta", "Automazione Turno AI", "XME (Perk)"], horizontal=True)
+        prodotti_disp_df = get_prodotti_disponibili_df()
+        
+        if prodotti_disp_df.empty:
+            st.warning("⚠️ Nessun prodotto disponibile in magazzino. Aggiungi un lotto dalla scheda 'Rifornimenti'.")
+        else:
+            if tipo_operazione == "Vendita Diretta":
+                prod_nome = st.selectbox("Seleziona Prodotto", prodotti_disp_df['nome'].tolist())
+                prod_row = prodotti_disp_df[prodotti_disp_df['nome'] == prod_nome].iloc[0]
+                p_id = int(prod_row['id'])
+                
+                with get_connection() as conn:
+                    lotti_disponibili = pd.read_sql_query("SELECT * FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC, id ASC", conn, params=(p_id,))
+
+                qta_tot_disp = float(lotti_disponibili['quantita_attuale'].sum()) if not lotti_disponibili.empty else 0.0
+                st.info(f"Disponibilità totale: {qta_tot_disp:,.1f} g")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    quantita_vendita = st.number_input("Quantità (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
+                    totale_incassato = st.number_input("Euro (€)", min_value=0.0, value=0.0, step=1.0, format="%.2f")
+                with col2:
+                    prezzo_unitario_calc = (totale_incassato / quantita_vendita) if quantita_vendita > 0 else 0.0
+                    st.metric("Prezzo al Grammo", f"€ {prezzo_unitario_calc:,.2f} / g")
+                    
+                    clienti_esistenti = get_clienti_registrati()
+                    input_cliente = st.text_input("Nome Cliente", value="", placeholder="Inizia a digitare...")
+
+                tipo_pagamento = st.radio("Modalità Pagamento", ["Subito", "Dopo (Credito)"], horizontal=True)
+
+                if st.button("Conferma Vendita Diretta"):
+                    if quantita_vendita <= 0 or totale_incassato <= 0:
+                        st.error("Inserisci quantità e importo validi.")
+                    elif quantita_vendita > qta_tot_disp:
+                        st.error("Quantità superiore alla disponibilità.")
+                    else:
+                        nome_cli = input_cliente.strip().capitalize() if input_cliente.strip() != "" else "Anonimo"
+                        aggiungi_cliente_se_nuovo(nome_cli)
+
+                        with get_connection() as conn:
+                            cursor = conn.cursor()
+                            qta_da_scaricare = float(quantita_vendita)
+                            
+                            for _, lotto in lotti_disponibili.iterrows():
+                                if qta_da_scaricare <= 0: break
+                                l_id = int(lotto['id'])
+                                qta_lotto_disp = float(lotto['quantita_attuale'])
+                                prelievo = min(qta_lotto_disp, qta_da_scaricare)
+                                nuova_qta = qta_lotto_disp - prelievo
+                                qta_da_scaricare -= prelievo
+                                
+                                ricavo_quota = prelievo * prezzo_unitario_calc
+                                costo_quota = prelievo * float(lotto['costo_acquisto_unitario'])
+                                margine_quota = ricavo_quota - costo_quota
+                                
+                                if nuova_qta == 0:
+                                    cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (date.today(), l_id))
+                                else:
+                                    cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, l_id))
+                                
+                                cursor.execute("""
+                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
+                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, nome_cli, tipo_pagamento, f"Lotto {lotto['codice_lotto']}"))
+                        
+                        st.session_state.energia = max(0, st.session_state.energia - 10)
+                        spara_fuochi_d_artificio()
+                        st.success(f"✅ Vendita registrata!")
+
+            elif tipo_operazione == "Automazione Turno AI":
+                st.markdown("##### 🏪 Automazione Sales Engine (Simulazione Clienti PNG)")
+                st.caption("I clienti entreranno e valuteranno i tuoi prezzi in base alla reputazione.")
+                
+                if st.button("🚀 Avvia Simualzione Turno (-20% Energia)"):
+                    if st.session_state.energia < 20:
+                        st.error("Sei troppo stanco! Esegui un'uscita XME o riposa.")
+                    else:
+                        st.session_state.energia -= 20
+                        with get_connection() as conn:
+                            cursor = conn.cursor()
+                            clienti_nomi = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "Anonimo"]
+                            num_clienti = random.randint(2, 5)
+                            
+                            for _ in range(num_clienti):
+                                cursor.execute("SELECT p.id, p.nome, p.valore_mercato_unitario, SUM(l.quantita_attuale) FROM prodotti p JOIN lotti l ON p.id = l.prodotto_id WHERE l.quantita_attuale > 0 GROUP BY p.id")
+                                prods = cursor.fetchall()
+                                if not prods: break
+                                
+                                p_id, p_nome, pr_u, scorta = random.choice(prods)
+                                cli = random.choice(clienti_nomi)
+                                qta = min(scorta, float(random.choice([5, 10, 20])))
+                                
+                                cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", (p_id,))
+                                lotti = cursor.fetchall()
+                                l_id, l_qta, l_costo = lotti[0]
+                                
+                                cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale - ? WHERE id = ?", (qta, l_id))
+                                ricavo = qta * pr_u
+                                margine = ricavo - (qta * l_costo)
+                                
+                                cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento) VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, 'Subito')", (p_id, l_id, qta, pr_u, ricavo, qta * l_costo, margine, cli))
+                                aggiungi_log(f"Venduti {qta}g di {p_nome} a {cli} per €{ricavo:.2f}")
+
+                        st.session_state.reputazione = min(100, st.session_state.reputazione + 3)
+                        st.success("Turno automatico completato con successo!")
+                        st.rerun()
+
+            elif tipo_operazione == "XME":
+                st.markdown("##### 🧪 Registra Uso Personale XME (+30% Energia)")
+                lotti_df = get_lotti_attivi_df()
+                if not lotti_df.empty:
+                    with st.form("form_xme"):
+                        opzioni_lotto = {f"{r['prodotto']} - Lotto: {r['codice_lotto']} (Disp: {r['quantita_attuale']:,.1f} g)": r['id'] for _, r in lotti_df.iterrows()}
+                        lotto_sel = st.selectbox("Seleziona Lotto", list(opzioni_lotto.keys()))
+                        lotto_id = opzioni_lotto[lotto_sel]
+                        qta_xme = st.number_input("Quantità (g)", min_value=0.5, value=10.0, step=0.5)
+
+                        if st.form_submit_button("Conferma Uscita XME"):
+                            lotto_row = lotti_df[lotti_df['id'] == lotto_id].iloc[0]
+                            with get_connection() as conn:
+                                cursor = conn.cursor()
+                                nuova_q = float(lotto_row['quantita_attuale']) - qta_xme
+                                p_id = int(get_prodotti_tutti_df()[get_prodotti_tutti_df()['nome'] == lotto_row['prodotto']].iloc[0]['id'])
+                                cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_q, lotto_id))
+                                cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, margine, cliente, note) VALUES (?, ?, 'XME', ?, ?, ?, 'XME', 'Consumo Perk')", (p_id, lotto_id, qta_xme, qta_xme * float(lotto_row['costo_acquisto_unitario']), -qta_xme * float(lotto_row['costo_acquisto_unitario'])))
+                            
+                            st.session_state.energia = min(100, st.session_state.energia + 30)
+                            st.warning("Uscita XME registrata! Energia aumentata (+30%).")
+                            st.rerun()
+
+    with col_t2:
+        st.markdown("### 💤 Turno Notturno")
+        if st.button("🌙 Riposa e Passa al Giorno Successivo", use_container_width=True):
+            st.session_state.giorno += 1
+            st.session_state.energia = 100
+            aggiungi_log("🌙 Riposo completato. Energia 100%.")
             st.rerun()
-    with b2:
-        if st.button("💤 Riposa e Passa Giorno"):
-            az_riposa()
-            st.rerun()
-    with b3:
-        if st.button("🧪 Consumo XME (+35% E)"):
-            az_xme_perk()
-            st.rerun()
-    with b4:
-        if st.button("🛒 Ordina Lotto (€200)"):
-            az_compra_lotto()
-            st.rerun()
+
+        st.markdown("---")
+        st.markdown("##### 📜 Log Eventi")
+        for log in st.session_state.log_gioco[:5]:
+            st.caption(log)
+
+# ------------------------------------------
+# TAB 2: DASHBOARD & ANALYTICS
+# ------------------------------------------
+with tab2:
+    st.subheader("📊 Dashboard & Analytics")
+    df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
+    movimenti_df = get_movimenti_dettagliati_df()
+
+    if not df_stato_disp.empty or not movimenti_df.empty:
+        val_costo = df_stato_disp['valore_totale_costo'].sum() if not df_stato_disp.empty else 0
+        val_mercato = df_stato_disp['valore_totale_mercato'].sum() if not df_stato_disp.empty else 0
+        incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['ricavo_totale'].sum() if not movimenti_df.empty else 0
+        margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
+
+        st.markdown(f"""
+        <div class="dashboard-grid">
+            <div class="custom-card"><div class="card-label">Valore (Costo)</div><div class="card-value">€ {val_costo:,.2f}</div></div>
+            <div class="custom-card"><div class="card-label">Valore (Vendita)</div><div class="card-value">€ {val_mercato:,.2f}</div></div>
+            <div class="custom-card"><div class="card-label">Incasso Totale</div><div class="card-value">€ {incasso_tot:,.2f}</div></div>
+            <div class="custom-card"><div class="card-label">Margine Netto</div><div class="card-value">€ {margine_tot:,.2f}</div></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if not movimenti_df.empty:
+            mov_df = movimenti_df.copy()
+            mov_df['Data_Ora'] = pd.to_datetime(mov_df['data'])
+            mov_df = mov_df.sort_values('Data_Ora')
+            mov_df['Spesi Totali'] = mov_df.apply(lambda r: r['costo_totale'] if r['tipo'] == 'CARICO' else 0, axis=1).cumsum()
+            mov_df['Incasso Totale'] = mov_df['ricavo_totale'].cumsum()
+            mov_df['Margine Netto'] = mov_df['margine'].cumsum()
+            
+            chart_df = mov_df.melt(id_vars=['Data_Ora', 'prodotto', 'tipo'], value_vars=['Spesi Totali', 'Incasso Totale', 'Margine Netto'], var_name='Metrica', value_name='Valore (€)')
+            chart = alt.Chart(chart_df).mark_line(point=True, strokeWidth=3).encode(
+                x=alt.X('Data_Ora:T', title='Data e Ora'), y=alt.Y('Valore (€):Q', title='Importo (€)'),
+                color=alt.Color('Metrica:N', scale=alt.Scale(domain=['Spesi Totali', 'Incasso Totale', 'Margine Netto'], range=['#ff4757', '#2ed573', '#38bdf8']))
+            ).properties(height=350).interactive()
+            st.altair_chart(chart, use_container_width=True)
+
+# ------------------------------------------
+# TAB 3: RIFORNIMENTI E LOTTI
+# ------------------------------------------
+with tab3:
+    st.subheader("🚚 Registro Rifornimenti e Lotti")
+    soglia_attuale = get_soglia_esaurimento()
+    report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_attuale)
+    
+    if not report_lotti_df.empty:
+        st.dataframe(report_lotti_df, use_container_width=True, hide_index=True)
 
     st.markdown("---")
-    
-    tab_lotti, tab_mov = st.tabs(["📦 Lotti in Magazzino", "📜 Registro Movimenti DB"])
-    
-    with tab_lotti:
-        with get_connection() as conn:
-            df_lotti = pd.read_sql_query("SELECT l.codice_lotto, p.nome, l.quantita_attuale, l.costo_acquisto_unitario FROM lotti l JOIN prodotti p ON l.prodotto_id = p.id WHERE l.quantita_attuale > 0", conn)
-        st.dataframe(df_lotti, use_container_width=True, hide_index=True)
+    with st.expander("➕ Aggiungi Nuovo Prodotto e Rifornimento"):
+        with st.form("form_nuovo_prodotto_lotto"):
+            nome_nuovo = st.text_input("Nome Prodotto")
+            data_acq_m = st.date_input("Data Acquisto", value=date.today())
+            cod_lotto_m = st.text_input("Codice Lotto", value=genera_codice_lotto_automatico(data_acq_m))
+            qta_lotto_m = st.number_input("Quantità (g)", value=500.0)
+            costo_u_lotto_m = st.number_input("Costo d'Acquisto (€/g)", value=1.0)
+            prezzo_v_init = st.number_input("Prezzo Vendita (€/g)", value=2.0)
 
-    with tab_mov:
-        with get_connection() as conn:
-            df_mov = pd.read_sql_query("SELECT tipo, quantita, ricavo_totale, costo_totale, margine, cliente, pagamento, data FROM movimenti ORDER BY id DESC LIMIT 15", conn)
-        st.dataframe(df_mov, use_container_width=True, hide_index=True)
+            if st.form_submit_button("Crea Prodotto e Registra Lotto"):
+                with get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (nome_nuovo.strip(), prezzo_v_init))
+                    p_id = cursor.lastrowid
+                    cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, ?, ?, ?, ?, ?, ?)", (p_id, cod_lotto_m.strip(), qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today()))
+                    lotto_id = cursor.lastrowid
+                    cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente) VALUES (?, ?, 'CARICO', ?, ?, 'Fornitore')", (p_id, lotto_id, qta_lotto_m, qta_lotto_m * costo_u_lotto_m))
+                st.success("✅ Prodotto creato con successo!")
+                st.rerun()
 
-with col_right:
-    st.subheader("📟 Console Eventi Live")
-    for log in st.session_state.log_gioco[:10]:
-        st.caption(log)
+# ------------------------------------------
+# TAB 4: STATISTICHE CLIENTI & DEBITI
+# ------------------------------------------
+with tab4:
+    st.subheader("📈 Statistiche Avanzate Clienti")
+    movimenti_df = get_movimenti_dettagliati_df()
+    
+    if not movimenti_df.empty:
+        clienti_debito = movimenti_df[(movimenti_df['tipo'] == 'VENDITA') & (movimenti_df['pagamento'] == 'Dopo (Credito)')]
+        if not clienti_debito.empty:
+            debito_per_cliente = clienti_debito.groupby('cliente')['ricavo_totale'].sum().reset_index()
+            st.markdown("##### 💳 Clienti con Debiti Attivi")
+            for _, r_d in debito_per_cliente.iterrows():
+                col_d1, col_d2 = st.columns([3, 1])
+                col_d1.write(f"**{r_d['cliente']}**: € {r_d['ricavo_totale']:,.2f}")
+                if col_d2.button(f"Salda Debito", key=f"btn_s_{r_d['cliente']}"):
+                    segna_debito_pagato(r_d['cliente'])
+                    st.success("Debito saldato!")
+                    st.rerun()
+
+# ------------------------------------------
+# TAB 5: REPORT STORICO
+# ------------------------------------------
+with tab5:
+    st.subheader("📜 Registro Storico Transazioni")
+    movimenti_df = get_movimenti_dettagliati_df()
+    if not movimenti_df.empty:
+        st.dataframe(movimenti_df, use_container_width=True, hide_index=True)
+        csv_data = movimenti_df.to_csv(index=False).encode('utf-8')
+        st.download_button("📥 Scarica Report CSV", data=csv_data, file_name="report_storico.csv", mime="text/csv")
