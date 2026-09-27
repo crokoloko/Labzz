@@ -554,18 +554,18 @@ def reset_completo_nuova_partita():
     genera_evento_casuale_giorno()
 
 # ==========================================
-# INIEZIONE CSS CUSTOM ORIGINALE & NOIR
+# INIEZIONE CSS CUSTOM — STILE GTA / LAVAGNA CRIMINALE
 # ==========================================
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&family=Titan+One&family=Special+Elite&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Anton&family=Special+Elite&family=Rajdhani:wght@500;600;700&display=swap');
 
     .stApp {
-        background-color: #090c17 !important;
-        background: linear-gradient(180deg, #070a14 0%, #090c17 50%, #0d1222 100%) !important;
-        color: #f8fafc !important;
-        font-family: 'Fredoka', sans-serif !important;
-        font-weight: 500;
+        background-color: #0b0f19 !important;
+        background: linear-gradient(135deg, #05070c 0%, #0b0f19 50%, #111827 100%) !important;
+        color: #f3f4f6 !important;
+        font-family: 'Rajdhani', sans-serif !important;
+        font-weight: 600;
     }
 
     header[data-testid="stHeader"] {
@@ -573,7 +573,7 @@ st.markdown("""
     }
 
     .block-container {
-        padding-top: 2.8rem !important;
+        padding-top: 2.2rem !important;
         padding-bottom: 6rem !important;
         padding-left: 0.8rem !important;
         padding-right: 0.8rem !important;
@@ -586,41 +586,25 @@ st.markdown("""
         text-align: center !important;
         width: 100% !important;
         margin: 0 auto 1rem auto !important;
-        padding: 0 !important;
     }
 
     .logo-container video {
         display: block !important;
         margin: 0 auto !important;
-        max-width: 420px !important;
+        max-width: 400px !important;
         width: 100% !important;
         height: auto !important;
-        border-radius: 12px !important;
+        border-radius: 8px !important;
         object-fit: contain !important;
-        background-color: transparent !important;
     }
 
-    div[data-testid="stTabs"] {
-        margin-top: 0rem !important;
-        padding-top: 0rem !important;
-    }
-
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 10px !important;
-        background-color: transparent !important;
-        border-bottom: none !important;
-        padding: 0px 0 12px 0 !important;
-        justify-content: center !important;
-        flex-wrap: wrap !important;
-    }
-
+    /* Stile Titoli ispirati a GTA / Heist Board */
     h1, h2, h3, h4, h5, h6 {
-        font-family: 'Titan One', cursive, sans-serif !important;
+        font-family: 'Anton', sans-serif !important;
         color: #ffffff !important;
-        text-align: center !important;
-        line-height: 1.4 !important;
-        margin-top: 15px !important;
-        margin-bottom: 15px !important;
+        letter-spacing: 1.5px !important;
+        text-transform: uppercase !important;
+        text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.8);
     }
 
     .top-metrics-grid {
@@ -640,10 +624,10 @@ st.markdown("""
     }
 
     .custom-card {
-        background: rgba(15, 23, 42, 0.75) !important;
-        backdrop-filter: blur(16px) !important;
+        background: rgba(17, 24, 39, 0.85) !important;
+        border-left: 4px solid #f59e0b !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 14px !important;
+        border-radius: 6px !important;
         padding: 10px 8px !important;
         display: flex !important;
         flex-direction: column !important;
@@ -651,68 +635,87 @@ st.markdown("""
         align-items: center !important;
         text-align: center !important;
         width: 100% !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5);
     }
 
     .card-label {
-        color: #94a3b8 !important;
+        color: #9ca3af !important;
         font-size: 0.70rem !important;
-        font-weight: 600 !important;
+        font-weight: 700 !important;
+        letter-spacing: 1px;
         text-transform: uppercase;
-        margin-bottom: 4px !important;
+        margin-bottom: 2px !important;
     }
 
     .card-value {
-        font-size: 1.05rem !important;
-        font-weight: 700 !important;
+        font-family: 'Anton', sans-serif !important;
+        font-size: 1.2rem !important;
+        letter-spacing: 1px;
         color: #38bdf8 !important;
     }
 
     .card-subtext {
         font-size: 0.70rem !important;
-        color: #38bdf8 !important;
-        font-weight: 600 !important;
+        color: #fbbf24 !important;
+        font-weight: 700 !important;
         margin-top: 2px !important;
     }
 
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px !important;
+        background-color: transparent !important;
+        border-bottom: none !important;
+        justify-content: center !important;
+        flex-wrap: wrap !important;
+        padding-bottom: 12px;
+    }
+
     .stTabs [data-baseweb="tab"] {
-        font-family: 'Fredoka', sans-serif !important;
-        background: rgba(15, 23, 42, 0.7) !important;
-        border: 1px solid rgba(255, 255, 255, 0.05) !important;
-        border-radius: 14px !important;
-        color: #94a3b8 !important;
-        font-weight: 700 !important;
-        padding: 10px 16px !important;
+        font-family: 'Anton', sans-serif !important;
+        letter-spacing: 1px;
+        background: rgba(17, 24, 39, 0.9) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 4px !important;
+        color: #9ca3af !important;
+        font-size: 0.95rem !important;
+        padding: 8px 14px !important;
     }
 
     .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
-        color: #ffffff !important;
+        background: #f59e0b !important;
+        color: #0b0f19 !important;
+        border-color: #f59e0b !important;
     }
 
-    /* Stile Noir / Mercato Nero */
-    .noir-box {
-        background: radial-gradient(circle at top, #1e1b18 0%, #0c0a09 100%);
-        border: 1px solid rgba(245, 158, 11, 0.25);
-        border-radius: 16px;
-        padding: 22px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(245, 158, 11, 0.05);
+    /* Stile Lavagna Rapina / Clandestino */
+    .heist-board {
+        background: #0f172a;
+        border: 2px dashed rgba(245, 158, 11, 0.4);
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 12px 35px rgba(0,0,0,0.9);
         margin-bottom: 20px;
+        position: relative;
     }
-    .noir-title {
-        font-family: 'Titan One', cursive;
-        color: #fbbf24;
-        font-size: 1.5rem;
-        letter-spacing: 1px;
-        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    .heist-title {
+        font-family: 'Anton', sans-serif;
+        color: #f87171;
+        font-size: 1.6rem;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        text-align: center;
+        margin-bottom: 8px;
     }
-    .noir-quote {
+    .heist-quote {
         font-family: 'Special Elite', cursive;
-        color: #d1d5db;
+        color: #e5e7eb;
         font-size: 0.95rem;
-        border-left: 3px solid #f59e0b;
-        padding-left: 12px;
-        margin: 12px 0 18px 0;
-        line-height: 1.5;
+        text-align: center;
+        background: rgba(0,0,0,0.4);
+        padding: 10px;
+        border-radius: 4px;
+        border-left: 4px solid #ef4444;
+        margin-bottom: 15px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -809,8 +812,8 @@ with st.container(border=True):
             st.rerun()
 
     st.markdown(f"""
-        <div style="text-align: center; font-family: 'Fredoka', sans-serif; font-size: 0.78rem; font-weight: 300; color: #64748b; margin-top: 6px; letter-spacing: 0.5px;">
-            {data_formattata} &bull; <span style="color: #38bdf8;">{desc_fest}</span>
+        <div style="text-align: center; font-family: 'Rajdhani', sans-serif; font-size: 0.78rem; font-weight: 500; color: #9ca3af; margin-top: 6px; letter-spacing: 1px;">
+            {data_formattata} &bull; <span style="color: #f59e0b;">{desc_fest}</span>
         </div>
     """, unsafe_allow_html=True)
 
@@ -1001,7 +1004,7 @@ with tab1:
                                 if st.button("🤝 Proponi Offerta e Vendi", use_container_width=True):
                                     if prezzo_proposto <= cli_att['budget_max_g']:
                                         esegui_transazione_vendita(cli_att, prezzo_proposto, tipo_pagamento)
-                                        st.success(f"🎉 {cli_att['nome']} ha ACCETATO!")
+                                        st.success(f"🎉 {cli_att['nome']} ha ACCETTATO!")
                                         genera_cliente_in_negozio()
                                         st.rerun()
                                     else:
@@ -1215,12 +1218,12 @@ with tab2:
             chart_df = mov_df.melt(id_vars=['Data_Ora', 'prodotto', 'tipo'], value_vars=['Incasso Totale', 'Margine Netto'], var_name='Metrica', value_name='Valore (€)')
             chart = alt.Chart(chart_df).mark_line(point=True, strokeWidth=3).encode(
                 x=alt.X('Data_Ora:T', title='Data e Ora'), y=alt.Y('Valore (€):Q', title='Importo (€)'),
-                color=alt.Color('Metrica:N', scale=alt.Scale(domain=['Incasso Totale', 'Margine Netto'], range=['#2ed573', '#38bdf8']))
+                color=alt.Color('Metrica:N', scale=alt.Scale(domain=['Incasso Totale', 'Margine Netto'], range=['#f59e0b', '#38bdf8']))
             ).properties(height=350).interactive()
             st.altair_chart(chart, use_container_width=True)
 
 # ------------------------------------------
-# TAB 3: RIFORNIMENTI & FORNITORI GANGSTER (STILE NOIR)
+# TAB 3: RIFORNIMENTI & FORNITORI (STILE HEIST BOARD GTA)
 # ------------------------------------------
 with tab3:
     st.subheader("🚚 Rifornimenti & Canali Clandestini")
@@ -1230,38 +1233,38 @@ with tab3:
         costo_tot = off['costo_totale']
         ha_abbastanza_soldi = st.session_state.soldi_cassa >= costo_tot
 
-        # Contenitore Noir / Malavitoso
+        # Contenitore Heist Board / GTA Style
         st.markdown(f"""
-        <div class="noir-box">
-            <div class="noir-title">🕶️ INCONTRO CLANDESTINO: {off['fornitore_nome'].upper()}</div>
-            <div class="noir-quote">{off['fornitore_frase']}</div>
-            <div style="display: flex; justify-content: space-around; text-align: center; margin-top: 15px; border-top: 1px dashed rgba(245,158,11,0.2); padding-top: 15px;">
+        <div class="heist-board">
+            <div class="heist-title">🎯 OBIETTIVO / CONTATTO: {off['fornitore_nome'].upper()}</div>
+            <div class="heist-quote">{off['fornitore_frase']}</div>
+            <div style="display: flex; justify-content: space-around; text-align: center; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
                 <div>
-                    <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;">Merce</span><br>
-                    <strong style="color: #fbbf24; font-size: 1.1rem;">{off['prodotto_nome']}</strong><br>
-                    <span style="font-size: 0.70rem; color: #f87171;">{off['tipo']}</span>
+                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Merce</span><br>
+                    <strong style="color: #f59e0b; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['prodotto_nome']}</strong><br>
+                    <span style="font-size: 0.65rem; color: #ef4444; font-weight: 700;">{off['tipo']}</span>
                 </div>
                 <div>
-                    <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;">Quantità</span><br>
-                    <strong style="color: #38bdf8; font-size: 1.1rem;">{off['quantita']:,.1f} g</strong>
+                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Quantità</span><br>
+                    <strong style="color: #38bdf8; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['quantita']:,.1f} g</strong>
                 </div>
                 <div>
-                    <span style="font-size: 0.75rem; color: #94a38b; text-transform: uppercase;">Prezzo Base</span><br>
-                    <strong style="color: #34d399; font-size: 1.1rem;">€ {off['costo_unitario']:.2f} / g</strong>
+                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Costo Unitaria</span><br>
+                    <strong style="color: #10b981; font-size: 1.1rem; font-family: 'Anton', sans-serif;">€ {off['costo_unitario']:.2f} / g</strong>
                 </div>
             </div>
-            <div style="text-align: center; margin-top: 15px; font-size: 1.2rem; font-weight: 700; color: #ffffff;">
-                Totale Richiesto: <span style="color: #fbbf24;">€ {costo_tot:,.2f}</span>
+            <div style="text-align: center; margin-top: 18px; font-size: 1.25rem; font-family: 'Anton', sans-serif; color: #ffffff; letter-spacing: 1px;">
+                INVESTIMENTO RICHIESTO: <span style="color: #f59e0b;">€ {costo_tot:,.2f}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
             
         if not ha_abbastanza_soldi:
-            st.warning(f"⚠️ Non hai abbastanza contanti (€{st.session_state.soldi_cassa:.2f}) per l'intero lotto da €{costo_tot:.2f}. Tratta un taglio minore qui sotto!")
+            st.warning(f"⚠️ Fondi insufficienti in cassa (€{st.session_state.soldi_cassa:.2f}) per l'intero lotto da €{costo_tot:.2f}. Tratta un taglio ridotto qui sotto.")
 
         col_b1, col_b2 = st.columns(2)
         with col_b1:
-            if st.button("💼 CHIUDI L'ACCORDO (INTERO LOTTO)", use_container_width=True, disabled=not ha_abbastanza_soldi):
+            if st.button("💼 COMPRA INTERO LOTTO (SUBITO)", use_container_width=True, disabled=not ha_abbastanza_soldi):
                 st.session_state.soldi_cassa -= costo_tot
                 with get_connection() as conn:
                     cursor = conn.cursor()
@@ -1277,45 +1280,45 @@ with tab3:
                     cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto Intero Lotto')", (p_id, l_id, off['quantita'], costo_tot, off['fornitore_nome']))
 
                 aggiungi_log(f"🚚 ACQUISTO: Comprati {off['quantita']}g di {off['prodotto_nome']} da {off['fornitore_nome']} per €{costo_tot:.2f}")
-                st.success(f"✅ Transazione conclusa nel vicolo con {off['fornitore_nome']}!")
+                st.success(f"✅ Accordo chiuso con {off['fornitore_nome']}!")
                 st.session_state.offerta_fornitore = None
                 st.session_state.minigioco_trattativa = False
                 st.rerun()
 
         with col_b2:
-            if st.button("🚪 VOLTA LE SPALLE E VATTENE", use_container_width=True):
+            if st.button("❌ BRUCIA CONTATTO E VATTENE", use_container_width=True):
                 aggiungi_log(f"❌ Rifiutata offerta di {off['fornitore_nome']}.")
-                st.info(f"Hai voltato le spalle a {off['fornitore_nome']}. È sparito nell'ombra.")
+                st.info(f"Hai scartato il contatto di {off['fornitore_nome']}.")
                 st.session_state.offerta_fornitore = None
                 st.session_state.minigioco_trattativa = False
                 st.rerun()
 
-        # --- MINIGIOCO DI TRATTATIVA STILE NOIR ---
+        # --- MINIGIOCO DI TRATTATIVA GTA / HEIST BOARD ---
         st.markdown("---")
         with st.container(border=True):
-            st.markdown("##### ⚖️ Tavolo delle Trattative Clandestine")
-            st.write("«Vuoi strappare un prezzo migliore o trattare un taglio ridotto? Scegli con cura la tua mossa prima che si insospettisca...»")
+            st.markdown("##### 📋 PIANIFICAZIONE TRATTATIVA CLANDESTINA")
+            st.write("«Vuoi trattare sui grammi o forzare un prezzo più basso? Scegli la mossa tattica prima che saltino gli accordi.»")
             
-            qta_ridotta = st.number_input("Grammi da contrattare:", min_value=1.0, max_value=float(off['quantita'] - 1.0), value=min(10.0, float(off['quantita'] - 1.0)), step=1.0)
+            qta_ridotta = st.number_input("Taglio personalizzato (g):", min_value=1.0, max_value=float(off['quantita'] - 1.0), value=min(10.0, float(off['quantita'] - 1.0)), step=1.0)
             
-            approccio = st.selectbox("Strategia di Negoziazione", [
-                "🤝 Diplomazia (Tono rispettoso, margini sicuri)", 
-                "😎 Blöff Calcolato (Tenta lo sconto azzardato)", 
-                "🔥 Pressione Psicologica (Rischio alto, sconti pesanti)"
+            approccio = st.selectbox("Approccio Negoziazione", [
+                "🤝 Profilo Basso / Affidabile (Rischio minimo)", 
+                "😎 Bluff Tattico (Tenta lo sconto aggressivo)", 
+                "🔥 Pressing Totale (Alto rischio / Margine elevato)"
             ])
             
-            if st.button("🎲 Tira i Dadi della Trattativa", use_container_width=True):
+            if st.button("🎲 ESEGUI MOSSA DI TRATTATIVA", use_container_width=True):
                 tiro = random.randint(1, 100) + int(st.session_state.reputazione / 2)
                 
-                if "Diplomazia" in approccio:
+                if "Profilo Basso" in approccio:
                     sconto = 0.93 if tiro > 35 else 1.08
-                    esito_txt = "Il contatto apprezza le maniere pulite e professionali."
-                elif "Blöff" in approccio:
+                    esito_txt = "Il contatto apprezza la tua affidabilità."
+                elif "Bluff" in approccio:
                     sconto = 0.82 if tiro > 60 else 1.25
-                    esito_txt = "Hai giocato d'azzardo sulla tua faccia tosta."
+                    esito_txt = "Hai giocato d'azzardo sulla tua reputazione."
                 else:
                     sconto = 0.70 if tiro > 82 else 1.40
-                    esito_txt = "La tensione si taglia col coltello. O la va o la spacca!"
+                    esito_txt = "Mossa ad altissimo rischio nel vicolo buio!"
                     
                 nuovo_costo_u = round(off['costo_unitario'] * sconto, 2)
                 nuovo_costo_tot = round(qta_ridotta * nuovo_costo_u, 2)
@@ -1331,10 +1334,10 @@ with tab3:
 
             if 'minigioco_risultato' in st.session_state and st.session_state.minigioco_risultato:
                 res = st.session_state.minigioco_risultato
-                st.info(f"🗣️ **Risposta:** _{res['testo_esito']}_ -> Nuovo prezzo: **€{res['costo_u']:.2f}/g** (Totale: **€{res['costo_tot']:.2f**})")
+                st.info(f"💬 **Esito:** _{res['testo_esito']}_ -> Prezzo trattato: **€{res['costo_u']:.2f}/g** (Totale: **€{res['costo_tot']:.2f}**)")
                 
                 ha_soldi_trattativa = st.session_state.soldi_cassa >= res['costo_tot']
-                if st.button("✅ ACCETTA ACCORDO TRATTATO", use_container_width=True, disabled=not ha_soldi_trattativa):
+                if st.button("✅ CONFERMA ACCORDO TRATTATO", use_container_width=True, disabled=not ha_soldi_trattativa):
                     st.session_state.soldi_cassa -= res['costo_tot']
                     with get_connection() as conn:
                         cursor = conn.cursor()
@@ -1350,7 +1353,7 @@ with tab3:
                         cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto Trattato')", (p_id, l_id, res['qta'], res['costo_tot'], off['fornitore_nome']))
 
                     aggiungi_log(f"🚚 ACQUISTO TRATTATO: {res['qta']}g di {off['prodotto_nome']} da {off['fornitore_nome']} per €{res['costo_tot']:.2f}")
-                    st.success("✅ Accordo chiuso con successo nel vicolo!")
+                    st.success("✅ Accordo chiuso con successo!")
                     st.session_state.offerta_fornitore = None
                     st.session_state.minigioco_risultato = None
                     st.rerun()
@@ -1358,12 +1361,12 @@ with tab3:
     else:
         fornitori_rimasti = st.session_state.max_fornitori_oggi - st.session_state.fornitori_visti_oggi
         if fornitori_rimasti > 0:
-            st.info(f"Oggi puoi ancora ricevere fino a {fornitori_rimasti} contatto/i di fornitori clandestini.")
+            st.info(f"Oggi puoi ancora intercettare fino a {fornitori_rimasti} contatto/i clandestino/i.")
             if st.button("📞 Sintonizzati su Canale Clandestino", use_container_width=True):
                 genera_offerta_fornitore_casuale()
                 st.rerun()
         else:
-            st.warning("⚠️ Silenzio radio oggi dai canali sotterranei. Riposa per passare al giorno successivo.")
+            st.warning("⚠️ Nessun contatto disponibile oggi sui canali sotterranei. Riposa per avanzare.")
 
     st.markdown("---")
     st.markdown("### 📋 Stato Lotti e Scorte Attuali")
