@@ -89,6 +89,10 @@ def trigger_effetto_notte():
     """
     st.components.v1.html(js_code, height=0)
 
+def aggiungi_log(testo):
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    st.session_state.log_gioco.insert(0, f"[{timestamp}] {testo}")
+
 # INITIAL STATE
 if 'soldi_cassa' not in st.session_state:
     st.session_state.soldi_cassa = 200.0
@@ -129,10 +133,6 @@ if st.session_state.cliente_in_negozio is None:
 if st.session_state.giorno == 1 and st.session_state.offerta_fornitore is None and st.session_state.max_fornitori_oggi > 0:
     genera_offerta_fornitore_casuale()
     genera_evento_casuale_giorno()
-
-def aggiungi_log(testo):
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    st.session_state.log_gioco.insert(0, f"[{timestamp}] {testo}")
 
 def reset_completo_nuova_partita():
     with get_connection() as conn:
@@ -194,159 +194,27 @@ else:
 st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Anton&family=Special+Elite&family=Rajdhani:wght@500;600;700&display=swap');
-
     {bg_style}
-
-    header[data-testid="stHeader"] {{
-        display: none !important;
-    }}
-
-    .block-container {{
-        padding-top: 2rem !important;
-        padding-bottom: 6rem !important;
-        padding-left: 0.8rem !important;
-        padding-right: 0.8rem !important;
-    }}
-
-    .logo-container {{
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-        text-align: center !important;
-        width: 100% !important;
-        margin: 0 auto 1rem auto !important;
-    }}
-
-    .logo-container video {{
-        display: block !important;
-        margin: 0 auto !important;
-        max-width: 380px !important;
-        width: 100% !important;
-        height: auto !important;
-        border-radius: 8px !important;
-        object-fit: contain !important;
-    }}
-
-    h1, h2, h3, h4, h5, h6 {{
-        font-family: 'Anton', sans-serif !important;
-        color: #facc15 !important;
-        letter-spacing: 1.5px !important;
-        text-transform: uppercase !important;
-        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.9);
-    }}
-
-    .top-metrics-grid {{
-        display: grid !important;
-        grid-template-columns: repeat(2, 1fr) !important;
-        gap: 10px !important;
-        width: 100% !important;
-        margin-bottom: 20px !important;
-    }}
-
-    .dashboard-grid {{
-        display: grid !important;
-        grid-template-columns: repeat(2, 1fr) !important;
-        gap: 12px !important;
-        width: 100% !important;
-        margin-bottom: 25px !important;
-    }}
-
-    .custom-card {{
-        background: rgba(15, 23, 42, 0.88) !important;
-        backdrop-filter: blur(8px) !important;
-        border-left: 4px solid #10b981 !important;
-        border: 1px solid rgba(255, 255, 255, 0.12) !important;
-        border-radius: 6px !important;
-        padding: 10px 6px !important;
-        display: flex !important;
-        flex-direction: column !important;
-        justify-content: center !important;
-        align-items: center !important;
-        text-align: center !important;
-        width: 100% !important;
-        min-height: 70px !important;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.7);
-    }}
-
-    .card-label {{
-        color: #9ca3af !important;
-        font-size: 0.62rem !important;
-        font-weight: 700 !important;
-        letter-spacing: 0.8px;
-        text-transform: uppercase;
-        margin-bottom: 2px !important;
-    }}
-
-    .card-value {{
-        font-family: 'Anton', sans-serif !important;
-        font-size: 1.05rem !important;
-        letter-spacing: 1px;
-        color: #34d399 !important;
-    }}
-
-    .stTabs [data-baseweb="tab-list"] {{
-        gap: 6px !important;
-        background-color: transparent !important;
-        border-bottom: none !important;
-        justify-content: center !important;
-        flex-wrap: wrap !important;
-        padding-bottom: 12px;
-    }}
-
-    .stTabs [data-baseweb="tab"] {{
-        font-family: 'Anton', sans-serif !important;
-        letter-spacing: 1px;
-        background: rgba(15, 23, 42, 0.9) !important;
-        backdrop-filter: blur(6px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.15) !important;
-        border-radius: 4px !important;
-        color: #9ca3af !important;
-        font-size: 0.9rem !important;
-        padding: 8px 12px !important;
-    }}
-
-    .stTabs [aria-selected="true"] {{
-        background: #10b981 !important;
-        color: #030712 !important;
-        border-color: #10b981 !important;
-    }}
-
-    .heist-board {{
-        background: rgba(15, 23, 42, 0.92);
-        backdrop-filter: blur(10px);
-        border: 2px dashed rgba(16, 185, 129, 0.4);
-        border-radius: 8px;
-        padding: 20px;
-        box-shadow: 0 12px 35px rgba(0,0,0,0.9);
-        margin-bottom: 20px;
-        position: relative;
-    }}
-    .heist-title {{
-        font-family: 'Anton', sans-serif;
-        color: #facc15;
-        font-size: 1.6rem;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        text-align: center;
-        margin-bottom: 8px;
-    }}
-    .heist-quote {{
-        font-family: 'Special Elite', cursive;
-        color: #e5e7eb;
-        font-size: 0.95rem;
-        text-align: center;
-        background: rgba(0,0,0,0.5);
-        padding: 10px;
-        border-radius: 4px;
-        border-left: 4px solid #10b981;
-        margin-bottom: 15px;
-    }}
+    header[data-testid="stHeader"] {{ display: none !important; }}
+    .block-container {{ padding-top: 2rem !important; padding-bottom: 6rem !important; padding-left: 0.8rem !important; padding-right: 0.8rem !important; }}
+    .logo-container {{ display: flex !important; justify-content: center !important; align-items: center !important; text-align: center !important; width: 100% !important; margin: 0 auto 1rem auto !important; }}
+    .logo-container video {{ display: block !important; margin: 0 auto !important; max-width: 380px !important; width: 100% !important; height: auto !important; border-radius: 8px !important; object-fit: contain !important; }}
+    h1, h2, h3, h4, h5, h6 {{ font-family: 'Anton', sans-serif !important; color: #facc15 !important; letter-spacing: 1.5px !important; text-transform: uppercase !important; text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.9); }}
+    .top-metrics-grid {{ display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; width: 100% !important; margin-bottom: 20px !important; }}
+    .dashboard-grid {{ display: grid !important; grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; width: 100% !important; margin-bottom: 25px !important; }}
+    .custom-card {{ background: rgba(15, 23, 42, 0.88) !important; backdrop-filter: blur(8px) !important; border-left: 4px solid #10b981 !important; border: 1px solid rgba(255, 255, 255, 0.12) !important; border-radius: 6px !important; padding: 10px 6px !important; display: flex !important; flex-direction: column !important; justify-content: center !important; align-items: center !important; text-align: center !important; width: 100% !important; min-height: 70px !important; box-shadow: 0 8px 24px rgba(0,0,0,0.7); }}
+    .card-label {{ color: #9ca3af !important; font-size: 0.62rem !important; font-weight: 700 !important; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 2px !important; }}
+    .card-value {{ font-family: 'Anton', sans-serif !important; font-size: 1.05rem !important; letter-spacing: 1px; color: #34d399 !important; }}
+    .stTabs [data-baseweb="tab-list"] {{ gap: 6px !important; background-color: transparent !important; border-bottom: none !important; justify-content: center !important; flex-wrap: wrap !important; padding-bottom: 12px; }}
+    .stTabs [data-baseweb="tab"] {{ font-family: 'Anton', sans-serif !important; letter-spacing: 1px; background: rgba(15, 23, 42, 0.9) !important; backdrop-filter: blur(6px) !important; border: 1px solid rgba(255, 255, 255, 0.15) !important; border-radius: 4px !important; color: #9ca3af !important; font-size: 0.9rem !important; padding: 8px 12px !important; }}
+    .stTabs [aria-selected="true"] {{ background: #10b981 !important; color: #030712 !important; border-color: #10b981 !important; }}
+    .heist-board {{ background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(10px); border: 2px dashed rgba(16, 185, 129, 0.4); border-radius: 8px; padding: 20px; box-shadow: 0 12px 35px rgba(0,0,0,0.9); margin-bottom: 20px; position: relative; }}
+    .heist-title {{ font-family: 'Anton', sans-serif; color: #facc15; font-size: 1.6rem; letter-spacing: 2px; text-transform: uppercase; text-align: center; margin-bottom: 8px; }}
+    .heist-quote {{ font-family: 'Special Elite', cursive; color: #e5e7eb; font-size: 0.95rem; text-align: center; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 4px; border-left: 4px solid #10b981; margin-bottom: 15px; }}
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# RENDER LOGO
-# ==========================================
+# Logo
 video_b64 = get_file_base64("logo.gif.mp4")
 if video_b64:
     st.markdown(f"""
@@ -362,9 +230,7 @@ else:
     else:
         st.title("Mulino Underground Tycoon")
 
-# ==========================================
-# HEADER METRICHE & HEAT METER
-# ==========================================
+# Metriche Header
 with get_connection() as conn:
     df_lotti_scorte = pd.read_sql_query("""
         SELECT p.nome, SUM(l.quantita_attuale) as qta 
@@ -432,9 +298,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# PULSANTE NOTTE NEL BOSCO & DATA MINIMAL
-# ==========================================
 data_oggi = get_data_corrente_gioco()
 is_fest, desc_fest = e_festivo_o_weekend(data_oggi)
 data_formattata = data_oggi.strftime("%d %B %Y")
@@ -473,9 +336,7 @@ with st.container(border=True):
 
 st.markdown("---")
 
-# ==========================================
-# EVENTI SPECIALI NEL BOSCO
-# ==========================================
+# Eventi attivi
 if st.session_state.evento_attivo:
     ev = st.session_state.evento_attivo
     with st.container(border=True):
@@ -525,7 +386,8 @@ if st.session_state.evento_attivo:
                     
                     if qta_disp_vip >= ev['quantita']:
                         cli_vip_obj = {"nome": "Runner Palco Centrale", "prodotto_id": ev['prodotto_id'], "prodotto_nome": ev['prodotto_nome'], "quantita_richiesta": ev['quantita']}
-                        esegui_transazione_vendita(cli_vip_obj, ev['prezzo_offerto'], "Subito")
+                        esegui_transazione_vendita(cli_vip_obj, ev['prezzo_offerto'], "Subito", callback_log=aggiungi_log)
+                        spara_fuochi_d_artificio()
                         st.success(f"🎉 Rifornimento palco completato! Incasso: €{ev['quantita'] * ev['prezzo_offerto']:.2f}")
                         st.session_state.reputazione = min(100, st.session_state.reputazione + 5)
                         st.session_state.evento_attivo = None
@@ -548,9 +410,7 @@ if st.session_state.evento_attivo:
                 st.session_state.evento_attivo = None
                 st.rerun()
 
-# ==========================================
-# TAB DELL'APPLICAZIONE
-# ==========================================
+# Tabs
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🏕️ Base Mulino", 
     "👥 Crew / Pusher",
@@ -560,12 +420,8 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "📜 Mappa & Obiettivi"
 ])
 
-# ------------------------------------------
-# TAB 1: BASE MULINO
-# ------------------------------------------
 with tab1:
     col_cassa, col_ledger = st.columns([1.2, 1])
-    
     with col_cassa:
         st.subheader("🏕️ Spaccio al Campeggio / Mulino")
         tipo_operazione = st.radio("Seleziona Attività", ["Incontra Raver (Manuale)", "Automazione Turni Sound System", "XME (Energia Personale)"], horizontal=True)
@@ -580,10 +436,8 @@ with tab1:
                     
                     with get_connection() as conn:
                         qta_disp_query = pd.read_sql_query("SELECT SUM(quantita_attuale) FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0", conn, params=(cli_att['prodotto_id'],)).iloc[0, 0]
-                        costo_lotto_ref = pd.read_sql_query("SELECT costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", conn, params=(cli_att['prodotto_id'],))
                         
                     qta_disp_tot = float(qta_disp_query) if (qta_disp_query is not None and not pd.isna(qta_disp_query)) else 0.0
-                    costo_base_u = float(costo_lotto_ref.iloc[0,0]) if not costo_lotto_ref.empty else 0.0
 
                     if qta_disp_tot < cli_att['quantita_richiesta']:
                         st.error(f"❌ Scorte insufficienti al mulino! (Disponibili: {qta_disp_tot:.1f}g)")
@@ -600,7 +454,8 @@ with tab1:
                         pagamento_db = "Subito" if "Subito" in tipo_pagamento else "Dopo (Credito)"
 
                         if st.button("🤝 Cedi Merce", use_container_width=True):
-                            esegui_transazione_vendita(cli_att, prezzo_proposto, pagamento_db)
+                            esegui_transazione_vendita(cli_att, prezzo_proposto, pagamento_db, callback_log=aggiungi_log)
+                            spara_fuochi_d_artificio()
                             genera_cliente_in_negozio()
                             st.rerun()
 
@@ -608,7 +463,6 @@ with tab1:
             idx_corrente = st.session_state.indice_fascia_oraria
             if idx_corrente >= len(FASCE_ORARIE):
                 st.warning("⚠️ Hai completato tutte e 5 le fasce orarie della giornata nel bosco! Clicca su **'🌲 Avanza Giorno (Alba sul Fiume)'** in cima per continuare.")
-                
                 with st.container(border=True):
                     st.markdown("### 📊 RECAP TOTALE GIORNATA NEL BOSCO (FINE TURNI)")
                     recap_data = st.session_state.get('recap_giornata_corrente')
@@ -616,21 +470,15 @@ with tab1:
                         col_r1, col_r2 = st.columns(2)
                         col_r1.metric("💵 Incasso Totale Giorno", f"€ {recap_data['incasso_totale']:,.2f}")
                         col_r2.metric("📈 Margine Netto Giorno", f"€ {recap_data['margine_totale']:,.2f}")
-                        
                         st.write(f"• **Raver Unici Serviti:** 👥 {recap_data['clienti_serviti']} (Transazioni totali: {recap_data['transazioni_totali']})")
-                        
                         st.markdown("##### 📦 Quantità Distribuite per Prodotto:")
-                        if recap_data['prodotti_distribuiti']:
-                            for prod_n, q_v in recap_data['prodotti_distribuiti'].items():
-                                st.write(f"&bull; **{prod_n}**: {q_v:.1f} g")
-                        else:
-                            st.write("Nessuna quantità distribuita oggi.")
+                        for prod_n, q_v in recap_data['prodotti_distribuiti'].items():
+                            st.write(f"&bull; **{prod_n}**: {q_v:.1f} g")
                     else:
                         st.info("Nessun dato di recap registrato per questa sessione.")
             else:
                 st.markdown(f"##### 🔊 Automazione Spaccio Sound System (Autonoma)")
                 st.info(f"Fascia oraria corrente: **{FASCE_ORARIE[idx_corrente]}** ({idx_corrente + 1} di 5)")
-                
                 strategia_bot = st.selectbox("Strategia Crew", ["Onesta / Prezzo Popolare", "Aggressiva (+20%)", "Solidale (-15%)"])
 
                 with get_connection() as conn:
@@ -641,7 +489,6 @@ with tab1:
                         st.error("Sei troppo stanco per avviare il ciclo automatico! Riposa.")
                     else:
                         placeholder_progresso = st.empty()
-                        
                         incasso_totale_giorno = 0.0
                         margine_totale_giorno = 0.0
                         clienti_serviti_set = set()
@@ -659,7 +506,6 @@ with tab1:
                             if not prodotti_tutti.empty:
                                 is_f, _ = e_festivo_o_weekend(get_data_corrente_gioco())
                                 moltiplicatore_festivo = 1.35 if is_f else 1.0
-                                
                                 base_clienti = random.randint(3, 6) if idx_c >= 3 else random.randint(2, 4)
                                 bonus_efficienza_totale = pusher_assunti['efficienza'].sum() if not pusher_assunti.empty else 0.0
                                 
@@ -673,7 +519,6 @@ with tab1:
                                 for i in range(num_clienti_tot):
                                     if not nomi_turno_disponibili: break
                                     cli_nome = nomi_turno_disponibili.pop(0)
-
                                     prod_req = prodotti_tutti.sample(n=1).iloc[0]
                                     p_id = int(prod_req['id'])
                                     p_nome = prod_req['nome']
@@ -736,7 +581,7 @@ with tab1:
                                 }
 
                             st.session_state.indice_fascia_oraria += 1
-                            time.sleep(2.5)
+                            time.sleep(2.0)
 
                         st.session_state.recap_giornata_corrente = {
                             "incasso_totale": incasso_totale_giorno,
@@ -745,7 +590,6 @@ with tab1:
                             "transazioni_totali": transazioni_totali_giorno,
                             "prodotti_distribuiti": prodotti_distribuiti_giorno
                         }
-                            
                         placeholder_progresso.success("🎉 Tutti i turni della giornata sono stati completati con successo!")
                         time.sleep(1)
                         st.rerun()
@@ -757,8 +601,6 @@ with tab1:
                     col_rb1, col_rb2 = st.columns(2)
                     col_rb1.metric("💵 Incasso Fascia", f"€ {rep_bot['incasso']:,.2f}")
                     col_rb2.metric("👥 Raver Serviti", rep_bot['vendite_ok'])
-                    
-                    st.write("##### Quantità Distribuite:")
                     for prod_n, q_v in rep_bot['vendite_prodotti'].items():
                         st.write(f"&bull; **{prod_n}**: {q_v:.1f} g")
 
@@ -789,101 +631,35 @@ with tab1:
             for log in st.session_state.log_gioco[:8]:
                 st.caption(log)
 
-# ------------------------------------------
-# TAB 2: CREW / PUSHER
-# ------------------------------------------
 with tab2:
     st.subheader("👥 Gestione Crew nel Bosco (A Percentuale)")
-    st.write("I membri della crew operano tra le tende e i furgoni senza stipendio fisso, trattenendo una percentuale fissa sulle vendite.")
-    
     with get_connection() as conn:
         pusher_df = pd.read_sql_query("SELECT * FROM pusher", conn)
-        
     for _, p in pusher_df.iterrows():
         with st.container(border=True):
             col_p1, col_p2, col_p3 = st.columns([2, 2, 1])
             col_p1.markdown(f"### **{p['nome']}**")
-            col_p2.write(f"• **Trattiene (Commissione):** {p['quota_trattenuta']*100:.0f}%\n• **Efficienza / Abilità:** +{p['efficienza']*100:.0f}%")
-            
-            is_assunto = bool(p['assunto'])
-            if is_assunto:
+            col_p2.write(f"• **Trattiene:** {p['quota_trattenuta']*100:.0f}%\n• **Efficienza:** +{p['efficienza']*100:.0f}%")
+            if bool(p['assunto']):
                 if col_p3.button("Allontana", key=f"lic_{p['id']}"):
                     with get_connection() as conn:
                         conn.execute("UPDATE pusher SET assunto = 0 WHERE id = ?", (p['id'],))
-                    st.success(f"Hai allontanato {p['nome']} dalla crew.")
                     st.rerun()
             else:
                 if col_p3.button("Ingaggia", key=f"ass_{p['id']}"):
                     with get_connection() as conn:
                         conn.execute("UPDATE pusher SET assunto = 1 WHERE id = ?", (p['id'],))
-                    st.success(f"Hai ingaggiato {p['nome']} nella crew!")
                     st.rerun()
 
-    st.markdown("---")
-    st.subheader("📊 Recap Esclusivo Attività e Vendite della Crew (Oggi)")
-    
-    with get_connection() as conn:
-        data_str_oggi = data_oggi.strftime("%Y-%m-%d")
-        mov_pusher_oggi_df = pd.read_sql_query("""
-            SELECT m.*, p.nome as prodotto_nome 
-            FROM movimenti m 
-            JOIN prodotti p ON m.prodotto_id = p.id 
-            WHERE m.tipo = 'VENDITA' AND m.note LIKE '%Pusher%' AND DATE(m.data) = ?
-            ORDER BY m.data DESC
-        """, conn, params=(data_str_oggi,))
-
-    if not mov_pusher_oggi_df.empty:
-        tot_incasso_pusher = mov_pusher_oggi_df['ricavo_totale'].sum()
-        clienti_raggiunti_pusher = mov_pusher_oggi_df['cliente'].nunique()
-        tot_grammi_pusher = mov_pusher_oggi_df['quantita'].sum()
-        
-        profitto_boss_pusher = 0.0
-        profitto_trattenuto_pusher = 0.0
-        
-        for _, row_m in mov_pusher_oggi_df.iterrows():
-            note_m = str(row_m['note'])
-            ricavo_r = float(row_m['ricavo_totale'])
-            if "Vojta" in note_m:
-                q_pusher = ricavo_r * 0.25
-            elif "Kamil" in note_m:
-                q_pusher = ricavo_r * 0.35
-            elif "Anetka" in note_m:
-                q_pusher = ricavo_r * 0.40
-            else:
-                q_pusher = ricavo_r * 0.30
-            
-            profitto_trattenuto_pusher += q_pusher
-            profitto_boss_pusher += (ricavo_r - q_pusher)
-
-        col_sq1, col_sq2, col_sq3 = st.columns(3)
-        col_sq1.metric("👥 Raver Raggiunti (Crew)", clienti_raggiunti_pusher)
-        col_sq2.metric("⚖️ Grammi Venduti (Crew)", f"{tot_grammi_pusher:.1f} g")
-        col_sq3.metric("💰 Incasso Totale Crew", f"€ {tot_incasso_pusher:,.2f}")
-        
-        st.write(f"• **Tuo Profitto Netto (dalle vendite della crew):** € {profitto_boss_pusher:,.2f}")
-        st.write(f"• **Guadagni Trattenuti dalla Crew:** € {profitto_trattenuto_pusher:,.2f}")
-        
-        st.markdown("##### 📦 Dettaglio Grammi Venduti dalla Crew per Prodotto:")
-        qta_prod_pusher = mov_pusher_oggi_df.groupby('prodotto_nome')['quantita'].sum().reset_index()
-        for _, rsp in qta_prod_pusher.iterrows():
-            st.write(f"&bull; **{rsp['prodotto_nome']}**: {rsp['quantita']:.1f} g")
-    else:
-        st.info("Nessuna transazione registrata oggi tramite la crew nel bosco.")
-
-# ------------------------------------------
-# TAB 3: DASHBOARD
-# ------------------------------------------
 with tab3:
     st.subheader("📊 Dashboard Economica del Mulino")
     df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
     movimenti_df = get_movimenti_dettagliati_df()
-
     if not df_stato_disp.empty or not movimenti_df.empty:
         val_costo = df_stato_disp['valore_totale_costo'].sum() if not df_stato_disp.empty else 0
         val_mercato = df_stato_disp['valore_totale_mercato'].sum() if not df_stato_disp.empty else 0
         incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['incasso'].sum() if not movimenti_df.empty else 0
         margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
-
         st.markdown(f"""
         <div class="dashboard-grid">
             <div class="custom-card"><div class="card-label">Valore Scorte (Costo)</div><div class="card-value">€ {val_costo:,.2f}</div></div>
@@ -893,42 +669,19 @@ with tab3:
         </div>
         """, unsafe_allow_html=True)
 
-# ------------------------------------------
-# TAB 4: PARCHEGGIO FURGONI
-# ------------------------------------------
 with tab4:
     st.subheader("🚚 Parcheggio Furgoni & Fornitori Nomadi")
-    
     if st.session_state.offerta_fornitore:
         off = st.session_state.offerta_fornitore
         costo_tot = off['costo_totale']
         ha_soldi = st.session_state.soldi_cassa >= costo_tot
-
         st.markdown(f"""
         <div class="heist-board">
             <div class="heist-title">🎯 CONTATTO NEL FANGO: {off['fornitore_nome'].upper()}</div>
             <div class="heist-quote">{off['fornitore_frase']}</div>
-            <div style="display: flex; justify-content: space-around; text-align: center; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
-                <div>
-                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase;">Merce</span><br>
-                    <strong style="color: #facc15; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['prodotto_nome']}</strong><br>
-                    <span style="font-size: 0.65rem; color: #ef4444;">{off['tipo']}</span>
-                </div>
-                <div>
-                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase;">Quantità Lotto</span><br>
-                    <strong style="color: #34d399; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['quantita']:,.1f} g</strong>
-                </div>
-                <div>
-                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase;">Costo Unitario</span><br>
-                    <strong style="color: #60a5fa; font-size: 1.1rem; font-family: 'Anton', sans-serif;">€ {off['costo_unitario']:.2f} / g</strong>
-                </div>
-            </div>
-            <div style="text-align: center; margin-top: 18px; font-size: 1.25rem; font-family: 'Anton', sans-serif; color: #ffffff;">
-                INVESTIMENTO INTERO: <span style="color: #facc15;">€ {costo_tot:,.2f}</span>
-            </div>
+            <div style="text-align: center; margin-top: 15px;">INVESTIMENTO: <strong style="color: #facc15;">€ {costo_tot:,.2f}</strong></div>
         </div>
         """, unsafe_allow_html=True)
-
         col_b1, col_b2 = st.columns(2)
         with col_b1:
             if st.button("💼 COMPRA INTERO STOCK", use_container_width=True, disabled=not ha_soldi):
@@ -937,61 +690,17 @@ with tab4:
                 with get_connection() as conn:
                     cursor = conn.cursor()
                     cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
-                    p_id = cursor.fetchone() or cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],)).fetchone()[0]
-                    if isinstance(p_id, tuple): p_id = p_id[0]
-
+                    p_id = cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],)).fetchone()[0]
                     cursor.execute("""
                         INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     """, (p_id, off['codice_lotto'], off['quantita'], off['quantita'], off['costo_unitario'], date.today(), date.today()))
-                st.success("Stock caricato al mulino!")
                 st.session_state.offerta_fornitore = None
-                st.session_state.minigioco_trattativa = False
                 st.rerun()
         with col_b2:
             if st.button("❌ Rimanda via il Furgone", use_container_width=True):
                 st.session_state.offerta_fornitore = None
-                st.session_state.minigioco_trattativa = False
                 st.rerun()
-
-        st.markdown("---")
-        with st.container(border=True):
-            st.markdown("##### 📋 TRATTATIVA NEL PARCHEGGIO (OBIETTIVO BUDGET)")
-            budget_proposto = st.number_input("Il tuo Budget da Spendere (€):", min_value=5.0, max_value=max(5.0, float(st.session_state.soldi_cassa)), value=min(50.0, float(st.session_state.soldi_cassa)), step=5.0)
-            approccio = st.selectbox("Approccio Trattativa", ["🤝 Fratellanza / Solidarietà", "😎 Trattativa Dura", "🔥 Pressing al Furgone"])
-            
-            if st.button("🎲 NEGOZIA CON IL FORNITORE", use_container_width=True):
-                tiro = random.randint(1, 100) + int(st.session_state.reputazione / 2)
-                sconto = 0.93 if "Fratellanza" in approccio else (0.82 if "Dura" in approccio else 0.70)
-                nuovo_costo_u = round(off['costo_unitario'] * sconto, 2)
-                qta_calcolata = round(budget_proposto / nuevo_costo_u if 'nuevo_costo_u' in locals() else budget_proposto / nuovo_costo_u, 2) if nuovo_costo_u > 0 else 0.0
-                if qta_calcolata > off['quantita']:
-                    qta_calcolata = float(off['quantita'])
-                    budget_proposto = round(qta_calcolata * nuovo_costo_u, 2)
-
-                st.session_state.minigioco_risultato = {
-                    "budget": budget_proposto, "costo_u": nuovo_costo_u, "qta_offerta": qta_calcolata
-                }
-                st.rerun()
-
-            if 'minigioco_risultato' in st.session_state and st.session_state.minigioco_risultato:
-                res = st.session_state.minigioco_risultato
-                st.info(f"💬 Accordo raggiunto: **{res['qta_offerta']}g** a **€{res['costo_u']:.2f}/g** per un totale di **€{res['budget']:,.2f}**.")
-                if st.button("✅ ACCETTA ACCORDO NEL FANGO", use_container_width=True, disabled=st.session_state.soldi_cassa < res['budget']):
-                    st.session_state.soldi_cassa -= res['budget']
-                    with get_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
-                        p_id = cursor.fetchone() or cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],)).fetchone()[0]
-                        if isinstance(p_id, tuple): p_id = p_id[0]
-                        cursor.execute("""
-                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (p_id, f"{off['codice_lotto']}-B", res['qta_offerta'], res['qta_offerta'], res['costo_u'], date.today(), date.today()))
-                    st.success("Accordo concluso nel parcheggio!")
-                    st.session_state.offerta_fornitore = None
-                    st.session_state.minigioco_risultato = None
-                    st.rerun()
     else:
         fornitori_rimasti = st.session_state.max_fornitori_oggi - st.session_state.fornitori_visti_oggi
         if fornitori_rimasti > 0:
@@ -1001,15 +710,6 @@ with tab4:
         else:
             st.warning("Nessun altro furgone disponibile nel parcheggio oggi.")
 
-    st.markdown("---")
-    soglia_attuale = get_soglia_esaurimento()
-    report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_attuale)
-    if not report_lotti_df.empty:
-        st.dataframe(report_lotti_df, use_container_width=True, hide_index=True)
-
-# ------------------------------------------
-# TAB 5: STATISTICHE (CREDITI)
-# ------------------------------------------
 with tab5:
     st.subheader("📈 Crediti Raver tra le Tende")
     movimenti_df = get_movimenti_dettagliati_df()
@@ -1017,34 +717,19 @@ with tab5:
         clienti_debito = movimenti_df[(movimenti_df['tipo'] == 'VENDITA') & (movimenti_df['stato_pagamento'] == 'Dopo (Credito)')]
         if not clienti_debito.empty:
             debito_per_cliente = clienti_debito.groupby('cliente')['incasso'].sum().reset_index()
-            for _, r_d in debito_per_cliente.iterrows():
+            for _, r_d in debito_per_clienti if 'debito_per_clienti' in locals() else debito_per_cliente.iterrows():
                 col_d1, col_d2 = st.columns([3, 1])
                 col_d1.write(f"**{r_d['cliente']}**: € {r_d['incasso']:,.2f}")
                 if col_d2.button("Incassa", key=f"s_{r_d['cliente']}"):
                     segna_debito_pagato(r_d['cliente'])
                     st.rerun()
 
-# ------------------------------------------
-# TAB 6: MAPPA & OBIETTIVI
-# ------------------------------------------
 with tab6:
     st.subheader("🎯 Obiettivi del Raduno & Condizioni di Vittoria")
-    
     movimenti_df = get_movimenti_dettagliati_df()
     utile_totale = movimenti_df['margine'].sum() if not movimenti_df.empty else 0.0
-    
-    st.write("Raggiungi i fondi necessari per garantire la sopravvivenza del Sound System e del mulino nei boschi:")
     st.progress(min(1.0, utile_totale / 10000.0))
     st.write(f"• **Utile Netto Attuale:** € {utile_totale:,.2f} / € 10,000.00 obiettivo festival")
-    st.write(f"• **Attenzione Forestale Attuale:** {get_sospetto():.1f}% (Mantienilo sotto il 50% per evitare retate nei boschi)")
-
-    st.markdown("---")
-    st.subheader("📜 Storico del Raduno")
-    if not movimenti_df.empty:
-        st.dataframe(movimenti_df, use_container_width=True, hide_index=True)
-
-    st.markdown("---")
-    with st.expander("⚠️ Danger Zone: Smonta il Campo (Reset Partita)"):
-        if st.button("💥 Reset Totale del Mulino"):
-            reset_completo_nuova_partita()
-            st.rerun()
+    if st.button("💥 Reset Totale del Mulino"):
+        reset_completo_nuova_partita()
+        st.rerun()
