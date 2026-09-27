@@ -141,7 +141,7 @@ def e_festivo_o_weekend(data_rif):
         return True, "Weekend / Raduno Massive nel Bosco 🎉"
     return False, "Giorni feriali / Autogestione al Mulino 🏕️"
 
-def get_video_base64(file_path):
+def get_file_base64(file_path):
     if os.path.exists(file_path):
         with open(file_path, "rb") as f:
             data = f.read()
@@ -499,7 +499,7 @@ def genera_evento_casuale_giorno():
                 st.session_state.evento_attivo = {
                     "tipo": "vip",
                     "titolo": "📱 RICHIESTA DAL PALCO PRINCIPALE",
-                    "testo": f"Un sound system vecino ti manda un runner: «Ci servono urgentemente **{qta_vip}g di {prod_vip['nome']}** per i djs che suonano all'alba sul palco centrale. Ti pago **€{prezzo_vip:.2f}/g**!»",
+                    "testo": f"Un sound system vicino ti manda un runner: «Ci servono urgentemente **{qta_vip}g di {prod_vip['nome']}** per i djs che suonano all'alba sul palco centrale. Ti pago **€{prezzo_vip:.2f}/g**!»",
                     "prodotto_id": int(prod_vip['id']),
                     "prodotto_nome": prod_vip['nome'],
                     "quantita": qta_vip,
@@ -649,41 +649,52 @@ def reset_completo_nuova_partita():
     genera_evento_casuale_giorno()
 
 # ==========================================
-# INIEZIONE CSS CUSTOM — STILE FREE PARTY NEL BOSCO
+# INIEZIONE CSS CUSTOM — SFONDO SFUMATO E LEGGIBILITÀ
 # ==========================================
-st.markdown("""
+sfondo_b64 = get_file_base64("sfondo.jpg")
+bg_style = ""
+if sfondo_b64:
+    bg_style = f"""
+    .stApp {{
+        background: linear-gradient(rgba(3, 7, 18, 0.75), rgba(3, 7, 18, 0.85)), url("data:image/jpeg;base64,{sfondo_b64}") no-repeat center center fixed !important;
+        background-size: cover !important;
+    }}
+    """
+else:
+    bg_style = """
+    .stApp {{
+        background-color: #030712 !important;
+        background: linear-gradient(135deg, #020617 0%, #064e3b 50%, #0f172a 100%) !important;
+    }}
+    """
+
+st.markdown(f"""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Anton&family=Special+Elite&family=Rajdhani:wght@500;600;700&display=swap');
 
-    .stApp {
-        background-color: #030712 !important;
-        background: linear-gradient(135deg, #020617 0%, #064e3b 50%, #0f172a 100%) !important;
-        color: #f3f4f6 !important;
-        font-family: 'Rajdhani', sans-serif !important;
-        font-weight: 600;
-    }
+    {bg_style}
 
-    header[data-testid="stHeader"] {
+    header[data-testid="stHeader"] {{
         display: none !important;
-    }
+    }}
 
-    .block-container {
+    .block-container {{
         padding-top: 2rem !important;
         padding-bottom: 6rem !important;
         padding-left: 0.8rem !important;
         padding-right: 0.8rem !important;
-    }
+    }}
 
-    .logo-container {
+    .logo-container {{
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
         text-align: center !important;
         width: 100% !important;
         margin: 0 auto 1rem auto !important;
-    }
+    }}
 
-    .logo-container video {
+    .logo-container video {{
         display: block !important;
         margin: 0 auto !important;
         max-width: 380px !important;
@@ -691,92 +702,95 @@ st.markdown("""
         height: auto !important;
         border-radius: 8px !important;
         object-fit: contain !important;
-    }
+    }}
 
-    h1, h2, h3, h4, h5, h6 {
+    h1, h2, h3, h4, h5, h6 {{
         font-family: 'Anton', sans-serif !important;
         color: #facc15 !important;
         letter-spacing: 1.5px !important;
         text-transform: uppercase !important;
-        text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.9);
-    }
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.9);
+    }}
 
-    .top-metrics-grid {
+    .top-metrics-grid {{
         display: grid !important;
         grid-template-columns: repeat(2, 1fr) !important;
         gap: 10px !important;
         width: 100% !important;
         margin-bottom: 20px !important;
-    }
+    }}
 
-    .dashboard-grid {
+    .dashboard-grid {{
         display: grid !important;
         grid-template-columns: repeat(2, 1fr) !important;
         gap: 12px !important;
         width: 100% !important;
         margin-bottom: 25px !important;
-    }
+    }}
 
-    .custom-card {
-        background: rgba(15, 23, 42, 0.9) !important;
+    .custom-card {{
+        background: rgba(15, 23, 42, 0.88) !important;
+        backdrop-filter: blur(8px) !important;
         border-left: 4px solid #10b981 !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
         border-radius: 6px !important;
-        padding: 12px 8px !important;
+        padding: 10px 6px !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;
         align-items: center !important;
         text-align: center !important;
         width: 100% !important;
-        min-height: 85px !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.6);
-    }
+        min-height: 70px !important;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.7);
+    }}
 
-    .card-label {
+    .card-label {{
         color: #9ca3af !important;
-        font-size: 0.68rem !important;
+        font-size: 0.62rem !important;
         font-weight: 700 !important;
-        letter-spacing: 1px;
+        letter-spacing: 0.8px;
         text-transform: uppercase;
-        margin-bottom: 4px !important;
-    }
+        margin-bottom: 2px !important;
+    }}
 
-    .card-value {
+    .card-value {{
         font-family: 'Anton', sans-serif !important;
-        font-size: 1.15rem !important;
+        font-size: 1.05rem !important;
         letter-spacing: 1px;
         color: #34d399 !important;
-    }
+    }}
 
-    .stTabs [data-baseweb="tab-list"] {
+    .stTabs [data-baseweb="tab-list"] {{
         gap: 6px !important;
         background-color: transparent !important;
         border-bottom: none !important;
         justify-content: center !important;
         flex-wrap: wrap !important;
         padding-bottom: 12px;
-    }
+    }}
 
-    .stTabs [data-baseweb="tab"] {
+    .stTabs [data-baseweb="tab"] {{
         font-family: 'Anton', sans-serif !important;
         letter-spacing: 1px;
         background: rgba(15, 23, 42, 0.9) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        backdrop-filter: blur(6px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
         border-radius: 4px !important;
         color: #9ca3af !important;
         font-size: 0.9rem !important;
         padding: 8px 12px !important;
-    }
+    }}
 
-    .stTabs [aria-selected="true"] {
+    .stTabs [aria-selected="true"] {{
         background: #10b981 !important;
         color: #030712 !important;
         border-color: #10b981 !important;
-    }
+    }}
 
-    .heist-board {
-        background: #0f172a;
+    .heist-board {{
+        background: rgba(15, 23, 42, 0.92);
+        backdrop-filter: blur(10px);
         border: 2px dashed rgba(16, 185, 129, 0.4);
         border-radius: 8px;
         padding: 20px;
@@ -784,7 +798,7 @@ st.markdown("""
         margin-bottom: 20px;
         position: relative;
     }
-    .heist-title {
+    .heist-title {{
         font-family: 'Anton', sans-serif;
         color: #facc15;
         font-size: 1.6rem;
@@ -792,25 +806,25 @@ st.markdown("""
         text-transform: uppercase;
         text-align: center;
         margin-bottom: 8px;
-    }
-    .heist-quote {
+    }}
+    .heist-quote {{
         font-family: 'Special Elite', cursive;
         color: #e5e7eb;
         font-size: 0.95rem;
         text-align: center;
-        background: rgba(0,0,0,0.4);
+        background: rgba(0,0,0,0.5);
         padding: 10px;
         border-radius: 4px;
         border-left: 4px solid #10b981;
         margin-bottom: 15px;
-    }
+    }}
 </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
 # RENDER LOGO IN CIMA
 # ==========================================
-video_b64 = get_video_base64("logo.gif.mp4")
+video_b64 = get_file_base64("logo.gif.mp4")
 if video_b64:
     st.markdown(f"""
         <div class="logo-container">
@@ -851,16 +865,30 @@ qta_frozen = get_qta_prodotto("Frozen Hash")
 grado_rep_testo = calcola_grado_reputazione(st.session_state.reputazione)
 sospetto_attuale = get_sospetto()
 
+# CASSA DEL MULINO E ATTENZIONE FORESTALE AFFIANCATE IN GRIGLIA
 col_m1, col_m2 = st.columns(2)
-col_m1.metric("💵 Cassa del Mulino", f"€ {st.session_state.soldi_cassa:,.2f}")
-col_m2.metric("🚨 Attenzione Forestale (Heat)", f"{sospetto_attuale:.1f} / 100")
+with col_m1:
+    st.markdown(f"""
+    <div class="custom-card" style="margin-bottom: 8px;">
+        <div class="card-label">💵 Cassa del Mulino</div>
+        <div class="card-value">€ {st.session_state.soldi_cassa:,.2f}</div>
+    </div>
+    """, unsafe_allow_html=True)
+with col_m2:
+    st.markdown(f"""
+    <div class="custom-card" style="margin-bottom: 8px;">
+        <div class="card-label">🚨 Attenzione Forestale (Heat)</div>
+        <div class="card-value">{sospetto_attuale:.1f} / 100</div>
+    </div>
+    """, unsafe_allow_html=True)
+
 st.progress(int(sospetto_attuale))
 
 st.markdown(f"""
 <div class="top-metrics-grid">
     <div class="custom-card">
         <div class="card-label">📦 Scorte al Mulino</div>
-        <div style="font-size: 0.62rem; font-weight: 700; margin-top: 2px; display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; color: #34d399; line-height: 1.3;">
+        <div style="font-size: 0.60rem; font-weight: 700; margin-top: 2px; display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; color: #34d399; line-height: 1.2;">
             <span>🌿 {qta_skunk:.1f}g</span> &bull; 
             <span>🧱 {qta_hash:.1f}g</span> &bull; 
             <span>🍋 {qta_lemon:.1f}g</span> &bull; 
@@ -877,7 +905,7 @@ st.markdown(f"""
     </div>
     <div class="custom-card">
         <div class="card-label">⭐ Rango nel Raduno</div>
-        <div style="font-size: 0.8rem; font-family: 'Anton', sans-serif; color: #34d399;">{grado_rep_testo}</div>
+        <div style="font-size: 0.75rem; font-family: 'Anton', sans-serif; color: #34d399;">{grado_rep_testo}</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -1227,7 +1255,6 @@ with tab1:
 # ------------------------------------------
 # TAB 2: CREW / PUSHER NEL BOSCO
 # ------------------------------------------
-tab2_label = "👥 Crew / Pusher"
 with tab2:
     st.subheader("👥 Gestione Crew nel Bosco (A Percentuale)")
     st.write("I membri della crew operano tra le tende e i furgoni senza stipendio fisso, trattenendo una percentuale fissa sulle vendite (Vojta 25%, Kamil 35%, Anetka 40%). La merce viene prelevata direttamente dal magazzino centrale del mulino.")
@@ -1472,7 +1499,7 @@ with tab6:
     st.write("Raggiungi i fondi necessari per garantire la sopravvivenza del Sound System e del mulino nei boschi:")
     st.progress(min(1.0, utile_totale / 10000.0))
     st.write(f"• **Utile Netto Attuale:** € {utile_totale:,.2f} / € 10,000.00 obiettivo festival")
-    st.write(f"• **Attenzione Forestale Attuale:** {get_sospetto():.1f}% (Mantienila sotto il 50% per evitare retate nei boschi)")
+    st.write(f"• **Attenzione Forestale Attuale:** {get_sospetto():.1f}% (Mantienilo sotto il 50% per evitare retate nei boschi)")
 
     st.markdown("---")
     st.subheader("📜 Storico del Raduno")
