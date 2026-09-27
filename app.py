@@ -2,6 +2,7 @@ import sqlite3
 import base64
 import os
 import random
+import time
 from datetime import datetime, date, timedelta
 import pandas as pd
 import streamlit as st
@@ -1118,9 +1119,8 @@ with tab1:
                     else:
                         st.write("Nessuna transazione registrata oggi.")
             else:
-                fascia_corrente = FASCE_ORARIE[idx_corrente]
-                st.markdown(f"##### 🔊 Automazione Spaccio Sound System")
-                st.info(f"Fascia oraria corrente: **{fascia_corrente}** ({idx_corrente + 1} di 5)")
+                st.markdown(f"##### 🔊 Automazione Spaccio Sound System (Autonoma)")
+                st.info(f"Fascia oraria corrente: **{FASCE_ORARIE[idx_corrente]}** ({idx_corrente + 1} di 5)")
                 
                 strategia_bot = st.selectbox("Strategia Crew", ["Onesta / Prezzo Popolare", "Aggressiva (+20%)", "Solidale (-15%)"])
 
@@ -1130,93 +1130,106 @@ with tab1:
                 if not pusher_assunti.empty:
                     st.info(f"👥 Crew di pusher attivi sul campo tra le tende!")
 
-                if st.button("🚀 Avvia Turno Fascia Corrente (-20% Energia Fisica)", use_container_width=True):
+                # PULSANTE UNICO PER AVVIARE L'INTERA GIORNATA IN AUTONOMIA
+                if st.button("🚀 AVVIA CICLO AUTOMATICO GIORNATA (5 Turni)", use_container_width=True):
                     if st.session_state.energia < 20:
-                        st.error("Sei troppo stanco per correre tra i furgoni! Riposa.")
+                        st.error("Sei troppo stanco per avviare il ciclo automatico! Riposa.")
                     else:
-                        st.session_state.energia -= 20
-                        prodotti_tutti = get_prodotti_tutti_df()
+                        # Esegue tutte le fasce restanti in autonomia con un timer visivo di 2.5 secondi
+                        placeholder_progresso = st.empty()
                         
-                        if not prodotti_tutti.empty:
-                            is_f, _ = e_festivo_o_weekend(get_data_corrente_gioco())
-                            moltiplicatore_festivo = 1.35 if is_f else 1.0
+                        while st.session_state.indice_fascia_oraria < len(FASCE_ORARIE):
+                            idx_c = st.session_state.indice_fascia_oraria
+                            fascia_nome = FASCE_ORARIE[idx_c]
+                            placeholder_progresso.markdown(f"⏳ **Esecuzione in corso:** {fascia_nome}...")
                             
-                            base_clienti = random.randint(3, 6) if idx_corrente >= 3 else random.randint(2, 4)
-                            bonus_efficienza_totale = pusher_assunti['efficienza'].sum() if not pusher_assunti.empty else 0.0
+                            st.session_state.energia = max(0, st.session_state.energia - 10)
+                            prodotti_tutti = get_prodotti_tutti_df()
                             
-                            num_clienti_tot = int((base_clienti + int(st.session_state.fedelta_clienti / 25) + int(bonus_efficienza_totale * 3)) * moltiplicatore_festivo)
-                            nomi_turno_disponibili = random.sample(LISTA_NOMI_RAVER, min(len(LISTA_NOMI_RAVER), max(4, num_clienti_tot + 2)))
-                            
-                            vendite_ok = 0
-                            incasso_turno = 0.0
-                            vendite_prodotti_turno = {}
-                            
-                            for i in range(num_clienti_tot):
-                                if not nomi_turno_disponibili: break
-                                cli_nome = nomi_turno_disponibili.pop(0)
-
-                                prod_req = prodotti_tutti.sample(n=1).iloc[0]
-                                p_id = int(prod_req['id'])
-                                p_nome = prod_req['nome']
-                                val_m = float(prod_req['valore_mercato_unitario'])
+                            if not prodotti_tutti.empty:
+                                is_f, _ = e_festivo_o_weekend(get_data_corrente_gioco())
+                                moltiplicatore_festivo = 1.35 if is_f else 1.0
                                 
-                                with get_connection() as conn:
-                                    cursor = conn.cursor()
-                                    cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", (p_id,))
-                                    lotti = cursor.fetchall()
-                                    if not lotti: continue
+                                base_clienti = random.randint(3, 6) if idx_c >= 3 else random.randint(2, 4)
+                                bonus_efficienza_totale = pusher_assunti['efficienza'].sum() if not pusher_assunti.empty else 0.0
+                                
+                                num_clienti_tot = int((base_clienti + int(st.session_state.fedelta_clienti / 25) + int(bonus_efficienza_totale * 3)) * moltiplicatore_festivo)
+                                nomi_turno_disponibili = random.sample(LISTA_NOMI_RAVER, min(len(LISTA_NOMI_RAVER), max(4, num_clienti_tot + 2)))
+                                
+                                vendite_ok = 0
+                                incasso_turno = 0.0
+                                vendite_prodotti_turno = {}
+                                
+                                for i in range(num_clienti_tot):
+                                    if not nomi_turno_disponibili: break
+                                    cli_nome = nomi_turno_disponibili.pop(0)
+
+                                    prod_req = prodotti_tutti.sample(n=1).iloc[0]
+                                    p_id = int(prod_req['id'])
+                                    p_nome = prod_req['nome']
+                                    val_m = float(prod_req['valore_mercato_unitario'])
                                     
-                                    prezzo_bot = val_m * 1.25 if "Aggressiva" in strategia_bot else (val_m * 0.85 if "Solidale" in strategia_bot else val_m)
-                                    if st.session_state.evento_attivo and st.session_state.evento_attivo['tipo'] == 'festival':
-                                        prezzo_bot *= 1.2
+                                    with get_connection() as conn:
+                                        cursor = conn.cursor()
+                                        cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", (p_id,))
+                                        lotti = cursor.fetchall()
+                                        if not lotti: continue
                                         
-                                    qta_req = float(random.choices([1, 2, 5, 10, 15, 20], weights=[35, 30, 20, 10, 3, 2], k=1)[0])
-                                    qta_req = min(lotti[0][1], qta_req)
-                                    if qta_req <= 0: continue
-                                    
-                                    l_id, l_qta, l_costo = lotti[0]
-                                    cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale - ? WHERE id = ?", (qta_req, l_id))
-                                    ricavo = qta_req * prezzo_bot
-                                    margine = ricavo - (qta_req * l_costo)
-                                    
-                                    if not pusher_assunti.empty:
-                                        pusher_assegnato = pusher_assunti.sample(n=1).iloc[0]
-                                        quota_pusher = float(pusher_assegnato['quota_trattenuta'])
-                                        guadagno_pusher = ricavo * quota_pusher
-                                        guadagno_boss = ricavo - guadagno_pusher
-                                        note_movimento = f"Spaccio tramite Pusher ({pusher_assegnato['nome']} - Trattenuta {quota_pusher*100:.0f}%, Quota Pusher: €{guadagno_pusher:.2f})"
-                                    else:
-                                        guadagno_boss = ricavo
-                                        note_movimento = f"Spaccio diretto gestito al Mulino"
-                                    
-                                    cursor.execute("""
-                                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
-                                        VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, 'Subito', ?)
-                                    """, (p_id, l_id, qta_req, prezzo_bot, ricavo, qta_req * l_costo, margine, cli_nome, note_movimento))
-                                    
-                                    st.session_state.soldi_cassa += guadagno_boss
-                                    incasso_turno += ricavo
-                                    vendite_ok += 1
-                                    vendite_prodotti_turno[p_nome] = vendite_prodotti_turno.get(p_nome, 0.0) + qta_req
+                                        prezzo_bot = val_m * 1.25 if "Aggressiva" in strategia_bot else (val_m * 0.85 if "Solidale" in strategia_bot else val_m)
+                                        if st.session_state.evento_attivo and st.session_state.evento_attivo['tipo'] == 'festival':
+                                            prezzo_bot *= 1.2
+                                            
+                                        qta_req = float(random.choices([1, 2, 5, 10, 15, 20], weights=[35, 30, 20, 10, 3, 2], k=1)[0])
+                                        qta_req = min(lotti[0][1], qta_req)
+                                        if qta_req <= 0: continue
+                                        
+                                        l_id, l_qta, l_costo = lotti[0]
+                                        cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale - ? WHERE id = ?", (qta_req, l_id))
+                                        ricavo = qta_req * prezzo_bot
+                                        margine = ricavo - (qta_req * l_costo)
+                                        
+                                        if not pusher_assunti.empty:
+                                            pusher_assegnato = pusher_assunti.sample(n=1).iloc[0]
+                                            quota_pusher = float(pusher_assegnato['quota_trattenuta'])
+                                            guadagno_pusher = ricavo * quota_pusher
+                                            guadagno_boss = ricavo - guadagno_pusher
+                                            note_movimento = f"Spaccio tramite Pusher ({pusher_assegnato['nome']} - Trattenuta {quota_pusher*100:.0f}%, Quota Pusher: €{guadagno_pusher:.2f})"
+                                        else:
+                                            guadagno_boss = ricavo
+                                            note_movimento = f"Spaccio diretto gestito al Mulino"
+                                        
+                                        cursor.execute("""
+                                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
+                                            VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, 'Subito', ?)
+                                        """, (p_id, l_id, qta_req, prezzo_bot, ricavo, qta_req * l_costo, margine, cli_nome, note_movimento))
+                                        
+                                        st.session_state.soldi_cassa += guadagno_boss
+                                        incasso_turno += ricavo
+                                        vendite_ok += 1
+                                        vendite_prodotti_turno[p_nome] = vendite_prodotti_turno.get(p_nome, 0.0) + qta_req
 
-                            if vendite_ok > 0:
-                                st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 4)
-                                set_sospetto(get_sospetto() + (vendite_ok * 0.7))
+                                if vendite_ok > 0:
+                                    st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 4)
+                                    set_sospetto(get_sospetto() + (vendite_ok * 0.7))
+                                
+                                st.session_state.ultimo_report_bot = {
+                                    "fascia": fascia_nome,
+                                    "vendite_ok": vendite_ok,
+                                    "incasso": incasso_turno,
+                                    "vendite_prodotti": vendite_prodotti_turno
+                                }
+
+                            st.session_state.indice_fascia_oraria += 1
+                            time.sleep(2.5) # Pausa di 2.5 secondi tra un turno e l'altro per godersi l'aggiornamento
                             
-                            st.session_state.ultimo_report_bot = {
-                                "fascia": fascia_corrente,
-                                "vendite_ok": vendite_ok,
-                                "incasso": incasso_turno,
-                                "vendite_prodotti": vendite_prodotti_turno
-                            }
-
-                        st.session_state.indice_fascia_oraria += 1
+                        placeholder_progresso.success("🎉 Tutti i turni della giornata sono stati completati con successo!")
+                        time.sleep(1)
                         st.rerun()
 
             if st.session_state.ultimo_report_bot and st.session_state.indice_fascia_oraria < len(FASCE_ORARIE):
                 rep_bot = st.session_state.ultimo_report_bot
                 with st.container(border=True):
-                    st.markdown(f"##### 📋 Report Fascia: {rep_bot['fascia']}")
+                    st.markdown(f"##### 📋 Report Ultima Fascia: {rep_bot['fascia']}")
                     col_rb1, col_rb2 = st.columns(2)
                     col_rb1.metric("💵 Incasso Fascia", f"€ {rep_bot['incasso']:,.2f}")
                     col_rb2.metric("👥 Raver Serviti", rep_bot['vendite_ok'])
@@ -1439,7 +1452,7 @@ with tab4:
 
             if 'minigioco_risultato' in st.session_state and st.session_state.minigioco_risultato:
                 res = st.session_state.minigioco_risultato
-                st.info(f"💬 Accordo raggiunto: **{res['qta_offerta']}g** a **€{res['costo_u']:.2f}/g** per un totale di **€{res['budget']:.2f}**.")
+                st.info(f"💬 Accordo raggiunto: **{res['qta_offerta']}g** a **€{res['costo_u']:.2f}/g** per un totale di **€{res['budget']:.2f**.")
                 if st.button("✅ ACCETTA ACCORDO NEL FANGO", use_container_width=True, disabled=st.session_state.soldi_cassa < res['budget']):
                     st.session_state.soldi_cassa -= res['budget']
                     with get_connection() as conn:
