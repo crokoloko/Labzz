@@ -66,6 +66,12 @@ def init_db():
             efficienza REAL NOT NULL,
             assunto INTEGER DEFAULT 0
         )""")
+        
+        # Migrazione sicura se il DB aveva la vecchia colonna stipendio_giornaliero
+        try:
+            cursor.execute("ALTER TABLE pusher ADD COLUMN quota_trattenuta REAL DEFAULT 0.25;")
+        except sqlite3.OperationalError:
+            pass
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS movimenti (
@@ -1152,7 +1158,6 @@ with tab1:
                                     ricavo = qta_req * prezzo_bot
                                     margine = ricavo - (qta_req * l_costo)
                                     
-                                    # Gestione guadagno Pusher a percentuale se ci sono pusher assunti
                                     if not pusher_assunti.empty:
                                         pusher_assegnato = pusher_assunti.sample(n=1).iloc[0]
                                         quota_pusher = ricavo * float(pusher_assegnato['quota_trattenuta'])
@@ -1272,8 +1277,6 @@ with tab2:
         clienti_raggiunti = mov_squadra_df['cliente'].nunique()
         tot_grammi_venduti = mov_squadra_df['quantita'].sum()
         
-        # Calcolo approssimativo profitti Boss vs Pusher basato sulle quote medie
-        # Se c'è un mix, stimiamo la divisione in base ai movimenti registrati
         ricavo_boss = 0.0
         ricavo_pusher = 0.0
         
@@ -1281,7 +1284,6 @@ with tab2:
             note_m = str(row_m['note'])
             ricavo_r = float(row_m['ricavo_totale'])
             if "Pusher" in note_m:
-                # Troviamo quale pusher se possibile o usiamo una quota media del 25%
                 ricavo_pusher += ricavo_r * 0.25
                 ricavo_boss += ricavo_r * 0.75
             else:
