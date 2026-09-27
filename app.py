@@ -822,7 +822,7 @@ st.markdown(f"""
     </div>
     <div class="custom-card">
         <div class="card-label">📦 Scorte Magazzino</div>
-        <div class="card-value" style="font-size: 0.85rem; margin-top: 4px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
+        <div class="card-value" style="font-size: 0.78rem; font-weight: 700; margin-top: 6px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; color: #38bdf8;">
             <span>🌿 {qta_skunk:.1f}g</span> &bull; 
             <span>🧱 {qta_hash:.1f}g</span> &bull; 
             <span>🍋 {qta_lemon:.1f}g</span> &bull; 
