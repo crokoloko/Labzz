@@ -384,7 +384,7 @@ GANGSTER_FORNITORI = [
     {"nome": "Don Cornetto", "frase": "«Un'offerta da Praga che non puoi rifiutare...»"},
     {"nome": "Tony Pesto", "frase": "«O compri questo stock o stasera le cotolette le fai coi denti!»"},
     {"nome": "Al Cacio", "frase": "«Robina fresca fresca di contrabbando, scesa dal treno da Berlino.»"},
-    {"nome": "Franky 'Cinque Dita'", "frase": "«Guarda che qualità, sfiorala soltanto e ti senti a Karlin!»"},
+    {"nome": "Franky 'Cinque Dita'", "frase": "«Guarda che kualitas, sfiorala soltanto e ti senti a Karlin!»"},
     {"nome": "Peppe 'u Scannatore", "frase": "«Vedi di fare in fretta prima che arrivi la polizia ceca...»"},
     {"nome": "Luigi 'O Calibro", "frase": "«Prezzo da amico, ma non farmi domande su dove l'ho preso nei club.»"}
 ]
@@ -1399,7 +1399,7 @@ with tab4:
 
             if 'minigioco_risultato' in st.session_state and st.session_state.minigioco_risultato:
                 res = st.session_state.minigioco_risultato
-                st.info(f"💬 Proposta accettata: **{res['qta_offerta']}g** a **€{res['costo_u']:.2f}/g** per un totale di **€{res['budget']:.2f**.")
+                st.info(f"💬 Proposta accettata: **{res['qta_offerta']}g** a **€{res['costo_u']:.2f}/g** per un totale di **€{res['budget']:.2f}**.")
                 if st.button("✅ CONFERMA ACCORDO TRATTATIVA", use_container_width=True, disabled=st.session_state.soldi_cassa < res['budget']):
                     st.session_state.soldi_cassa -= res['budget']
                     with get_connection() as conn:
