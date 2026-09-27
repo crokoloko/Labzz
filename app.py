@@ -554,11 +554,11 @@ def reset_completo_nuova_partita():
     genera_evento_casuale_giorno()
 
 # ==========================================
-# INIEZIONE CSS CUSTOM ORIGINALE
+# INIEZIONE CSS CUSTOM ORIGINALE & NOIR
 # ==========================================
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&family=Titan+One&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&family=Titan+One&family=Special+Elite&display=swap');
 
     .stApp {
         background-color: #090c17 !important;
@@ -687,6 +687,32 @@ st.markdown("""
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%) !important;
         color: #ffffff !important;
+    }
+
+    /* Stile Noir / Mercato Nero */
+    .noir-box {
+        background: radial-gradient(circle at top, #1e1b18 0%, #0c0a09 100%);
+        border: 1px solid rgba(245, 158, 11, 0.25);
+        border-radius: 16px;
+        padding: 22px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(245, 158, 11, 0.05);
+        margin-bottom: 20px;
+    }
+    .noir-title {
+        font-family: 'Titan One', cursive;
+        color: #fbbf24;
+        font-size: 1.5rem;
+        letter-spacing: 1px;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+    .noir-quote {
+        font-family: 'Special Elite', cursive;
+        color: #d1d5db;
+        font-size: 0.95rem;
+        border-left: 3px solid #f59e0b;
+        padding-left: 12px;
+        margin: 12px 0 18px 0;
+        line-height: 1.5;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -975,7 +1001,7 @@ with tab1:
                                 if st.button("🤝 Proponi Offerta e Vendi", use_container_width=True):
                                     if prezzo_proposto <= cli_att['budget_max_g']:
                                         esegui_transazione_vendita(cli_att, prezzo_proposto, tipo_pagamento)
-                                        st.success(f"🎉 {cli_att['nome']} ha ACCETTATO!")
+                                        st.success(f"🎉 {cli_att['nome']} ha ACCETATO!")
                                         genera_cliente_in_negozio()
                                         st.rerun()
                                     else:
@@ -1194,34 +1220,122 @@ with tab2:
             st.altair_chart(chart, use_container_width=True)
 
 # ------------------------------------------
-# TAB 3: RIFORNIMENTI & FORNITORI GANGSTER
+# TAB 3: RIFORNIMENTI & FORNITORI GANGSTER (STILE NOIR)
 # ------------------------------------------
 with tab3:
-    st.subheader("🚚 Rifornimenti & Mercato Nero Fornitori")
+    st.subheader("🚚 Rifornimenti & Canali Clandestini")
     
     if st.session_state.offerta_fornitore:
         off = st.session_state.offerta_fornitore
         costo_tot = off['costo_totale']
         ha_abbastanza_soldi = st.session_state.soldi_cassa >= costo_tot
 
+        # Contenitore Noir / Malavitoso
+        st.markdown(f"""
+        <div class="noir-box">
+            <div class="noir-title">🕶️ INCONTRO CLANDESTINO: {off['fornitore_nome'].upper()}</div>
+            <div class="noir-quote">{off['fornitore_frase']}</div>
+            <div style="display: flex; justify-content: space-around; text-align: center; margin-top: 15px; border-top: 1px dashed rgba(245,158,11,0.2); padding-top: 15px;">
+                <div>
+                    <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;">Merce</span><br>
+                    <strong style="color: #fbbf24; font-size: 1.1rem;">{off['prodotto_nome']}</strong><br>
+                    <span style="font-size: 0.70rem; color: #f87171;">{off['tipo']}</span>
+                </div>
+                <div>
+                    <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase;">Quantità</span><br>
+                    <strong style="color: #38bdf8; font-size: 1.1rem;">{off['quantita']:,.1f} g</strong>
+                </div>
+                <div>
+                    <span style="font-size: 0.75rem; color: #94a38b; text-transform: uppercase;">Prezzo Base</span><br>
+                    <strong style="color: #34d399; font-size: 1.1rem;">€ {off['costo_unitario']:.2f} / g</strong>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 15px; font-size: 1.2rem; font-weight: 700; color: #ffffff;">
+                Totale Richiesto: <span style="color: #fbbf24;">€ {costo_tot:,.2f}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+            
+        if not ha_abbastanza_soldi:
+            st.warning(f"⚠️ Non hai abbastanza contanti (€{st.session_state.soldi_cassa:.2f}) per l'intero lotto da €{costo_tot:.2f}. Tratta un taglio minore qui sotto!")
+
+        col_b1, col_b2 = st.columns(2)
+        with col_b1:
+            if st.button("💼 CHIUDI L'ACCORDO (INTERO LOTTO)", use_container_width=True, disabled=not ha_abbastanza_soldi):
+                st.session_state.soldi_cassa -= costo_tot
+                with get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
+                    cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],))
+                    p_id = cursor.fetchone()[0]
+
+                    cursor.execute("""
+                        INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (p_id, off['codice_lotto'], off['quantita'], off['quantita'], off['costo_unitario'], date.today(), date.today()))
+                    l_id = cursor.lastrowid
+                    cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto Intero Lotto')", (p_id, l_id, off['quantita'], costo_tot, off['fornitore_nome']))
+
+                aggiungi_log(f"🚚 ACQUISTO: Comprati {off['quantita']}g di {off['prodotto_nome']} da {off['fornitore_nome']} per €{costo_tot:.2f}")
+                st.success(f"✅ Transazione conclusa nel vicolo con {off['fornitore_nome']}!")
+                st.session_state.offerta_fornitore = None
+                st.session_state.minigioco_trattativa = False
+                st.rerun()
+
+        with col_b2:
+            if st.button("🚪 VOLTA LE SPALLE E VATTENE", use_container_width=True):
+                aggiungi_log(f"❌ Rifiutata offerta di {off['fornitore_nome']}.")
+                st.info(f"Hai voltato le spalle a {off['fornitore_nome']}. È sparito nell'ombra.")
+                st.session_state.offerta_fornitore = None
+                st.session_state.minigioco_trattativa = False
+                st.rerun()
+
+        # --- MINIGIOCO DI TRATTATIVA STILE NOIR ---
+        st.markdown("---")
         with st.container(border=True):
-            st.markdown(f"### 🕶️ **{off['fornitore_nome']}** è qui per affari!")
-            st.caption(f"_{off['fornitore_frase']}_")
+            st.markdown("##### ⚖️ Tavolo delle Trattative Clandestine")
+            st.write("«Vuoi strappare un prezzo migliore o trattare un taglio ridotto? Scegli con cura la tua mossa prima che si insospettisca...»")
             
-            col_off1, col_off2, col_off3 = st.columns(3)
-            col_off1.metric("Varietà Proposta", off['prodotto_nome'], off['tipo'])
-            col_off2.metric("Quantità Lotto", f"{off['quantita']:,.1f} g")
-            col_off3.metric("Prezzo al Grammo", f"€ {off['costo_unitario']:.2f} / g")
-
-            st.markdown(f"#### **Costo Totale Intero Lotto:** € {costo_tot:,.2f}")
+            qta_ridotta = st.number_input("Grammi da contrattare:", min_value=1.0, max_value=float(off['quantita'] - 1.0), value=min(10.0, float(off['quantita'] - 1.0)), step=1.0)
             
-            if not ha_abbastanza_soldi:
-                st.warning(f"⚠️ Non hai abbastanza contanti (€{st.session_state.soldi_cassa:.2f}) per l'intero lotto da €{costo_tot:.2f}. Puoi chiedere un taglio minore!")
+            approccio = st.selectbox("Strategia di Negoziazione", [
+                "🤝 Diplomazia (Tono rispettoso, margini sicuri)", 
+                "😎 Blöff Calcolato (Tenta lo sconto azzardato)", 
+                "🔥 Pressione Psicologica (Rischio alto, sconti pesanti)"
+            ])
+            
+            if st.button("🎲 Tira i Dadi della Trattativa", use_container_width=True):
+                tiro = random.randint(1, 100) + int(st.session_state.reputazione / 2)
+                
+                if "Diplomazia" in approccio:
+                    sconto = 0.93 if tiro > 35 else 1.08
+                    esito_txt = "Il contatto apprezza le maniere pulite e professionali."
+                elif "Blöff" in approccio:
+                    sconto = 0.82 if tiro > 60 else 1.25
+                    esito_txt = "Hai giocato d'azzardo sulla tua faccia tosta."
+                else:
+                    sconto = 0.70 if tiro > 82 else 1.40
+                    esito_txt = "La tensione si taglia col coltello. O la va o la spacca!"
+                    
+                nuovo_costo_u = round(off['costo_unitario'] * sconto, 2)
+                nuovo_costo_tot = round(qta_ridotta * nuovo_costo_u, 2)
+                
+                st.session_state.minigioco_risultato = {
+                    "qta": qta_ridotta,
+                    "costo_u": nuovo_costo_u,
+                    "costo_tot": nuovo_costo_tot,
+                    "testo_esito": esito_txt,
+                    "successo_trattativa": sconto <= 1.15
+                }
+                st.rerun()
 
-            col_b1, col_b2 = st.columns(2)
-            with col_b1:
-                if st.button("✅ COMPRA L'INTERO LOTTO", use_container_width=True, disabled=not ha_abbastanza_soldi):
-                    st.session_state.soldi_cassa -= costo_tot
+            if 'minigioco_risultato' in st.session_state and st.session_state.minigioco_risultato:
+                res = st.session_state.minigioco_risultato
+                st.info(f"🗣️ **Risposta:** _{res['testo_esito']}_ -> Nuovo prezzo: **€{res['costo_u']:.2f}/g** (Totale: **€{res['costo_tot']:.2f**})")
+                
+                ha_soldi_trattativa = st.session_state.soldi_cassa >= res['costo_tot']
+                if st.button("✅ ACCETTA ACCORDO TRATTATO", use_container_width=True, disabled=not ha_soldi_trattativa):
+                    st.session_state.soldi_cassa -= res['costo_tot']
                     with get_connection() as conn:
                         cursor = conn.cursor()
                         cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
@@ -1231,97 +1345,25 @@ with tab3:
                         cursor.execute("""
                             INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
                             VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (p_id, off['codice_lotto'], off['quantita'], off['quantita'], off['costo_unitario'], date.today(), date.today()))
+                        """, (p_id, f"{off['codice_lotto']}-TRATT", res['qta'], res['qta'], res['costo_u'], date.today(), date.today()))
                         l_id = cursor.lastrowid
-                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto Intero Lotto')", (p_id, l_id, off['quantita'], costo_tot, off['fornitore_nome']))
+                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto Trattato')", (p_id, l_id, res['qta'], res['costo_tot'], off['fornitore_nome']))
 
-                    aggiungi_log(f"🚚 ACQUISTO: Comprati {off['quantita']}g di {off['prodotto_nome']} da {off['fornitore_nome']} per €{costo_tot:.2f}")
-                    st.success(f"✅ Offerta accettata da {off['fornitore_nome']}!")
+                    aggiungi_log(f"🚚 ACQUISTO TRATTATO: {res['qta']}g di {off['prodotto_nome']} da {off['fornitore_nome']} per €{res['costo_tot']:.2f}")
+                    st.success("✅ Accordo chiuso con successo nel vicolo!")
                     st.session_state.offerta_fornitore = None
-                    st.session_state.minigioco_trattativa = False
+                    st.session_state.minigioco_risultato = None
                     st.rerun()
-
-            with col_b2:
-                if st.button("❌ RIFIUTA E MANDALO VIA", use_container_width=True):
-                    aggiungi_log(f"❌ Rifiutata offerta di {off['fornitore_nome']} (l'offerta è scaduta).")
-                    st.info(f"Hai mandato via {off['fornitore_nome']}. Se n'è andato.")
-                    st.session_state.offerta_fornitore = None
-                    st.session_state.minigioco_trattativa = False
-                    st.rerun()
-
-            # --- MINIGIOCO DI TRATTATIVA CON IL FORNITORE ---
-            st.markdown("---")
-            with st.expander("🎲 Avvia Trattativa / Taglio Minore (Minigioco)"):
-                st.write("«Vuoi trattare sul prezzo o chiedere una quantità ridotta? Scegli la tua mossa di negoziazione!»")
-                
-                qta_ridotta = st.number_input("Quanti grammi vuoi chiedere?", min_value=1.0, max_value=float(off['quantita'] - 1.0), value=min(10.0, float(off['quantita'] - 1.0)), step=1.0)
-                
-                approccio = st.radio("Stile di Negoziazione", [
-                    "🤝 Diplomazia (Prezzo onesto, basso rischio)", 
-                    "😎 Sicurezza (+ Sconto fortuna se azzecchi il bluff)", 
-                    "🔥 Sfacciato (Rischio alto di farti mandare via)"
-                ])
-                
-                if st.button("🎲 Tira per Negoziare con il Fornitore", use_container_width=True):
-                    tiro = random.randint(1, 100) + int(st.session_state.reputazione / 3)
-                    
-                    if "Diplomazia" in approccio:
-                        sconto = 0.95 if tiro > 40 else 1.10
-                        esito_txt = "Il fornitore apprezza i modi civili."
-                    elif "Sicurezza" in approccio:
-                        sconto = 0.85 if tiro > 65 else 1.20
-                        esito_txt = "Hai giocato d'azzardo sulla simpatia."
-                    else:
-                        sconto = 0.75 if tiro > 85 else 1.35
-                        esito_txt = "Sei stato molto sfacciato con il gangster!"
-                        
-                    nuovo_costo_u = round(off['costo_unitario'] * sconto, 2)
-                    nuovo_costo_tot = round(qta_ridotta * nuovo_costo_u, 2)
-                    
-                    st.session_state.minigioco_risultato = {
-                        "qta": qta_ridotta,
-                        "costo_u": nuovo_costo_u,
-                        "costo_tot": nuovo_costo_tot,
-                        "testo_esito": esito_txt,
-                        "successo_trattativa": sconto <= 1.15
-                    }
-                    st.rerun()
-
-                if 'minigioco_risultato' in st.session_state and st.session_state.minigioco_risultato:
-                    res = st.session_state.minigioco_risultato
-                    st.info(f"🗣️ **Risultato:** {res['testo_esito']} -> **€{res['costo_u']:.2f}/g** (Totale: **€{res['costo_tot']:.2f}**)")
-                    
-                    ha_soldi_trattativa = st.session_state.soldi_cassa >= res['costo_tot']
-                    if st.button("✅ CONFERMA ACQUISTO TRATTATO", use_container_width=True, disabled=not ha_soldi_trattativa):
-                        st.session_state.soldi_cassa -= res['costo_tot']
-                        with get_connection() as conn:
-                            cursor = conn.cursor()
-                            cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
-                            cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],))
-                            p_id = cursor.fetchone()[0]
-
-                            cursor.execute("""
-                                INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
-                                VALUES (?, ?, ?, ?, ?, ?, ?)
-                            """, (p_id, f"{off['codice_lotto']}-TRATT", res['qta'], res['qta'], res['costo_u'], date.today(), date.today()))
-                            l_id = cursor.lastrowid
-                            cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto Trattato')", (p_id, l_id, res['qta'], res['costo_tot'], off['fornitore_nome']))
-
-                        aggiungi_log(f"🚚 ACQUISTO TRATTATO: {res['qta']}g di {off['prodotto_nome']} da {off['fornitore_nome']} per €{res['costo_tot']:.2f}")
-                        st.success("✅ Trattativa conclusa con successo!")
-                        st.session_state.offerta_fornitore = None
-                        st.session_state.minigioco_risultato = None
-                        st.rerun()
 
     else:
         fornitori_rimasti = st.session_state.max_fornitori_oggi - st.session_state.fornitori_visti_oggi
         if fornitori_rimasti > 0:
-            st.info(f"Oggi puoi ancora ricevere fino a {fornitori_rimasti} contatto/i di fornitori.")
-            if st.button("📞 Cerca Contatto Fornitore", use_container_width=True):
+            st.info(f"Oggi puoi ancora ricevere fino a {fornitori_rimasti} contatto/i di fornitori clandestini.")
+            if st.button("📞 Sintonizzati su Canale Clandestino", use_container_width=True):
                 genera_offerta_fornitore_casuale()
                 st.rerun()
         else:
-            st.warning("⚠️ Per oggi nessun fornitore è disponibile o disposto ad incontrarti. Riposa per passare al giorno successivo.")
+            st.warning("⚠️ Silenzio radio oggi dai canali sotterranei. Riposa per passare al giorno successivo.")
 
     st.markdown("---")
     st.markdown("### 📋 Stato Lotti e Scorte Attuali")
