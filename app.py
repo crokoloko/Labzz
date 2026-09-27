@@ -2,7 +2,7 @@ import sqlite3
 import base64
 import os
 import random
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import pandas as pd
 import streamlit as st
 import altair as alt
@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# HELPER & FUNZIONI DATABASE
+# HELPER & FUNZIONI DATABASE & CALENDARIO
 # ==========================================
 DB_NAME = "magazzino.db"
 
@@ -86,9 +86,26 @@ def init_db():
 
 init_db()
 
+def get_data_corrente_gioco():
+    data_base = date(2026, 9, 27) # Data di inizio simulazione
+    giorni_trascorsi = st.session_state.giorni_trascorsi_offset
+    return data_base + timedelta(days=giorni_trascorsi)
+
+def e_festivo_o_weekend(data_rif):
+    # Sabato (5) o Domenica (6)
+    if data_rif.weekday() >= 5:
+        return True, "Fine Settimana (Weekend 🎉)"
+    
+    # Festività fisse italiane
+    feste_fisse = [(1, 1), (6, 1), (25, 4), (1, 5), (2, 6), (15, 8), (1, 11), (8, 12), (25, 12), (26, 12)]
+    if (data_rif.day, data_rif.month) in feste_fisse:
+        return True, "Festività Nazionale 🇮🇹"
+        
+    return False, "Giorno Lavorativo 💼"
+
 def genera_codice_lotto_automatico(data_riferimento=None):
     if data_riferimento is None:
-        data_riferimento = date.today()
+        data_riferimento = get_data_corrente_gioco()
     
     giorno = data_riferimento.strftime("%d").lstrip("0")
     MESE_INIZIALI = ['g', 'f', 'm', 'a', 'm', 'g', 'l', 'a', 's', 'o', 'n', 'd']
@@ -377,7 +394,6 @@ def genera_cliente_in_negozio():
         st.session_state.cliente_in_negozio = None
 
 def genera_evento_casuale_giorno():
-    # Eventi rari (probabilità circa 38% totale)
     if random.random() < 0.38:
         evento_tipo = random.choice(["polizia", "vip", "tossici"])
         
@@ -404,7 +420,7 @@ def genera_evento_casuale_giorno():
                 }
             else:
                 st.session_state.evento_attivo = None
-        else: # Tossici in astinenza / ladri
+        else:
             st.session_state.evento_attivo = {
                 "tipo": "tossici",
                 "titolo": "🧟 IRRUZIONE DI TOSSICI IN ASTINENZA!",
@@ -461,6 +477,8 @@ if 'energia' not in st.session_state:
     st.session_state.energia = 100
 if 'giorno' not in st.session_state:
     st.session_state.giorno = 1
+if 'giorni_trascorsi_offset' not in st.session_state:
+    st.session_state.giorni_trascorsi_offset = 0
 if 'reputazione' not in st.session_state:
     st.session_state.reputazione = 15
 if 'fedelta_clienti' not in st.session_state:
@@ -509,6 +527,7 @@ def reset_completo_nuova_partita():
     
     st.session_state.soldi_cassa = 200.0
     st.session_state.giorno = 1
+    st.session_state.giorni_trascorsi_offset = 0
     st.session_state.energia = 100
     st.session_state.reputazione = 15
     st.session_state.fedelta_clienti = 10
@@ -725,13 +744,18 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# PULSANTE TURNO NOTTURNO (APPENA SOTTO LE STATISTICHE)
+# PULSANTE TURNO NOTTURNO & DATA SCORREVOLE
 # ==========================================
+data_oggi = get_data_corrente_gioco()
+is_fest, desc_fest = e_festivo_o_weekend(data_oggi)
+data_formattata = data_oggi.strftime("%d %B %Y")
+
 with st.container(border=True):
     col_n1, col_n2, col_n3 = st.columns([1, 2, 1])
     with col_n2:
         if st.button("🌙 Riposa e Passa al Giorno Successivo", use_container_width=True):
             st.session_state.giorno += 1
+            st.session_state.giorni_trascorsi_offset += 1
             st.session_state.energia = 100
             
             st.session_state.offerta_fornitore = None
@@ -745,8 +769,10 @@ with st.container(border=True):
                 
             genera_cliente_in_negozio()
             genera_evento_casuale_giorno()
-            aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Energia 100%. Fornitori disponibili oggi: {st.session_state.max_fornitori_oggi}")
+            aggiungi_log(f"🌙 Giorno {st.session_state.giorno} ({data_formattata}) iniziato. Energia 100%. Fornitori disponibili: {st.session_state.max_fornitori_oggi}")
             st.rerun()
+
+    st.markdown(f"<h5 style='text-align: center; color: #38bdf8; margin: 5px 0 0 0;'>📅 {data_formattata} — {desc_fest}</h5>", unsafe_allow_html=True)
 
 st.markdown("---")
 
@@ -956,10 +982,20 @@ with tab1:
                                     st.rerun()
 
         elif tipo_operazione == "Automazione Turno AI":
-            st.markdown("##### 🏪 Automazione Sales Engine")
+            st.markdown("##### 🏪 Automazione Sales Engine (Divisa in 5 Fasce Giornaliere)")
+            
+            # Selezione della fascia oraria divisa in 5 parti
+            fascia_oraria = st.selectbox("Seleziona Fascia Oraria della Giornata", [
+                "🌅 1. Mattina (08:00 - 11:30)", 
+                "☀️ 2. Mezzogiorno (11:30 - 15:00)", 
+                "🌇 3. Pomeriggio (15:00 - 18:30)", 
+                "🌙 4. Sera (18:30 - 22:00)", 
+                "🌌 5. Notte (22:00 - 02:00)"
+            ])
+            
             strategia_bot = st.selectbox("Strategia Bot", ["Onesta / Valore di Mercato", "Aggressiva (+20%)", "Generosa (-15%)"])
 
-            if st.button("🚀 Avvia Automazione Turno (-20% Energia)", use_container_width=True):
+            if st.button("🚀 Avvia Automazione Fascia Oraria (-20% Energia)", use_container_width=True):
                 if st.session_state.energia < 20:
                     st.error("Sei troppo stanco! Riposa.")
                 else:
@@ -967,7 +1003,18 @@ with tab1:
                     prodotti_tutti = get_prodotti_tutti_df()
                     
                     if not prodotti_tutti.empty:
-                        num_clienti_tot = random.randint(4, 8) + int(st.session_state.fedelta_clienti / 15)
+                        # Calcolo base clienti in base alla fascia oraria e se è festivo/weekend
+                        is_f, _ = e_festivo_o_weekend(get_data_corrente_gioco())
+                        moltiplicatore_festivo = 1.45 if is_f else 1.0
+                        
+                        if "Sera" in fascia_oraria or "Notte" in fascia_oraria:
+                            base_clienti = random.randint(5, 9)
+                        elif "Mezzogiorno" in fascia_oraria:
+                            base_clienti = random.randint(4, 7)
+                        else:
+                            base_clienti = random.randint(3, 6)
+                            
+                        num_clienti_tot = int((base_clienti + int(st.session_state.fedelta_clienti / 15)) * moltiplicatore_festivo)
                         clienti_nomi = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP", "Matteo", "Valentina"]
                         
                         vendite_ok = 0
@@ -1028,13 +1075,14 @@ with tab1:
                                 else:
                                     qta_classica_turno += qta_req
                                     
-                                aggiungi_log(f"✅ BOT: {cli_nome} ha comprato {qta_req}g di '{p_nome}' (+€{ricavo:.2f})")
+                                aggiungi_log(f"✅ BOT ({fascia_oraria[:10]}): {cli_nome} ha comprato {qta_req}g di '{p_nome}' (+€{ricavo:.2f})")
 
                         if vendite_ok > 0:
                             st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 4)
                             st.session_state.reputazione = min(100, st.session_state.reputazione + 2)
                         
                         st.session_state.ultimo_report_bot = {
+                            "fascia": fascia_oraria,
                             "vendite_ok": vendite_ok,
                             "incasso": incasso_turno,
                             "qta_top": qta_top_turno,
@@ -1048,14 +1096,14 @@ with tab1:
             if st.session_state.ultimo_report_bot:
                 rep_bot = st.session_state.ultimo_report_bot
                 with st.container(border=True):
-                    st.markdown("##### 📋 Specifiche Ultimo Turno IA")
+                    st.markdown(f"##### 📋 Report Fascia: {rep_bot['fascia']}")
                     col_rb1, col_rb2 = st.columns(2)
-                    col_rb1.metric("💵 Incasso Turno", f"€ {rep_bot['incasso']:,.2f}")
-                    col_rb2.metric("👥 Clienti Soddisfatti", rep_bot['vendite_ok'])
+                    col_rb1.metric("💵 Incasso Fascia", f"€ {rep_bot['incasso']:,.2f}")
+                    col_rb2.metric("👥 Clienti Serviti", rep_bot['vendite_ok'])
                     
-                    st.write(f"• **Quantità Top Quality Venduta:** ⭐ {rep_bot['qta_top']:.1f} g")
-                    st.write(f"• **Quantità Classica/Standard Venduta:** 📦 {rep_bot['qta_classica']:.1f} g")
-                    st.write(f"• **Clienti che hanno contrattato:** 💬 {rep_bot['contrattati']}")
+                    st.write(f"• **Top Quality Venduta:** ⭐ {rep_bot['qta_top']:.1f} g")
+                    st.write(f"• **Classica Venduta:** 📦 {rep_bot['qta_classica']:.1f} g")
+                    st.write(f"• **Contrattazioni:** 💬 {rep_bot['contrattati']}")
 
         elif tipo_operazione == "XME":
             st.markdown("##### 🧪 Registra Uso Personale XME (+30% Energia)")
