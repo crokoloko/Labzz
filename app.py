@@ -278,7 +278,7 @@ def spara_fuochi_d_artificio():
     st.components.v1.html(js_code, height=0)
 
 # ==========================================
-# GENERAZIONE FORNITORI GANGSTER EQUILIBRATA
+# GENERAZIONE FORNITORI GANGSTER NON TARATI
 # ==========================================
 GANGSTER_FORNITORI = [
     {"nome": "Don Cornetto", "frase": "«Un'offerta che non puoi rifiutare... o finisci a fare i cappucci!»"},
@@ -292,43 +292,40 @@ GANGSTER_FORNITORI = [
 ]
 
 def genera_offerta_fornitore_casuale():
-    budget_attuale = st.session_state.soldi_cassa
+    # Incrementa il contatore giornaliero
+    st.session_state.fornitori_visti_oggi += 1
     gangster = random.choice(GANGSTER_FORNITORI)
     
-    budget_massimo_spesa = max(30.0, budget_attuale * 0.50)
+    # Generazione non tarata sul budget: pesca liberamente dalle fasce reali
+    categoria_stock = random.choice(["Micro", "Standard", "Volume", "TopQuality"])
     
-    if budget_attuale < 150:
-        p_nome = "Micro Stock Emergenza"
-        costo_u = round(random.uniform(5.50, 7.00), 2)
-        tipo_offerta = "⚠️ Micro Stock (Prezzo al g elevato)"
+    if categoria_stock == "Micro":
+        p_nome = "Micro Stock (G Inconsueti)"
+        qta = float(random.choice([12, 13, 14, 15, 16, 17, 18, 19, 21, 22]))
+        costo_u = round(random.uniform(5.50, 6.80), 2)
+        tipo_offerta = "⚠️ Pochi grammi al dettaglio"
         valore_mercato_suggerito = 8.50
-        qta_max = max(5.0, budget_massimo_spesa / costo_u)
-        qta = round(random.uniform(5.0, min(25.0, qta_max)), 1)
 
-    elif budget_attuale <= 500:
-        roll = random.random()
-        if roll < 0.5:
-            p_nome = "Varietà Standard"
-            costo_u = round(random.uniform(4.50, 5.50), 2)
-            tipo_offerta = "🏷️ Stock Standard"
-            valore_mercato_suggerito = 7.00
-        else:
-            p_nome = "Top Quality Special"
-            costo_u = round(random.uniform(6.50, 8.50), 2)
-            tipo_offerta = "💎 Special Top Quality"
-            valore_mercato_suggerito = round(costo_u * 1.5, 2)
-            
-        qta_max = max(10.0, budget_massimo_spesa / costo_u)
-        qta = round(random.uniform(10.0, min(60.0, qta_max)), 1)
+    elif categoria_stock == "Standard":
+        p_nome = "Varietà Standard"
+        qta = float(random.choice([25, 50, 100]))
+        costo_u = round(random.uniform(4.00, 5.00), 2)
+        tipo_offerta = "🏷️ Stock Taglio Medio"
+        valore_mercato_suggerito = 7.00
+
+    elif categoria_stock == "TopQuality":
+        p_nome = "Top Quality Special"
+        qta = float(random.choice([25, 50, 100]))
+        costo_u = round(random.uniform(6.50, 8.00), 2)
+        tipo_offerta = "💎 Special Top Quality"
+        valore_mercato_suggerito = round(costo_u * 1.5, 2)
 
     else:
         p_nome = "Stock Volume"
-        costo_u = round(random.uniform(3.20, 4.20), 2)
-        tipo_offerta = "📦 Stock Volume Scontato"
+        qta = float(random.choice([150, 200, 250, 300, 500]))
+        costo_u = round(random.uniform(3.00, 3.90), 2)
+        tipo_offerta = "📦 Stock Volume Gran Taglio"
         valore_mercato_suggerito = 6.00
-        
-        qta_max = max(30.0, budget_massimo_spesa / costo_u)
-        qta = round(random.uniform(30.0, min(150.0, qta_max)), 1)
 
     costo_tot = round(qta * costo_u, 2)
 
@@ -407,18 +404,17 @@ def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento):
     spara_fuochi_d_artificio()
 
 def verifica_arrivo_offerta_dinamica():
+    # Verifica il limite di massimo 2 fornitori al giorno
+    if st.session_state.fornitori_visti_oggi >= st.session_state.max_fornitori_oggi:
+        return
+
     if st.session_state.offerta_fornitore is not None:
         return
 
-    df_disp = calcola_stato_magazzino(solo_disponibili=True)
-    scorta_totale = df_disp['qta_disponibile'].sum() if not df_disp.empty else 0
-    soglia_alert = get_soglia_esaurimento()
-
-    probabilita = 0.80 if scorta_totale <= soglia_alert else 0.22
-
-    if random.random() < probabilita:
+    # 40% di probabilità che arrivi un fornitore (se non abbiamo superato il limite del giorno)
+    if random.random() < 0.40:
         genera_offerta_fornitore_casuale()
-        aggiungi_log(f"📨 Un nuovo fornitore ({st.session_state.offerta_fornitore['fornitore_nome']}) è arrivato!")
+        aggiungi_log(f"📨 Un nuovo fornitore ({st.session_state.offerta_fornitore['fornitore_nome']}) ti ha contattato!")
 
 # INITIAL STATE
 if 'soldi_cassa' not in st.session_state:
@@ -437,11 +433,15 @@ if 'offerta_fornitore' not in st.session_state:
     st.session_state.offerta_fornitore = None
 if 'cliente_in_negozio' not in st.session_state:
     st.session_state.cliente_in_negozio = None
+if 'fornitori_visti_oggi' not in st.session_state:
+    st.session_state.fornitori_visti_oggi = 0
+if 'max_fornitori_oggi' not in st.session_state:
+    st.session_state.max_fornitori_oggi = random.choice([0, 1, 1, 2]) # 0, 1 o max 2 al giorno
 
 if st.session_state.cliente_in_negozio is None:
     genera_cliente_in_negozio()
 
-if st.session_state.giorno == 1 and st.session_state.offerta_fornitore is None:
+if st.session_state.giorno == 1 and st.session_state.offerta_fornitore is None and st.session_state.max_fornitori_oggi > 0:
     genera_offerta_fornitore_casuale()
 
 def aggiungi_log(testo):
@@ -470,6 +470,8 @@ def reset_completo_nuova_partita():
     st.session_state.log_gioco = ["✨ Nuova Partita Iniziata! Reset completo eseguito. Budget: €200."]
     st.session_state.offerta_fornitore = None
     st.session_state.cliente_in_negozio = None
+    st.session_state.fornitori_visti_oggi = 0
+    st.session_state.max_fornitori_oggi = random.choice([1, 2])
     genera_offerta_fornitore_casuale()
     genera_cliente_in_negozio()
 
@@ -872,9 +874,15 @@ with tab1:
         if st.button("🌙 Riposa e Passa al Giorno Successivo", use_container_width=True):
             st.session_state.giorno += 1
             st.session_state.energia = 100
-            verifica_arrivo_offerta_dinamica()
+            st.session_state.fornitori_visti_oggi = 0
+            st.session_state.max_fornitori_oggi = random.choice([0, 1, 1, 2])
+            st.session_state.offerta_fornitore = None
+            
+            if st.session_state.max_fornitori_oggi > 0 and random.random() < 0.60:
+                genera_offerta_fornitore_casuale()
+                
             genera_cliente_in_negozio()
-            aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Energia 100%.")
+            aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Energia 100%. Max fornitori oggi: {st.session_state.max_fornitori_oggi}")
             st.rerun()
 
     # --------------------------------------
@@ -956,14 +964,14 @@ with tab3:
             col_off2.metric("Quantità Lotto", f"{off['quantita']:,.1f} g")
             col_off3.metric("Prezzo al Grammo", f"€ {off['costo_unitario']:.2f} / g")
 
-            st.markdown(f"#### **Costo Totale Offerta:** € {costo_tot:,.2f}")
+            st.markdown(f"#### **Costo Totale Intero Lotto:** € {costo_tot:,.2f}")
             
             if not ha_abbastanza_soldi:
-                st.error(f"❌ NON HAI ABBASTANZA CASH! Ti servono €{costo_tot:.2f}, ne hai solo €{st.session_state.soldi_cassa:.2f}.")
+                st.warning(f"⚠️ Non hai abbastanza contanti (€{st.session_state.soldi_cassa:.2f}) per l'intero lotto da €{costo_tot:.2f}. Puoi chiedere un taglio minore!")
 
             col_b1, col_b2 = st.columns(2)
             with col_b1:
-                if st.button("✅ ACCETTA OFFERTA E PAGA", use_container_width=True, disabled=not ha_abbastanza_soldi):
+                if st.button("✅ COMPRA L'INTERO LOTTO", use_container_width=True, disabled=not ha_abbastanza_soldi):
                     st.session_state.soldi_cassa -= costo_tot
                     with get_connection() as conn:
                         cursor = conn.cursor()
@@ -976,24 +984,63 @@ with tab3:
                             VALUES (?, ?, ?, ?, ?, ?, ?)
                         """, (p_id, off['codice_lotto'], off['quantita'], off['quantita'], off['costo_unitario'], date.today(), date.today()))
                         l_id = cursor.lastrowid
-                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto da Offerta')", (p_id, l_id, off['quantita'], costo_tot, off['fornitore_nome']))
+                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto Intero Lotto')", (p_id, l_id, off['quantita'], costo_tot, off['fornitore_nome']))
 
                     aggiungi_log(f"🚚 ACQUISTO: Comprati {off['quantita']}g di {off['prodotto_nome']} da {off['fornitore_nome']} per €{costo_tot:.2f}")
                     st.success(f"✅ Offerta accettata da {off['fornitore_nome']}!")
                     st.session_state.offerta_fornitore = None
-                    genera_offerta_fornitore_casuale()
                     st.rerun()
 
             with col_b2:
-                if st.button("❌ RIFIUTA E CHIAMA UN ALTRO FORNITORE", use_container_width=True):
+                if st.button("❌ RIFIUTA OFFERTA", use_container_width=True):
                     aggiungi_log(f"❌ Rifiutata offerta di {off['fornitore_nome']}.")
-                    st.info(f"Hai mandato via {off['fornitore_nome']}. Arriva un nuovo contatto...")
-                    genera_offerta_fornitore_casuale()
+                    st.info(f"Hai rifiutato l'offerta di {off['fornitore_nome']}.")
+                    st.session_state.offerta_fornitore = None
                     st.rerun()
+
+            # --- CONTROFFERTA / TAGLIO MINORE ---
+            st.markdown("---")
+            with st.expander("🗣️ Chiedi un Taglio Minore (Prezzo/g maggiorato)"):
+                st.write("«Non ho tutti questi soldi o non voglio così tanto stock. Me ne dai meno?»")
+                qta_ridotta = st.number_input("Quanti grammi vuoi chiedere?", min_value=1.0, max_value=float(off['quantita'] - 1.0), value=min(15.0, float(off['quantita'] - 1.0)), step=1.0)
+                
+                # Sovrapprezzo al grammo per il disturbo
+                maggiorazione = 1.25 if qta_ridotta < (off['quantita'] / 2) else 1.15
+                nuovo_costo_u = round(off['costo_unitario'] * maggiorazione, 2)
+                nuovo_costo_tot = round(qta_ridotta * nuovo_costo_u, 2)
+                
+                st.info(f"👉 {off['fornitore_nome']}: «Va bene, ma per soli {qta_ridotta}g ti faccio **€ {nuovo_costo_u:.2f}/g**. Totale: **€ {nuovo_costo_tot:.2f}**»")
+                
+                ha_soldi_ridotti = st.session_state.soldi_cassa >= nuovo_costo_tot
+                if st.button("🤝 ACCETTA TAGLIO MINORE", use_container_width=True, disabled=not ha_soldi_ridotti):
+                    st.session_state.soldi_cassa -= nuovo_costo_tot
+                    with get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
+                        cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],))
+                        p_id = cursor.fetchone()[0]
+
+                        cursor.execute("""
+                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (p_id, f"{off['codice_lotto']}-PARZ", qta_ridotta, qta_ridotta, nuovo_costo_u, date.today(), date.today()))
+                        l_id = cursor.lastrowid
+                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto Taglio Minore')", (p_id, l_id, qta_ridotta, nuovo_costo_tot, off['fornitore_nome']))
+
+                    aggiungi_log(f"🚚 ACQUISTO: Comprati {qta_ridotta}g (Taglio Minore) di {off['prodotto_nome']} da {off['fornitore_nome']} per €{nuovo_costo_tot:.2f}")
+                    st.success(f"✅ Taglio minore acquistato da {off['fornitore_nome']}!")
+                    st.session_state.offerta_fornitore = None
+                    st.rerun()
+
     else:
-        if st.button("📞 Chiama un Fornitore Gangster", use_container_width=True):
-            genera_offerta_fornitore_casuale()
-            st.rerun()
+        fornitori_rimasti = st.session_state.max_fornitori_oggi - st.session_state.fornitori_visti_oggi
+        if fornitori_rimasti > 0:
+            st.info(f"Oggi puoi ancora ricevere fino a {fornitori_rimasti} contatto/i di fornitori.")
+            if st.button("📞 Cerca Contatto Fornitore", use_container_width=True):
+                genera_offerta_fornitore_casuale()
+                st.rerun()
+        else:
+            st.warning("⚠️ Per oggi nessun altro fornitore è disponibile o disposto ad incontrarti. Riposa per passare al giorno successivo.")
 
     st.markdown("---")
     st.markdown("### 📋 Stato Lotti e Scorte Attuali")
