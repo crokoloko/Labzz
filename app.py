@@ -373,13 +373,12 @@ def genera_offerta_fornitore_casuale():
     
     if rischio_sola:
         tipo_offerta = "⚠️ ATTENZIONE: Sospetta 'Sola' / Pacco!"
-        p_nome = "Skunk (Tagliata Male)"
+        p_nome = "Skunk"
         qta = float(random.choice([80, 100, 150, 200]) * moltiplicatore_giornaliero)
         costo_u = round(random.uniform(3.00, 4.20), 2)
-        valore_mercato_suggerito = 6.0
+        valore_mercato_suggerito = 7.0
         gangster_frase_sola = f"«{gangster['nome']} ti guarda con un ghigno strano...» " + gangster['frase']
     else:
-        # Scelta delle 4 varietà ufficiali ad hoc con la qualità
         varieta_scelta = random.choice(["Skunk", "Hash Dry", "Lemon Haze", "Frozen Hash"])
         
         if varieta_scelta == "Skunk":
@@ -403,7 +402,7 @@ def genera_offerta_fornitore_casuale():
             valore_mercato_suggerito = 14.0
             tipo_offerta = "🍋 Lemon Haze (Ottima Qualità)"
 
-        else: # Frozen Hash
+        else:
             p_nome = "Frozen Hash"
             qta = float(random.choice([20, 40, 70, 100]) * moltiplicatore_giornaliero)
             costo_u = round(random.uniform(10.00, 13.50), 2)
@@ -802,7 +801,19 @@ with get_connection() as conn:
     """, conn)
 
 qta_totale_magazzino = df_lotti_scorte['qta'].sum() if not df_lotti_scorte.empty else 0.0
-qta_frozen = df_lotti_scorte[df_lotti_scorte['nome'].str.contains("Frozen Hash", case=False, na=False)]['qta'].sum() if not df_lotti_scorte.empty else 0.0
+
+# Estrazione quantità per singola varietà con i relativi simbolotti
+def get_qta_prodotto(nome_prod):
+    if not df_lotti_scorte.empty and nome_prod in df_lotti_scorte['nome'].values:
+        val = df_lotti_scorte[df_lotti_scorte['nome'] == nome_prod]['qta'].values[0]
+        return float(val)
+    return 0.0
+
+qta_skunk = get_qta_prodotto("Skunk")
+qta_hash = get_qta_prodotto("Hash Dry")
+qta_lemon = get_qta_prodotto("Lemon Haze")
+qta_frozen = get_qta_prodotto("Frozen Hash")
+
 grado_rep_testo = calcola_grado_reputazione(st.session_state.reputazione)
 
 st.markdown(f"""
@@ -814,7 +825,12 @@ st.markdown(f"""
     <div class="custom-card">
         <div class="card-label">📦 Scorte Magazzino</div>
         <div class="card-value">{qta_totale_magazzino:.1f} g</div>
-        <div class="card-subtext">❄️ {qta_frozen:.1f} g Frozen Hash</div>
+        <div class="card-subtext" style="font-size: 0.62rem; color: #9ca3af; margin-top: 4px; display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
+            <span>🌿 {qta_skunk:.1f}g</span> &bull; 
+            <span>🧱 {qta_hash:.1f}g</span> &bull; 
+            <span>🍋 {qta_lemon:.1f}g</span> &bull; 
+            <span>❄️ {qta_frozen:.1f}g</span>
+        </div>
     </div>
     <div class="custom-card">
         <div class="card-label">📅 Turno / Giorno</div>
