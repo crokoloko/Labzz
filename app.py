@@ -366,47 +366,65 @@ def genera_offerta_fornitore_casuale():
     st.session_state.fornitori_visti_oggi += 1
     gangster = random.choice(GANGSTER_FORNITORI)
     
-    categoria_stock = random.choice(["Micro", "Standard", "Volume", "TopQuality"])
+    giorno_corrente = st.session_state.giorno
+    moltiplicatore_giornaliero = 1.0 + min(2.5, (giorno_corrente - 1) * 0.18)
     
-    if categoria_stock == "Micro":
-        p_nome = "Micro Stock (G Inconsueti)"
-        qta = float(random.choice([12, 13, 14, 15, 16, 17, 18, 19, 21, 22]))
-        costo_u = round(random.uniform(4.50, 5.80), 2)
-        tipo_offerta = "⚠️ Pochi grammi al dettaglio"
-        valore_mercato_suggerito = float(random.randint(8, 10))
-
-    elif categoria_stock == "Standard":
-        p_nome = "Varietà Standard"
-        qta = float(random.choice([25, 50, 100]))
-        costo_u = round(random.uniform(3.50, 4.50), 2)
-        tipo_offerta = "🏷️ Stock Taglio Medio"
-        valore_mercato_suggerito = float(random.randint(8, 10))
-
-    elif categoria_stock == "TopQuality":
-        p_nome = "Top Quality Special"
-        qta = float(random.choice([25, 50, 100]))
-        costo_u = round(random.uniform(7.00, 9.50), 2)
-        tipo_offerta = "💎 Special Top Quality"
-        valore_mercato_suggerito = float(random.randint(12, 15))
-
+    rischio_sola = random.random() < (0.20 + min(0.30, giorno_corrente * 0.02))
+    
+    if rischio_sola:
+        tipo_offerta = "⚠️ ATTENZIONE: Sospetta 'Sola' / Pacco!"
+        p_nome = "Skunk (Tagliata Male)"
+        qta = float(random.choice([80, 100, 150, 200]) * moltiplicatore_giornaliero)
+        costo_u = round(random.uniform(3.00, 4.20), 2)
+        valore_mercato_suggerito = 6.0
+        gangster_frase_sola = f"«{gangster['nome']} ti guarda con un ghigno strano...» " + gangster['frase']
     else:
-        p_nome = "Stock Volume"
-        qta = float(random.choice([150, 200, 250, 300, 500]))
-        costo_u = round(random.uniform(2.50, 3.50), 2)
-        tipo_offerta = "📦 Stock Volume Gran Taglio"
-        valore_mercato_suggerito = float(random.randint(8, 10))
+        # Scelta delle 4 varietà ufficiali ad hoc con la qualità
+        varieta_scelta = random.choice(["Skunk", "Hash Dry", "Lemon Haze", "Frozen Hash"])
+        
+        if varieta_scelta == "Skunk":
+            p_nome = "Skunk"
+            qta = float(random.choice([60, 100, 150, 200]) * moltiplicatore_giornaliero)
+            costo_u = round(random.uniform(2.50, 3.50), 2)
+            valore_mercato_suggerito = 7.0
+            tipo_offerta = "🌿 Skunk Economica (Bassa Qualità)"
 
+        elif varieta_scelta == "Hash Dry":
+            p_nome = "Hash Dry"
+            qta = float(random.choice([40, 80, 120, 160]) * moltiplicatore_giornaliero)
+            costo_u = round(random.uniform(4.00, 5.50), 2)
+            valore_mercato_suggerito = 10.0
+            tipo_offerta = "🧱 Hash Dry Commerciale (Buona Qualità)"
+
+        elif varieta_scelta == "Lemon Haze":
+            p_nome = "Lemon Haze"
+            qta = float(random.choice([30, 60, 100, 130]) * moltiplicatore_giornaliero)
+            costo_u = round(random.uniform(6.50, 8.50), 2)
+            valore_mercato_suggerito = 14.0
+            tipo_offerta = "🍋 Lemon Haze (Ottima Qualità)"
+
+        else: # Frozen Hash
+            p_nome = "Frozen Hash"
+            qta = float(random.choice([20, 40, 70, 100]) * moltiplicatore_giornaliero)
+            costo_u = round(random.uniform(10.00, 13.50), 2)
+            valore_mercato_suggerito = 22.0
+            tipo_offerta = "❄️ Frozen Hash (Top del Mercato)"
+
+        gangster_frase_sola = gangster['frase']
+
+    qta = round(qta, 1)
     costo_tot = round(qta * costo_u, 2)
 
     st.session_state.offerta_fornitore = {
         "fornitore_nome": gangster["nome"],
-        "fornitore_frase": gangster["frase"],
+        "fornitore_frase": gangster_frase_sola,
         "prodotto_nome": p_nome,
         "quantita": qta,
         "costo_unitario": costo_u,
         "costo_totale": costo_tot,
         "valore_mercato_suggerito": valore_mercato_suggerito,
         "tipo": tipo_offerta,
+        "is_sola": rischio_sola,
         "codice_lotto": f"OFF-{random.randint(100,999)}"
     }
 
@@ -561,11 +579,11 @@ def reset_completo_nuova_partita():
         cursor.execute("DELETE FROM prodotti;")
         cursor.execute("DELETE FROM clienti;")
         
-        cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario, scorta_minima_g) VALUES ('Varietà Iniziale', 9.0, 20.0);")
+        cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario, scorta_minima_g) VALUES ('Skunk', 7.0, 20.0);")
         p_id = cursor.lastrowid
-        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, 'START-01', 50.0, 50.0, 3.50, ?, ?);", (p_id, date.today(), date.today()))
+        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, 'START-01', 50.0, 50.0, 2.50, ?, ?);", (p_id, date.today(), date.today()))
         l_id = cursor.lastrowid
-        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', 50.0, 175.0, 'Fornitore Iniziale', 'Stock Start')", (p_id, l_id))
+        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', 50.0, 125.0, 'Fornitore Iniziale', 'Stock Start')", (p_id, l_id))
     
     st.session_state.soldi_cassa = 200.0
     st.session_state.giorno = 1
@@ -784,7 +802,7 @@ with get_connection() as conn:
     """, conn)
 
 qta_totale_magazzino = df_lotti_scorte['qta'].sum() if not df_lotti_scorte.empty else 0.0
-qta_top_quality = df_lotti_scorte[df_lotti_scorte['nome'].str.contains("Top Quality", case=False, na=False)]['qta'].sum() if not df_lotti_scorte.empty else 0.0
+qta_frozen = df_lotti_scorte[df_lotti_scorte['nome'].str.contains("Frozen Hash", case=False, na=False)]['qta'].sum() if not df_lotti_scorte.empty else 0.0
 grado_rep_testo = calcola_grado_reputazione(st.session_state.reputazione)
 
 st.markdown(f"""
@@ -796,7 +814,7 @@ st.markdown(f"""
     <div class="custom-card">
         <div class="card-label">📦 Scorte Magazzino</div>
         <div class="card-value">{qta_totale_magazzino:.1f} g</div>
-        <div class="card-subtext">⭐ {qta_top_quality:.1f} g Top Quality</div>
+        <div class="card-subtext">❄️ {qta_frozen:.1f} g Frozen Hash</div>
     </div>
     <div class="custom-card">
         <div class="card-label">📅 Turno / Giorno</div>
@@ -1075,16 +1093,16 @@ with tab1:
                     clienti_serviti_giorno = mov_oggi_df['cliente'].nunique() if not mov_oggi_df.empty else 0
                     transazioni_totali = len(mov_oggi_df)
                     
-                    qta_top_giorno = mov_oggi_df[mov_oggi_df['prodotto_nome'].str.contains("Top Quality", case=False, na=False)]['quantita'].sum() if not mov_oggi_df.empty else 0.0
-                    qta_classica_giorno = mov_oggi_df[~mov_oggi_df['prodotto_nome'].str.contains("Top Quality", case=False, na=False)]['quantita'].sum() if not mov_oggi_df.empty else 0.0
+                    qta_frozen_giorno = mov_oggi_df[mov_oggi_df['prodotto_nome'].str.contains("Frozen Hash", case=False, na=False)]['quantita'].sum() if not mov_oggi_df.empty else 0.0
+                    qta_altre_giorno = mov_oggi_df[~mov_oggi_df['prodotto_nome'].str.contains("Frozen Hash", case=False, na=False)]['quantita'].sum() if not mov_oggi_df.empty else 0.0
 
                     col_r1, col_r2 = st.columns(2)
                     col_r1.metric("💵 Incasso Totale Giorno", f"€ {tot_incasso_giorno:,.2f}")
                     col_r2.metric("📈 Margine Netto Giorno", f"€ {tot_margine_giorno:,.2f}")
                     
                     st.write(f"• **Clienti Unici Serviti:** 👥 {clienti_serviti_giorno} (Transazioni totali: {transazioni_totali})")
-                    st.write(f"• **Top Quality Venduta:** ⭐ {qta_top_giorno:.1f} g")
-                    st.write(f"• **Merce Classica/Standard Venduta:** 📦 {qta_classica_giorno:.1f} g")
+                    st.write(f"• **Frozen Hash Venduto:** ❄️ {qta_frozen_giorno:.1f} g")
+                    st.write(f"• **Altre Varietà Vendute:** 📦 {qta_altre_giorno:.1f} g")
                     
                     if not mov_oggi_df.empty:
                         st.markdown("##### 🛒 Dettaglio Ultimi Clienti Serviti Oggi:")
@@ -1120,8 +1138,8 @@ with tab1:
                             
                             vendite_ok = 0
                             incasso_turno = 0.0
-                            qta_top_turno = 0.0
-                            qta_classica_turno = 0.0
+                            qta_frozen_turno = 0.0
+                            qta_altre_turno = 0.0
                             clienti_contrattato = 0
                             
                             for _ in range(num_clienti_tot):
@@ -1131,7 +1149,7 @@ with tab1:
                                 val_m = float(prod_req['valore_mercato_unitario'])
                                 cli_nome = random.choice(clienti_nomi)
                                 
-                                is_top = "Top Quality" in p_nome
+                                is_frozen = "Frozen Hash" in p_nome
                                 
                                 with get_connection() as conn:
                                     cursor = conn.cursor()
@@ -1171,10 +1189,10 @@ with tab1:
                                     incasso_turno += ricavo
                                     vendite_ok += 1
                                     
-                                    if is_top:
-                                        qta_top_turno += qta_req
+                                    if is_frozen:
+                                        qta_frozen_turno += qta_req
                                     else:
-                                        qta_classica_turno += qta_req
+                                        qta_altre_turno += qta_req
                                         
                                     aggiungi_log(f"✅ BOT ({fascia_corrente[:10]}): {cli_nome} ha comprato {qta_req}g di '{p_nome}' (+€{ricavo:.2f})")
 
@@ -1186,8 +1204,8 @@ with tab1:
                                 "fascia": fascia_corrente,
                                 "vendite_ok": vendite_ok,
                                 "incasso": incasso_turno,
-                                "qta_top": qta_top_turno,
-                                "qta_classica": qta_classica_turno,
+                                "qta_frozen": qta_frozen_turno,
+                                "qta_altre": qta_altre_turno,
                                 "contrattati": clienti_contrattato
                             }
 
@@ -1202,8 +1220,8 @@ with tab1:
                     col_rb1.metric("💵 Incasso Fascia", f"€ {rep_bot['incasso']:,.2f}")
                     col_rb2.metric("👥 Clienti Serviti", rep_bot['vendite_ok'])
                     
-                    st.write(f"• **Top Quality Venduta:** ⭐ {rep_bot['qta_top']:.1f} g")
-                    st.write(f"• **Classica Venduta:** 📦 {rep_bot['qta_classica']:.1f} g")
+                    st.write(f"• **Frozen Hash Venduto:** ❄️ {rep_bot['qta_frozen']:.1f} g")
+                    st.write(f"• **Altre Varietà Vendute:** 📦 {rep_bot['qta_altre']:.1f} g")
                     st.write(f"• **Contrattazioni:** 💬 {rep_bot['contrattati']}")
 
         elif tipo_operazione == "XME":
