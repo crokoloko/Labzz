@@ -295,22 +295,52 @@ def spara_fuochi_d_artificio():
     st.components.v1.html(js_code, height=0)
 
 # ==========================================
-# LOGICA OFFERTA FORNITORE E STATO DI GIOCO
+# LOGICA NUOVA GENERAZIONE OFFERTE RICALIBRATA
 # ==========================================
 def genera_offerta_fornitore_casuale():
     prodotti_df = get_prodotti_tutti_df()
     if not prodotti_df.empty:
         prod_row = prodotti_df.sample(n=1).iloc[0]
-        qta = float(random.choice([100, 250, 500, 1000]))
-        costo_u = round(random.uniform(0.4, 2.2), 2)
-        tipo_offerta = "🔥 Affarone Super Scontato!" if costo_u < 0.9 else ("⚠️ Offerta Cara/Fuori Mercato" if costo_u > 1.8 else "📦 Offerta Standard")
+        p_id = int(prod_row['id'])
+        p_nome = prod_row['nome']
         
+        roll_tipo = random.random()
+        
+        # 1. RARO: Prezzo Strazziato Base (< 3.50€/g) - Probabilità ~10%
+        if roll_tipo < 0.10:
+            qta = float(random.choice([200, 300, 500]))
+            costo_u = round(random.uniform(2.80, 3.40), 2)
+            tipo_offerta = "🔥 Sottocosto Raro (Standard Base)"
+            valore_mercato_suggerito = 5.00
+            
+        # 2. SPECIAL / TOP QUALITY: Prezzi Superiori ad Alto Ricavo - Probabilità ~20%
+        elif roll_tipo < 0.30:
+            qta = float(random.choice([200, 300, 400]))
+            costo_u = round(random.uniform(6.50, 9.00), 2)
+            tipo_offerta = "💎 Special Top Quality (Vendita ad Alto Margine)"
+            valore_mercato_suggerito = costo_u * 1.6
+            
+        # 3. QUANTITÀ ELEVATE (Sopra i 2 etti: 200g - 500g) -> 3.50€ - 4.50€ - Probabilità ~40%
+        elif roll_tipo < 0.70:
+            qta = float(random.choice([200, 300, 500]))
+            costo_u = round(random.uniform(3.50, 4.50), 2)
+            tipo_offerta = "📦 Stock Volume (>2 etti)"
+            valore_mercato_suggerito = 6.00
+            
+        # 4. QUANTITÀ BASE (1 Etto / 100g) -> 4.50€ - 6.00€ - Probabilità ~30%
+        else:
+            qta = 100.0
+            costo_u = round(random.uniform(4.50, 6.00), 2)
+            tipo_offerta = "🏷️ Singolo Etto (100g Standard)"
+            valore_mercato_suggerito = 7.50
+
         st.session_state.offerta_fornitore = {
-            "prodotto_id": int(prod_row['id']),
-            "prodotto_nome": prod_row['nome'],
+            "prodotto_id": p_id,
+            "prodotto_nome": p_nome,
             "quantita": qta,
             "costo_unitario": costo_u,
             "costo_totale": qta * costo_u,
+            "valore_mercato_suggerito": valore_mercato_suggerito,
             "tipo": tipo_offerta,
             "codice_lotto": f"OFF-{random.randint(100,999)}"
         }
@@ -343,11 +373,11 @@ def reset_completo_nuova_partita():
         cursor.execute("DELETE FROM prodotti;")
         cursor.execute("DELETE FROM clienti;")
         
-        cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario, scorta_minima_g) VALUES ('Varietà Iniziale', 2.0, 20.0);")
+        cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario, scorta_minima_g) VALUES ('Varietà Iniziale', 6.0, 20.0);")
         p_id = cursor.lastrowid
-        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, 'START-01', 300.0, 300.0, 1.0, ?, ?);", (p_id, date.today(), date.today()))
+        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, 'START-01', 200.0, 200.0, 4.0, ?, ?);", (p_id, date.today(), date.today()))
         l_id = cursor.lastrowid
-        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', 300.0, 300.0, 'Fornitore Iniziale', 'Capitale di partenza')", (p_id, l_id))
+        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', 200.0, 800.0, 'Fornitore Iniziale', 'Capitale di partenza')", (p_id, l_id))
     
     st.session_state.giorno = 1
     st.session_state.energia = 100
@@ -747,7 +777,7 @@ with tab3:
         off = st.session_state.offerta_fornitore
         with st.container(border=True):
             st.markdown(f"### 📨 Nuova Offerta In Arrivo dal Fornitore!")
-            st.markdown(f"**Tipo Offerta:** {off['tipo']}")
+            st.markdown(f"**Tipologia:** {off['tipo']}")
             col_off1, col_off2, col_off3 = st.columns(3)
             col_off1.write(f"**Prodotto:** {off['prodotto_nome']}")
             col_off2.write(f"**Quantità Proposta:** {off['quantita']:,.1f} g")
@@ -764,7 +794,8 @@ with tab3:
                         """, (off['prodotto_id'], off['codice_lotto'], off['quantita'], off['quantita'], off['costo_unitario'], date.today(), date.today()))
                         l_id = cursor.lastrowid
                         cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, 'Fornitore Offerta', 'Acquisto da Offerta')", (off['prodotto_id'], l_id, off['quantita'], off['costo_totale']))
-                    
+                        cursor.execute("UPDATE prodotti SET valore_mercato_unitario = ? WHERE id = ?", (off['valore_mercato_suggerito'], off['prodotto_id']))
+
                     st.success(f"✅ Offerta accettata! Lotto {off['codice_lotto']} aggiunto al magazzino.")
                     genera_offerta_fornitore_casuale()
                     st.rerun()
@@ -787,9 +818,9 @@ with tab3:
             nome_nuovo = st.text_input("Nome Prodotto")
             data_acq_m = st.date_input("Data Acquisto", value=date.today())
             cod_lotto_m = st.text_input("Codice Lotto", value=genera_codice_lotto_automatico(data_acq_m))
-            qta_lotto_m = st.number_input("Quantità (g)", value=500.0)
-            costo_u_lotto_m = st.number_input("Costo d'Acquisto (€/g)", value=1.0)
-            prezzo_v_init = st.number_input("Prezzo Vendita (€/g)", value=2.0)
+            qta_lotto_m = st.number_input("Quantità (g)", value=200.0)
+            costo_u_lotto_m = st.number_input("Costo d'Acquisto (€/g)", value=4.0)
+            prezzo_v_init = st.number_input("Prezzo Vendita (€/g)", value=6.0)
 
             if st.form_submit_button("Crea Prodotto e Registra Lotto"):
                 with get_connection() as conn:
