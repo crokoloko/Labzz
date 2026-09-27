@@ -183,8 +183,7 @@ def init_db():
             unita_misura TEXT DEFAULT 'g',
             valore_mercato_unitario REAL DEFAULT 0,
             scorta_minima_g REAL DEFAULT 0
-        )
-        """)
+        )""")
         
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS lotti (
@@ -198,15 +197,13 @@ def init_db():
             data_carico DATE NOT NULL,
             data_completamento DATE,
             FOREIGN KEY (prodotto_id) REFERENCES prodotti (id) ON DELETE CASCADE
-        )
-        """)
+        )""")
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS clienti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT UNIQUE NOT NULL
-        )
-        """)
+        )""")
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS movimenti (
@@ -225,15 +222,13 @@ def init_db():
             data TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (prodotto_id) REFERENCES prodotti (id) ON DELETE CASCADE,
             FOREIGN KEY (lotto_id) REFERENCES lotti (id) ON DELETE SET NULL
-        )
-        """)
+        )""")
 
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS impostazioni (
             chiave TEXT PRIMARY KEY,
             valore REAL NOT NULL
-        )
-        """)
+        )""")
         cursor.execute("INSERT OR IGNORE INTO impostazioni (chiave, valore) VALUES ('soglia_esaurimento', 10.0)")
 
 init_db()
@@ -247,15 +242,66 @@ if 'giorno' not in st.session_state:
     st.session_state.giorno = 1
 if 'reputazione' not in st.session_state:
     st.session_state.reputazione = 50
+if 'fedelta_clienti' not in st.session_state:
+    st.session_state.fedelta_clienti = 10
 if 'log_gioco' not in st.session_state:
-    st.session_state.log_gioco = ["🎮 Benvenuto! Il sistema di gioco è pronto."]
+    st.session_state.log_gioco = ["🎮 Benvenuto! Il sistema gestionale e Tycoon è attivo."]
+if 'offerta_fornitore' not in st.session_state:
+    st.session_state.offerta_fornitore = None
 
 def aggiungi_log(testo):
     timestamp = datetime.now().strftime("%H:%M:%S")
     st.session_state.log_gioco.insert(0, f"[{timestamp}] {testo}")
 
+def genera_offerta_fornitore_casuale():
+    prodotti_df = get_prodotti_tutti_df()
+    if not prodotti_df.empty:
+        prod_row = prodotti_df.sample(n=1).iloc[0]
+        qta = float(random.choice([100, 250, 500, 1000]))
+        costo_u = round(random.uniform(0.4, 2.2), 2)
+        tipo_offerta = "🔥 Affarone Super Scontato!" if costo_u < 0.9 else ("⚠️ Offerta Cara/Fuori Mercato" if costo_u > 1.8 else "📦 Offerta Standard")
+        
+        st.session_state.offerta_fornitore = {
+            "prodotto_id": int(prod_row['id']),
+            "prodotto_nome": prod_row['nome'],
+            "quantita": qta,
+            "costo_unitario": costo_u,
+            "costo_totale": qta * costo_u,
+            "tipo": tipo_offerta,
+            "codice_lotto": f"OFF-{random.randint(100,999)}"
+        }
+
+if st.session_state.offerta_fornitore is None:
+    genera_offerta_fornitore_casuale()
+
 # ==========================================
-# LOGICA FUNZIONI DATABASE & HELPER
+# FUNZIONE DI RESET COMPLETO NUOVA PARTITA
+# ==========================================
+def reset_completo_nuova_partita():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM movimenti;")
+        cursor.execute("DELETE FROM lotti;")
+        cursor.execute("DELETE FROM prodotti;")
+        cursor.execute("DELETE FROM clienti;")
+        
+        # Inserisce un prodotto e un lotto di partenza puliti
+        cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario, scorta_minima_g) VALUES ('Varietà Iniziale', 2.0, 20.0);")
+        p_id = cursor.lastrowid
+        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, 'START-01', 300.0, 300.0, 1.0, ?, ?);", (p_id, date.today(), date.today()))
+        l_id = cursor.lastrowid
+        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', 300.0, 300.0, 'Fornitore Iniziale', 'Capitale di partenza')", (p_id, l_id))
+    
+    st.session_state.giorno = 1
+    st.session_state.energia = 100
+    st.session_state.reputazione = 50
+    st.session_state.fedelta_clienti = 10
+    st.session_state.log_gioco = ["✨ Nuova Avventura Iniziata! Tutti i dati sono stati resettati a zero."]
+    st.session_state.offerta_fornitore = None
+    genera_offerta_fornitore_casuale()
+
+# ==========================================
+# HELPER DATABASE
 # ==========================================
 def get_soglia_esaurimento():
     with get_connection() as conn:
@@ -423,12 +469,6 @@ def segna_debito_pagato(nome_cliente):
         cursor = conn.cursor()
         cursor.execute("UPDATE movimenti SET pagamento = 'Subito' WHERE cliente = ? AND pagamento = 'Dopo (Credito)'", (nome_cliente,))
 
-def elimina_lotto_db(lotto_id):
-    with get_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE movimenti SET lotto_id = NULL WHERE lotto_id = ?", (lotto_id,))
-        cursor.execute("DELETE FROM lotti WHERE id = ?", (lotto_id,))
-
 def spara_fuochi_d_artificio():
     js_code = """
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
@@ -467,10 +507,11 @@ else:
         st.title("LaBzz Tycoon")
 
 # HEADER METRICHE TYCOON GIOCATORE
-c_g1, c_g2, c_g3 = st.columns(3)
+c_g1, c_g2, c_g3, c_g4 = st.columns(4)
 c_g1.metric("📅 Turno / Giorno", f"Giorno {st.session_state.giorno}")
 c_g2.metric("⚡ Energia Imprenditore", f"{st.session_state.energia}%")
 c_g3.metric("⭐ Reputazione", f"{st.session_state.reputazione}/100")
+c_g4.metric("❤️ Fedeltà Clienti", f"{st.session_state.fedelta_clienti}%")
 
 st.markdown("---")
 
@@ -564,41 +605,68 @@ with tab1:
                         st.success(f"✅ Vendita registrata!")
 
             elif tipo_operazione == "Automazione Turno AI":
-                st.markdown("##### 🏪 Automazione Sales Engine (Simulazione Clienti PNG)")
-                st.caption("I clienti entreranno e valuteranno i tuoi prezzi in base alla reputazione.")
+                st.markdown("##### 🏪 Automazione Sales Engine (Istruisci il Bot di Vendita)")
                 
-                if st.button("🚀 Avvia Simualzione Turno (-20% Energia)"):
+                prod_target = st.selectbox("Seleziona Prodotto da Vendere nel Turno", prodotti_disp_df['nome'].tolist(), key="select_prod_target")
+                p_target_row = prodotti_disp_df[prodotti_disp_df['nome'] == prod_target].iloc[0]
+                p_target_id = int(p_target_row['id'])
+                val_mercato_ref = float(p_target_row['valore_mercato_unitario'])
+                
+                prezzo_target_bot = st.number_input("Prezzo al Grammo Desiderato per il Bot (€/g)", min_value=0.1, value=val_mercato_ref, step=0.2, format="%.2f")
+                
+                if prezzo_target_bot > val_mercato_ref * 1.3:
+                    st.warning("⚠️ Il prezzo impostato è MOLTO ALTO rispetto al valore di mercato. Molti clienti potrebbero rifiutare l'offerta!")
+                elif prezzo_target_bot < val_mercato_ref * 0.9:
+                    st.info("💡 Prezzo conveniente! I clienti accetteranno volentieri e aumenterà la loro fedeltà.")
+
+                if st.button("🚀 Avvia Automazione Turno (-20% Energia)"):
                     if st.session_state.energia < 20:
                         st.error("Sei troppo stanco! Esegui un'uscita XME o riposa.")
                     else:
                         st.session_state.energia -= 20
                         with get_connection() as conn:
                             cursor = conn.cursor()
-                            clienti_nomi = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "Anonimo"]
-                            num_clienti = random.randint(2, 5)
                             
-                            for _ in range(num_clienti):
-                                cursor.execute("SELECT p.id, p.nome, p.valore_mercato_unitario, SUM(l.quantita_attuale) FROM prodotti p JOIN lotti l ON p.id = l.prodotto_id WHERE l.quantita_attuale > 0 GROUP BY p.id")
-                                prods = cursor.fetchall()
-                                if not prods: break
-                                
-                                p_id, p_nome, pr_u, scorta = random.choice(prods)
-                                cli = random.choice(clienti_nomi)
-                                qta = min(scorta, float(random.choice([5, 10, 20])))
-                                
-                                cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", (p_id,))
+                            num_clienti_base = random.randint(2, 5)
+                            bonus_clienti_fedeli = int(st.session_state.fedelta_clienti / 20)
+                            num_clienti_tot = num_clienti_base + bonus_clienti_fedeli
+                            
+                            clienti_nomi = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP", "Matteo"]
+                            vendite_accettate = 0
+                            
+                            for _ in range(num_clienti_tot):
+                                cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", (p_target_id,))
                                 lotti = cursor.fetchall()
-                                l_id, l_qta, l_costo = lotti[0]
+                                if not lotti: 
+                                    aggiungi_log("Scorte esaurite durante il turno!")
+                                    break
                                 
-                                cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale - ? WHERE id = ?", (qta, l_id))
-                                ricavo = qta * pr_u
-                                margine = ricavo - (qta * l_costo)
+                                cli = random.choice(clienti_nomi)
+                                tolleranza_cliente = val_mercato_ref * random.uniform(0.85, 1.35) * (1 + (st.session_state.fedelta_clienti / 200))
                                 
-                                cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento) VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, 'Subito')", (p_id, l_id, qta, pr_u, ricavo, qta * l_costo, margine, cli))
-                                aggiungi_log(f"Venduti {qta}g di {p_nome} a {cli} per €{ricavo:.2f}")
+                                if prezzo_target_bot <= tolleranza_cliente:
+                                    qta = min(lotti[0][1], float(random.choice([5, 10, 20, 30])))
+                                    if qta <= 0: continue
+                                    
+                                    l_id, l_qta, l_costo = lotti[0]
+                                    cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale - ? WHERE id = ?", (qta, l_id))
+                                    ricavo = qta * prezzo_target_bot
+                                    margine = ricavo - (qta * l_costo)
+                                    
+                                    cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento) VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, 'Subito')", (p_target_id, l_id, qta, prezzo_target_bot, ricavo, qta * l_costo, margine, cli))
+                                    vendite_accettate += 1
+                                    aggiungi_log(f"✅ {cli} ha ACCETTATO: comprati {qta}g per €{ricavo:.2f}")
+                                else:
+                                    aggiungi_log(f"❌ {cli} ha RIFIUTATO: prezzo €{prezzo_target_bot:.2f}/g ritenuto troppo alto.")
 
-                        st.session_state.reputazione = min(100, st.session_state.reputazione + 3)
-                        st.success("Turno automatico completato con successo!")
+                        if vendite_accettate > (num_clienti_tot / 2):
+                            st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 5)
+                            st.session_state.reputazione = min(100, st.session_state.reputazione + 2)
+                            st.success(f"Turno completato! Accettate {vendite_accettate} vendite su {num_clienti_tot} clienti. Fedeltà Clienti +5%!")
+                        else:
+                            st.session_state.fedelta_clienti = max(0, st.session_state.fedelta_clienti - 3)
+                            st.warning(f"Turno fiacco: Solo {vendite_accettate} su {num_clienti_tot} clienti hanno acquistato. Rivedi i prezzi!")
+                        
                         st.rerun()
 
             elif tipo_operazione == "XME":
@@ -629,12 +697,13 @@ with tab1:
         if st.button("🌙 Riposa e Passa al Giorno Successivo", use_container_width=True):
             st.session_state.giorno += 1
             st.session_state.energia = 100
-            aggiungi_log("🌙 Riposo completato. Energia 100%.")
+            genera_offerta_fornitore_casuale()
+            aggiungi_log("🌙 Riposo completato. Generata nuova offerta fornitore!")
             st.rerun()
 
         st.markdown("---")
-        st.markdown("##### 📜 Log Eventi")
-        for log in st.session_state.log_gioco[:5]:
+        st.markdown("##### 📜 Log Eventi Live")
+        for log in st.session_state.log_gioco[:6]:
             st.caption(log)
 
 # ------------------------------------------
@@ -676,10 +745,43 @@ with tab2:
             st.altair_chart(chart, use_container_width=True)
 
 # ------------------------------------------
-# TAB 3: RIFORNIMENTI E LOTTI
+# TAB 3: RIFORNIMENTI, OFFERTE & LOTTI
 # ------------------------------------------
 with tab3:
-    st.subheader("🚚 Registro Rifornimenti e Lotti")
+    st.subheader("🚚 Registro Rifornimenti e Gestione Offerte")
+    
+    if st.session_state.offerta_fornitore:
+        off = st.session_state.offerta_fornitore
+        with st.container(border=True):
+            st.markdown(f"### 📨 Nuova Offerta In Arrivo dal Fornitore!")
+            st.markdown(f"**Tipo Offerta:** {off['tipo']}")
+            col_off1, col_off2, col_off3 = st.columns(3)
+            col_off1.write(f"**Prodotto:** {off['prodotto_nome']}")
+            col_off2.write(f"**Quantità Proposta:** {off['quantita']:,.1f} g")
+            col_off3.write(f"**Costo Unitario:** € {off['costo_unitario']:.2f} / g (Totale: € {off['costo_totale']:,.2f})")
+            
+            col_b1, col_b2 = st.columns(2)
+            with col_b1:
+                if st.button("✅ ACCETTA OFFERTA LOTTO", use_container_width=True):
+                    with get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (off['prodotto_id'], off['codice_lotto'], off['quantita'], off['quantita'], off['costo_unitario'], date.today(), date.today()))
+                        l_id = cursor.lastrowid
+                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, 'Fornitore Offerta', 'Acquisto da Offerta')", (off['prodotto_id'], l_id, off['quantita'], off['costo_totale']))
+                    
+                    st.success(f"✅ Offerta accettata! Lotto {off['codice_lotto']} aggiunto al magazzino.")
+                    genera_offerta_fornitore_casuale()
+                    st.rerun()
+            with col_b2:
+                if st.button("❌ RIFIUTA OFFERTA", use_container_width=True):
+                    st.info("Offerta rifiutata e scartata.")
+                    genera_offerta_fornitore_casuale()
+                    st.rerun()
+
+    st.markdown("---")
     soglia_attuale = get_soglia_esaurimento()
     report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_attuale)
     
@@ -687,7 +789,7 @@ with tab3:
         st.dataframe(report_lotti_df, use_container_width=True, hide_index=True)
 
     st.markdown("---")
-    with st.expander("➕ Aggiungi Nuovo Prodotto e Rifornimento"):
+    with st.expander("➕ Aggiungi Nuovo Prodotto e Rifornimento Standard"):
         with st.form("form_nuovo_prodotto_lotto"):
             nome_nuovo = st.text_input("Nome Prodotto")
             data_acq_m = st.date_input("Data Acquisto", value=date.today())
@@ -728,7 +830,7 @@ with tab4:
                     st.rerun()
 
 # ------------------------------------------
-# TAB 5: REPORT STORICO
+# TAB 5: REPORT STORICO & RESET GAME
 # ------------------------------------------
 with tab5:
     st.subheader("📜 Registro Storico Transazioni")
@@ -737,3 +839,18 @@ with tab5:
         st.dataframe(movimenti_df, use_container_width=True, hide_index=True)
         csv_data = movimenti_df.to_csv(index=False).encode('utf-8')
         st.download_button("📥 Scarica Report CSV", data=csv_data, file_name="report_storico.csv", mime="text/csv")
+    
+    st.markdown("---")
+    
+    # SEZIONE DI RESET COMPLETO (NUOVA PARTITA)
+    with st.expander("⚠️ DANGER ZONE: Resetta Dati e Inizia Nuova Partita", expanded=False):
+        st.error("Questa operazione cancellerà permanentemente tutto lo storico vendite, i clienti, i lotti e azzererà la tua partita riportandoti al Giorno 1.")
+        conferma_reset = st.checkbox("Sono sicuro di voler piallare tutti i dati e ricominciare da capo.")
+        
+        if st.button("💥 RESETTA TUTTO E RICOMINCIA DA ZERO", use_container_width=True):
+            if conferma_reset:
+                reset_completo_nuova_partita()
+                st.success("🎉 Reset eseguito! Benvenuto nella tua nuova partita.")
+                st.rerun()
+            else:
+                st.warning("Spunta la casella di conferma qui sopra per poter procedere col reset.")
