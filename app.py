@@ -1278,22 +1278,22 @@ with tab3:
                     <span style="font-size: 0.65rem; color: #ef4444; font-weight: 700;">{off['tipo']}</span>
                 </div>
                 <div>
-                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Quantità</span><br>
+                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Quantità Lotto</span><br>
                     <strong style="color: #38bdf8; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['quantita']:,.1f} g</strong>
                 </div>
                 <div>
-                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Costo Unitaria</span><br>
+                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px;">Costo Unitario</span><br>
                     <strong style="color: #10b981; font-size: 1.1rem; font-family: 'Anton', sans-serif;">€ {off['costo_unitario']:.2f} / g</strong>
                 </div>
             </div>
             <div style="text-align: center; margin-top: 18px; font-size: 1.25rem; font-family: 'Anton', sans-serif; color: #ffffff; letter-spacing: 1px;">
-                INVESTIMENTO RICHIESTO: <span style="color: #f59e0b;">€ {costo_tot:,.2f}</span>
+                INVESTIMENTO INTERO LOTTO: <span style="color: #f59e0b;">€ {costo_tot:,.2f}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
             
         if not ha_abbastanza_soldi:
-            st.warning(f"⚠️ Fondi insufficienti in cassa (€{st.session_state.soldi_cassa:.2f}) per l'intero lotto da €{costo_tot:.2f}. Tratta un taglio ridotto qui sotto.")
+            st.warning(f"⚠️ Fondi insufficienti in cassa (€{st.session_state.soldi_cassa:.2f}) per l'intero lotto da €{costo_tot:.2f}. Usa la trattativa per investire un budget ridotto.")
 
         col_b1, col_b2 = st.columns(2)
         with col_b1:
@@ -1328,10 +1328,10 @@ with tab3:
 
         st.markdown("---")
         with st.container(border=True):
-            st.markdown("##### 📋 PIANIFICAZIONE TRATTATIVA CLANDESTINA")
-            st.write("«Vuoi trattare sui grammi o forzare un prezzo più basso? Scegli la mossa tattica prima che saltino gli accordi.»")
+            st.markdown("##### 📋 TRATTATIVA CLANDESTINA (OBIETTIVO BUDGET)")
+            st.write("«Imposta quanti **soldi (€)** vuoi investire in questa trattativa: il fornitore calcolerà quanti grammi offrirti in base alla tua offerta e alle tue mosse tattiche.»")
             
-            qta_ridotta = st.number_input("Taglio personalizzato (g):", min_value=1.0, max_value=float(off['quantita'] - 1.0), value=min(10.0, float(off['quantita'] - 1.0)), step=1.0)
+            budget_proposto = st.number_input("Il tuo Budget da Spendere (€):", min_value=5.0, max_value=float(st.session_state.soldi_cassa), value=min(50.0, float(st.session_state.soldi_cassa)), step=5.0)
             
             approccio = st.selectbox("Approccio Negoziazione", [
                 "🤝 Profilo Basso / Affidabile (Rischio minimo)", 
@@ -1339,7 +1339,7 @@ with tab3:
                 "🔥 Pressing Totale (Alto rischio / Margine elevato)"
             ])
             
-            if st.button("🎲 ESEGUI MOSSA DI TRATTATIVA", use_container_width=True):
+            if st.button("🎲 ESEGUI TRATTATIVA CON BUDGET", use_container_width=True):
                 tiro = random.randint(1, 100) + int(st.session_state.reputazione / 2)
                 
                 if "Profilo Basso" in approccio:
@@ -1353,24 +1353,29 @@ with tab3:
                     esito_txt = "Mossa ad altissimo rischio nel vicolo buio!"
                     
                 nuovo_costo_u = round(off['costo_unitario'] * sconto, 2)
-                nuovo_costo_tot = round(qta_ridotta * nuovo_costo_u, 2)
+                # Calcoliamo i grammi che ti danno con i soldi che hai messo
+                qta_calcolata = round(budget_proposto / nuovo_costo_u, 2) if nuovo_costo_u > 0 else 0.0
                 
+                # Non puoi comprare più grammi di quelli che il fornitore ha effettivamente in stock nell'offerta
+                if qta_calcolata > off['quantita']:
+                    qta_calcolata = float(off['quantita'])
+                    budget_proposto = round(qta_calcolata * nuovo_costo_u, 2)
+
                 st.session_state.minigioco_risultato = {
-                    "qta": qta_ridotta,
+                    "budget": budget_proposto,
                     "costo_u": nuovo_costo_u,
-                    "costo_tot": nuovo_costo_tot,
-                    "testo_esito": esito_txt,
-                    "successo_trattativa": sconto <= 1.15
+                    "qta_offerta": qta_calcolata,
+                    "testo_esito": esito_txt
                 }
                 st.rerun()
 
             if 'minigioco_risultato' in st.session_state and st.session_state.minigioco_risultato:
                 res = st.session_state.minigioco_risultato
-                st.info(f"💬 **Esito:** _{res['testo_esito']}_ -> Prezzo trattato: **€{res['costo_u']:.2f}/g** (Totale: **€{res['costo_tot']:.2f}**)")
+                st.info(f"💬 **Esito:** _{res['testo_esito']}_ -> Con il tuo budget di **€{res['budget']:.2f}** ti propongono **{res['qta_offerta']:.1f}g** (a €{res['costo_u']:.2f}/g).")
                 
-                ha_soldi_trattativa = st.session_state.soldi_cassa >= res['costo_tot']
-                if st.button("✅ CONFERMA ACCORDO TRATTATO", use_container_width=True, disabled=not ha_soldi_trattativa):
-                    st.session_state.soldi_cassa -= res['costo_tot']
+                ha_soldi_trattativa = st.session_state.soldi_cassa >= res['budget']
+                if st.button("✅ CONFERMA ACCORDO E RITIRA MERCE", use_container_width=True, disabled=not ha_soldi_trattativa):
+                    st.session_state.soldi_cassa -= res['budget']
                     with get_connection() as conn:
                         cursor = conn.cursor()
                         cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
@@ -1380,11 +1385,11 @@ with tab3:
                         cursor.execute("""
                             INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
                             VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (p_id, f"{off['codice_lotto']}-TRATT", res['qta'], res['qta'], res['costo_u'], date.today(), date.today()))
+                        """, (p_id, f"{off['codice_lotto']}-BUDGET", res['qta_offerta'], res['qta_offerta'], res['costo_u'], date.today(), date.today()))
                         l_id = cursor.lastrowid
-                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto Trattato')", (p_id, l_id, res['qta'], res['costo_tot'], off['fornitore_nome']))
+                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto con Budget')", (p_id, l_id, res['qta_offerta'], res['budget'], off['fornitore_nome']))
 
-                    aggiungi_log(f"🚚 ACQUISTO TRATTATO: {res['qta']}g di {off['prodotto_nome']} da {off['fornitore_nome']} per €{res['costo_tot']:.2f}")
+                    aggiungi_log(f"🚚 ACQUISTO BUDGET: Presi {res['qta_offerta']}g di {off['prodotto_nome']} da {off['fornitore_nome']} per €{res['budget']:.2f}")
                     st.success("✅ Accordo chiuso con successo!")
                     st.session_state.offerta_fornitore = None
                     st.session_state.minigioco_risultato = None
