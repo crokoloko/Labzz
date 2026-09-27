@@ -11,8 +11,8 @@ import altair as alt
 # CONFIGURAZIONE PAGINA STREAMLIT
 # ==========================================
 st.set_page_config(
-    page_title="LaBzz - Praga Underground Tycoon",
-    page_icon="📦",
+    page_title="LaBzz - Free Party Mulino Tycoon",
+    page_icon="🌲",
     layout="wide"
 )
 
@@ -102,15 +102,15 @@ def init_db():
 init_db()
 
 FASCE_ORARIE = [
-    "🌅 1. Mattina (08:00 - 11:30)", 
-    "☀️ 2. Mezzogiorno (11:30 - 15:00)", 
-    "🌇 3. Pomeriggio (15:00 - 18:30)", 
-    "🌙 4. Sera (18:30 - 22:00)", 
-    "🌌 5. Notte (22:00 - 02:00)"
+    "🌅 1. Mattina al Campo (08:00 - 11:30)", 
+    "☀️ 2. Sole alto al Fiume (11:30 - 15:00)", 
+    "🌇 3. Pomeriggio tra i Sound System (15:00 - 18:30)", 
+    "🌙 4. Calar del Sole al Mulino (18:30 - 22:00)", 
+    "🌌 5. Notte Fonda / Soundclash (22:00 - 02:00)"
 ]
 
-LISTA_NOMI_PRAGA = [
-    "Jan", "Petra", "Maxim", "Klara", "Tomas", "Lenka", "Wanja", 
+LISTA_NOMI_RAVER = [
+    "Jan", "Klara", "Maxim", "Petra", "Tomas", "Lenka", "Wanja", 
     "Milan", "Zuzana", "Marek", "Sonja", "Ondra", "Katka", "Pavel", 
     "Hana", "Lukas", "Eliška", "Jakub", "Nikola", "David", "Veronika",
     "Martin", "Štěpán", "Markéta", "Filip", "Dominik", "Magda", "Sven",
@@ -133,13 +133,13 @@ inizializza_pusher_db()
 
 def get_data_corrente_gioco():
     data_base = date(2026, 9, 27)
-    giorni_trascorsi = st.session_state.giorni_trascorsi_offset
+    giorni_trascorsi = st.session_state.get('giorni_trascorsi_offset', 0)
     return data_base + timedelta(days=giorni_trascorsi)
 
 def e_festivo_o_weekend(data_rif):
     if data_rif.weekday() >= 5:
-        return True, "Weekend / Rave in corso 🎉"
-    return False, "Giorno Lavorativo 💼"
+        return True, "Weekend / Raduno Massive nel Bosco 🎉"
+    return False, "Giorni feriali / Autogestione al Mulino 🏕️"
 
 def get_video_base64(file_path):
     if os.path.exists(file_path):
@@ -267,13 +267,13 @@ def aggiungi_cliente_se_nuovo(nome):
 
 def calcola_grado_reputazione(rep):
     if rep < 30:
-        return "🌱 Principiante di Žižkov"
+        return "🌱 Nomade del Parcheggio"
     elif rep < 60:
-        return "🥈 Player Rispettato a Praga"
+        return "🥈 Raver Rispettato nel Bosco"
     elif rep < 85:
-        return "🥇 Boss Underground"
+        return "🥇 Custode dei Sound System"
     else:
-        return "👑 Re della Notte di Praga"
+        return "👑 Re del Mulino di Skalákův"
 
 def calcola_stato_magazzino(solo_disponibili=False):
     with get_connection() as conn:
@@ -360,7 +360,7 @@ def trigger_effetto_notte():
         font-size: 2.5rem;
         letter-spacing: 3px;
         text-shadow: 0 0 20px rgba(251, 191, 36, 0.6);
-    ">🌙 PASSAGGIO DELLA NOTTE PRAGHESE... ALBA IN ARRIVO ☀️</div>
+    ">🌲 IL BOSCO SI ACCENDE... RAEV COMINCIA 🔊</div>
     <script>
         const overlay = document.getElementById('night-overlay');
         setTimeout(() => {
@@ -376,20 +376,19 @@ def trigger_effetto_notte():
     st.components.v1.html(js_code, height=0)
 
 # ==========================================
-# GANGSTER E FORNITORI
+# FORNITORI / NOMADI DEI FURGONI
 # ==========================================
 GANGSTER_FORNITORI = [
-    {"nome": "Don Cornetto", "frase": "«Un'offerta da Praga che non puoi rifiutare...»"},
-    {"nome": "Tony Pesto", "frase": "«O compri questo stock o stasera le cotolette le fai coi denti!»"},
-    {"nome": "Al Cacio", "frase": "«Robina fresca fresca di contrabbando, scesa dal treno da Berlino.»"},
-    {"nome": "Franky 'Cinque Dita'", "frase": "«Guarda che qualità, sfiorala soltanto e ti senti a Karlin!»"},
-    {"nome": "Peppe 'u Scannatore", "frase": "«Vedi di fare in fretta prima che arrivi la polizia ceca...»"},
-    {"nome": "Luigi 'O Calibro", "frase": "«Prezzo da amico, ma non farmi domande su dove l'ho preso nei club.»"}
+    {"nome": "Zio Pavel (Furgone Grigio)", "frase": "«Robina fresca scesa dritta dai boschi di confine...»"},
+    {"nome": "Katka 'Diesel'", "frase": "«O compri questo stock o stasera resti senza nafta per i generatori!»"},
+    {"nome": "Marek 'Il Contrabbandiere'", "frase": "«Merce pulita, nascosta sotto i banchi di legno del vecchio mulino.»"},
+    {"nome": "I Raminghi del Fiume", "frase": "«Senti come tremano i bassi? Questo stock spacca tutto il Sound System.»"},
+    {"nome": "Bohumil 'Testadura'", "frase": "«Vedi di fare in fretta prima che la polizia forestale fiuti il fumo...»"}
 ]
 
 def genera_offerta_fornitore_casuale():
     if st.session_state.fornitori_visti_oggi >= st.session_state.max_fornitori_oggi:
-        st.info("Per oggi non ci sono altri contatti disponibili nei vicoli.")
+        st.info("Per oggi non ci sono altri contatti nel parcheggio dei furgoni.")
         return
 
     st.session_state.fornitori_visti_oggi += 1
@@ -401,12 +400,12 @@ def genera_offerta_fornitore_casuale():
     rischio_sola = random.random() < (0.18 + min(0.30, giorno_corrente * 0.02))
     
     if rischio_sola:
-        tipo_offerta = "⚠️ ATTENZIONE: Sospetta 'Sola' / Pacco!"
+        tipo_offerta = "⚠️ ATTENZIONE: Sospetta 'Sola' nel Bosco (Pacco)!"
         p_nome = "Skunk"
         qta = float(random.choice([80, 100, 150, 200]) * moltiplicatore_giornaliero)
         costo_u = round(random.uniform(3.00, 4.20), 2)
         valore_mercato_suggerito = 7.0
-        gangster_frase_sola = f"«{gangster['nome']} ti guarda con un ghigno strano...» " + gangster['frase']
+        gangster_frase_sola = f"«{gangster['nome']} ti guarda con un ghigno losco tra gli alberi...» " + gangster['frase']
     else:
         varieta_scelta = random.choices(
             ["Skunk", "Hash Dry", "Lemon Haze", "Frozen Hash"],
@@ -419,7 +418,7 @@ def genera_offerta_fornitore_casuale():
             qta = float(random.choice([60, 100, 150, 200]) * moltiplicatore_giornaliero)
             costo_u = round(random.uniform(2.50, 3.50), 2)
             valore_mercato_suggerito = 7.0
-            tipo_offerta = "🌿 Skunk Economica"
+            tipo_offerta = "🌿 Skunk del Campeggio"
 
         elif varieta_scelta == "Hash Dry":
             p_nome = "Hash Dry"
@@ -433,14 +432,14 @@ def genera_offerta_fornitore_casuale():
             qta = float(random.choice([30, 60, 100, 130]) * moltiplicatore_giornaliero)
             costo_u = round(random.uniform(6.50, 8.50), 2)
             valore_mercato_suggerito = 14.0
-            tipo_offerta = "🍋 Lemon Haze (Ottima Qualità)"
+            tipo_offerta = "🍋 Lemon Haze (Selezionata al Mulino)"
 
         else:
             p_nome = "Frozen Hash"
             qta = float(random.choice([20, 35, 50, 70]) * moltiplicatore_giornaliero)
             costo_u = round(random.uniform(10.00, 13.50), 2)
             valore_mercato_suggerito = 22.0
-            tipo_offerta = "❄️ Frozen Hash (💎 Stock Estremamente Raro)"
+            tipo_offerta = "❄️ Frozen Hash (💎 Stock Leggendario del Bosco)"
 
         gangster_frase_sola = gangster['frase']
 
@@ -457,14 +456,14 @@ def genera_offerta_fornitore_casuale():
         "valore_mercato_suggerito": valore_mercato_suggerito,
         "tipo": tipo_offerta,
         "is_sola": rischio_sola,
-        "codice_lotto": f"PRG-{random.randint(100,999)}"
+        "codice_lotto": f"MULINO-{random.randint(100,999)}"
     }
 
 def genera_cliente_in_negozio():
     prodotti_tutti = get_prodotti_tutti_df()
     if not prodotti_tutti.empty:
         prod = prodotti_tutti.sample(n=1).iloc[0]
-        nome_c = random.choice(LISTA_NOMI_PRAGA)
+        nome_c = random.choice(LISTA_NOMI_RAVER)
         qta_req = float(random.choices([1, 2, 5, 10, 15, 20, 30], weights=[25, 30, 25, 12, 4, 3, 1], k=1)[0])
         val_ref = float(prod['valore_mercato_unitario'])
         budget_u = val_ref * random.uniform(0.85, 1.35)
@@ -488,8 +487,8 @@ def genera_evento_casuale_giorno():
         if evento_tipo == "polizia":
             st.session_state.evento_attivo = {
                 "tipo": "polizia",
-                "titolo": "🚨 BLITZ POLIZIA CECA / CONTROLLI METRO!",
-                "testo": f"Il livello di sospetto è alto ({sosp:.1f}%). Pattuglie in borghese stazionano vicino al locale!"
+                "titolo": "🚨 BLITZ POLIZIA FORESTALE / POSTO DI BLOCCO SUL FIUME!",
+                "testo": f"Il livello di attenzione sul bosco è alto ({sosp:.1f}%). Le volanti controllano le strade sterrate d'accesso al mulino!"
             }
         elif evento_tipo == "vip":
             prodotti_disp = get_prodotti_disponibili_df()
@@ -499,8 +498,8 @@ def genera_evento_casuale_giorno():
                 prezzo_vip = float(prod_vip['valore_mercato_unitario']) * 1.45
                 st.session_state.evento_attivo = {
                     "tipo": "vip",
-                    "titolo": "📱 NOTIFICA PROMOTORE CLUB VIP",
-                    "testo": f"Un contatto underground ti scrive da Žižkov: «Mi servono urgentemente **{qta_vip}g di {prod_vip['nome']}** per un DJ set privato. Ti pago **€{prezzo_vip:.2f}/g**!»",
+                    "titolo": "📱 RICHIESTA DAL PALCO PRINCIPALE",
+                    "testo": f"Un sound system vecino ti manda un runner: «Ci servono urgentemente **{qta_vip}g di {prod_vip['nome']}** per i djs che suonano all'alba sul palco centrale. Ti pago **€{prezzo_vip:.2f}/g**!»",
                     "prodotto_id": int(prod_vip['id']),
                     "prodotto_nome": prod_vip['nome'],
                     "quantita": qta_vip,
@@ -511,14 +510,14 @@ def genera_evento_casuale_giorno():
         elif evento_tipo == "festival":
             st.session_state.evento_attivo = {
                 "tipo": "festival",
-                "titolo": "🎉 RAVER & TURISTI IN CITÀ!",
-                "testo": "C'è un enorme festival di musica elettronica underground a Praga oggi! La richiesta di mercato schizza alle stelle (+20% sui prezzi di vendita per oggi)."
+                "titolo": "🎉 PIENA PIENA AL RADUNO NEL BOSCO!",
+                "testo": "Centinaia di furgoni e carovane sono arrivate da tutta Europa per il free party! La richiesta di mercato schizza alle stelle (+20% sui prezzi di vendita per oggi)."
             }
         else:
             st.session_state.evento_attivo = {
                 "tipo": "tossici",
-                "titolo": "🧟 GRUPPO DI RIVALI LOCALI!",
-                "testo": "Dei teppisti locali si aggirano fuori dal locale chiedendo il pizzo o minacciando scompiglio!"
+                "titolo": "🧟 RIVALI DEL CAMPEGGIO INCAZZATI!",
+                "testo": "Dei tipacci ubriachi del parcheggio creano scompiglio vicino ai generatori cercando di seminare guai!"
             }
     else:
         st.session_state.evento_attivo = None
@@ -553,7 +552,7 @@ def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento):
             cursor.execute("""
                 INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
                 VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (cli_att['prodotto_id'], l_id, prelievo, prezzo_per_g, ricavo_q, costo_q, margine_q, cli_att['nome'], tipo_pagamento, f"Vendita Diretta Banco - Lotto {lotto['codice_lotto']}"))
+            """, (cli_att['prodotto_id'], l_id, prelievo, prezzo_per_g, ricavo_q, costo_q, margine_q, cli_att['nome'], tipo_pagamento, f"Spaccio al Campeggio - Lotto {lotto['codice_lotto']}"))
 
     if tipo_pagamento == "Subito":
         st.session_state.soldi_cassa += totale_incasso
@@ -567,7 +566,7 @@ def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento):
         incremento_sospetto *= 1.8
     set_sospetto(get_sospetto() + incremento_sospetto)
 
-    aggiungi_log(f"✅ VENDITA: {cli_att['nome']} ha comprato {cli_att['quantita_richiesta']}g di '{cli_att['prodotto_nome']}' (+€{totale_incasso:.2f})")
+    aggiungi_log(f"✅ SPACCIO: {cli_att['nome']} ha preso {cli_att['quantita_richiesta']}g di '{cli_att['prodotto_nome']}' al campeggio (+€{totale_incasso:.2f})")
     spara_fuochi_d_artificio()
 
 # INITIAL STATE
@@ -586,7 +585,7 @@ if 'reputazione' not in st.session_state:
 if 'fedelta_clienti' not in st.session_state:
     st.session_state.fedelta_clienti = 10
 if 'log_gioco' not in st.session_state:
-    st.session_state.log_gioco = ["🎮 Benvenuto nel Praga Underground Tycoon! Capitale: €200."]
+    st.session_state.log_gioco = ["🌲 Benvenuto al Mulino nel Bosco! Il sound system è montato. Capitale: €200."]
 if 'offerta_fornitore' not in st.session_state:
     st.session_state.offerta_fornitore = None
 if 'cliente_in_negozio' not in st.session_state:
@@ -624,9 +623,9 @@ def reset_completo_nuova_partita():
         
         cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario, scorta_minima_g) VALUES ('Skunk', 7.0, 20.0);")
         p_id = cursor.lastrowid
-        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, 'PRG-START', 50.0, 50.0, 2.50, ?, ?);", (p_id, date.today(), date.today()))
+        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, 'MULINO-START', 50.0, 50.0, 2.50, ?, ?);", (p_id, date.today(), date.today()))
         l_id = cursor.lastrowid
-        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', 50.0, 125.0, 'Fornitore Praga', 'Stock Iniziale')", (p_id, l_id))
+        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', 50.0, 125.0, 'Fornitore Furgone', 'Stock Iniziale Mulino')", (p_id, l_id))
     
     set_sospetto(10.0)
     st.session_state.soldi_cassa = 200.0
@@ -636,7 +635,7 @@ def reset_completo_nuova_partita():
     st.session_state.energia = 100
     st.session_state.reputazione = 15
     st.session_state.fedelta_clienti = 10
-    st.session_state.log_gioco = ["✨ Nuova Partita Iniziata! Praga ti aspetta. Budget: €200."]
+    st.session_state.log_gioco = ["✨ Nuovo Raduno Iniziato! Il bosco risuona. Budget: €200."]
     st.session_state.offerta_fornitore = None
     st.session_state.cliente_in_negozio = None
     st.session_state.fornitori_visti_oggi = 0
@@ -650,15 +649,15 @@ def reset_completo_nuova_partita():
     genera_evento_casuale_giorno()
 
 # ==========================================
-# INIEZIONE CSS CUSTOM — STILE PRAGA UNDERGROUND
+# INIEZIONE CSS CUSTOM — STILE FREE PARTY NEL BOSCO
 # ==========================================
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Anton&family=Special+Elite&family=Rajdhani:wght@500;600;700&display=swap');
 
     .stApp {
-        background-color: #05070c !important;
-        background: linear-gradient(135deg, #020408 0%, #0b0f19 50%, #111827 100%) !important;
+        background-color: #030712 !important;
+        background: linear-gradient(135deg, #020617 0%, #064e3b 50%, #0f172a 100%) !important;
         color: #f3f4f6 !important;
         font-family: 'Rajdhani', sans-serif !important;
         font-weight: 600;
@@ -696,7 +695,7 @@ st.markdown("""
 
     h1, h2, h3, h4, h5, h6 {
         font-family: 'Anton', sans-serif !important;
-        color: #ffffff !important;
+        color: #facc15 !important;
         letter-spacing: 1.5px !important;
         text-transform: uppercase !important;
         text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.9);
@@ -719,8 +718,8 @@ st.markdown("""
     }
 
     .custom-card {
-        background: rgba(17, 24, 39, 0.85) !important;
-        border-left: 4px solid #f59e0b !important;
+        background: rgba(15, 23, 42, 0.9) !important;
+        border-left: 4px solid #10b981 !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 6px !important;
         padding: 12px 8px !important;
@@ -747,7 +746,7 @@ st.markdown("""
         font-family: 'Anton', sans-serif !important;
         font-size: 1.15rem !important;
         letter-spacing: 1px;
-        color: #38bdf8 !important;
+        color: #34d399 !important;
     }
 
     .stTabs [data-baseweb="tab-list"] {
@@ -762,7 +761,7 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] {
         font-family: 'Anton', sans-serif !important;
         letter-spacing: 1px;
-        background: rgba(17, 24, 39, 0.9) !important;
+        background: rgba(15, 23, 42, 0.9) !important;
         border: 1px solid rgba(255, 255, 255, 0.1) !important;
         border-radius: 4px !important;
         color: #9ca3af !important;
@@ -771,14 +770,14 @@ st.markdown("""
     }
 
     .stTabs [aria-selected="true"] {
-        background: #f59e0b !important;
-        color: #0b0f19 !important;
-        border-color: #f59e0b !important;
+        background: #10b981 !important;
+        color: #030712 !important;
+        border-color: #10b981 !important;
     }
 
     .heist-board {
         background: #0f172a;
-        border: 2px dashed rgba(245, 158, 11, 0.4);
+        border: 2px dashed rgba(16, 185, 129, 0.4);
         border-radius: 8px;
         padding: 20px;
         box-shadow: 0 12px 35px rgba(0,0,0,0.9);
@@ -787,7 +786,7 @@ st.markdown("""
     }
     .heist-title {
         font-family: 'Anton', sans-serif;
-        color: #f87171;
+        color: #facc15;
         font-size: 1.6rem;
         letter-spacing: 2px;
         text-transform: uppercase;
@@ -802,7 +801,7 @@ st.markdown("""
         background: rgba(0,0,0,0.4);
         padding: 10px;
         border-radius: 4px;
-        border-left: 4px solid #ef4444;
+        border-left: 4px solid #10b981;
         margin-bottom: 15px;
     }
 </style>
@@ -824,7 +823,7 @@ else:
     if os.path.exists("logo.png"):
         st.image("logo.png", use_container_width=True)
     else:
-        st.title("Praga Underground Tycoon")
+        st.title("Mulino Underground Tycoon")
 
 # ==========================================
 # HEADER METRICHE TYCOON & HEAT METER POLIZIA
@@ -853,15 +852,15 @@ grado_rep_testo = calcola_grado_reputazione(st.session_state.reputazione)
 sospetto_attuale = get_sospetto()
 
 col_m1, col_m2 = st.columns(2)
-col_m1.metric("💵 Cassa Liquida", f"€ {st.session_state.soldi_cassa:,.2f}")
-col_m2.metric("🚨 Sospetto Polizia (Heat)", f"{sospetto_attuale:.1f} / 100")
+col_m1.metric("💵 Cassa del Mulino", f"€ {st.session_state.soldi_cassa:,.2f}")
+col_m2.metric("🚨 Attenzione Forestale (Heat)", f"{sospetto_attuale:.1f} / 100")
 st.progress(int(sospetto_attuale))
 
 st.markdown(f"""
 <div class="top-metrics-grid">
     <div class="custom-card">
-        <div class="card-label">📦 Scorte Magazzino</div>
-        <div style="font-size: 0.62rem; font-weight: 700; margin-top: 2px; display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; color: #38bdf8; line-height: 1.3;">
+        <div class="card-label">📦 Scorte al Mulino</div>
+        <div style="font-size: 0.62rem; font-weight: 700; margin-top: 2px; display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; color: #34d399; line-height: 1.3;">
             <span>🌿 {qta_skunk:.1f}g</span> &bull; 
             <span>🧱 {qta_hash:.1f}g</span> &bull; 
             <span>🍋 {qta_lemon:.1f}g</span> &bull; 
@@ -869,22 +868,22 @@ st.markdown(f"""
         </div>
     </div>
     <div class="custom-card">
-        <div class="card-label">📅 Turno / Giorno</div>
+        <div class="card-label">📅 Giorno nel Bosco</div>
         <div class="card-value">Giorno {st.session_state.giorno}</div>
     </div>
     <div class="custom-card">
-        <div class="card-label">⚡ Energia</div>
+        <div class="card-label">⚡ Energia Fisica</div>
         <div class="card-value">{st.session_state.energia}%</div>
     </div>
     <div class="custom-card">
-        <div class="card-label">⭐ Rango Praga</div>
-        <div style="font-size: 0.8rem; font-family: 'Anton', sans-serif; color: #f59e0b;">{grado_rep_testo}</div>
+        <div class="card-label">⭐ Rango nel Raduno</div>
+        <div style="font-size: 0.8rem; font-family: 'Anton', sans-serif; color: #34d399;">{grado_rep_testo}</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# PULSANTE TURNO NOTTURNO & DATA MINIMAL SOTTO
+# PULSANTE NOTTE NEL BOSCO & DATA MINIMAL
 # ==========================================
 data_oggi = get_data_corrente_gioco()
 is_fest, desc_fest = e_festivo_o_weekend(data_oggi)
@@ -893,7 +892,7 @@ data_formattata = data_oggi.strftime("%d %B %Y")
 with st.container(border=True):
     col_n1, col_n2, col_n3 = st.columns([1, 2, 1])
     with col_n2:
-        if st.button("🌙 Avanza Giorno (Notte Praghese)", use_container_width=True):
+        if st.button("🌲 Avanza Giorno (Alba sul Fiume)", use_container_width=True):
             set_sospetto(get_sospetto() - 8.0)
             trigger_effetto_notte()
             st.session_state.giorno += 1
@@ -912,19 +911,19 @@ with st.container(border=True):
                 
             genera_cliente_in_negozio()
             genera_evento_casuale_giorno()
-            aggiungi_log("🌙 Notte trascorsa a Praga. Inizia un nuovo giorno.")
+            aggiungi_log("🌲 È sorta l'alba sul mulino. Un nuovo giorno di festa nel bosco comincia.")
             st.rerun()
 
     st.markdown(f"""
         <div style="text-align: center; font-family: 'Rajdhani', sans-serif; font-size: 0.78rem; font-weight: 500; color: #9ca3af; margin-top: 6px; letter-spacing: 1px;">
-            {data_formattata} &bull; <span style="color: #f59e0b;">{desc_fest}</span>
+            {data_formattata} &bull; <span style="color: #34d399;">{desc_fest}</span>
         </div>
     """, unsafe_allow_html=True)
 
 st.markdown("---")
 
 # ==========================================
-# GESTIONE EVENTI SPECIALI
+# GESTIONE EVENTI SPECIALI NEL BOSCO
 # ==========================================
 if st.session_state.evento_attivo:
     ev = st.session_state.evento_attivo
@@ -935,23 +934,23 @@ if st.session_state.evento_attivo:
         if ev['tipo'] == 'polizia':
             col_ev1, col_ev2, col_ev3 = st.columns(3)
             with col_ev1:
-                if st.button("💰 Corrompi Poliziotto (€50)", use_container_width=True):
+                if st.button("💰 Corrompi Guardia Forestale (€50)", use_container_width=True):
                     if st.session_state.soldi_cassa >= 50.0:
                         st.session_state.soldi_cassa -= 50.0
                         set_sospetto(get_sospetto() - 35.0)
-                        st.success("Tangente accettata! Il livello di allerta è sceso.")
-                        aggiungi_log("🚨 POLIZIA: Pagata tangente di €50.")
+                        st.success("Accordo trovato lungo il fiume! La pattuglia si allontana.")
+                        aggiungi_log("🌲 BOSCO: Pagata tangente alla guardia forestale di €50.")
                         st.session_state.evento_attivo = None
                         st.rerun()
                     else:
                         st.error("Fondi insufficienti per corrompere la pattuglia!")
             with col_ev2:
-                if st.button("🏃 Rischia Retata e Nascondi", use_container_width=True):
+                if st.button("🏃 Nascondi Scorte tra gli Alberi", use_container_width=True):
                     if random.random() < (0.60 - (get_sospetto() / 200)):
-                        st.success("Sei sfuggito ai controlli di polizia nei vicoli!")
+                        st.success("Sei sgusciato tra i sentieri bui del bosco senza farti notare!")
                         set_sospetto(get_sospetto() - 15.0)
                     else:
-                        st.warning("Retata subita! Sequestrata parte della cassa e delle scorte!")
+                        st.warning("La forestale ha perquisito un furgone! Sequestrato materiale e scorte!")
                         st.session_state.soldi_cassa = max(0.0, st.session_state.soldi_cassa - 80.0)
                         with get_connection() as conn:
                             conn.execute("UPDATE lotti SET quantita_attuale = MAX(0.0, quantita_attuale - 10.0) WHERE quantita_attuale > 0 LIMIT 3")
@@ -959,42 +958,42 @@ if st.session_state.evento_attivo:
                     st.session_state.evento_attivo = None
                     st.rerun()
             with col_ev3:
-                if st.button("🚪 Chiudi Locale per Oggi", use_container_width=True):
+                if st.button("🔇 Abbassa i Sound System", use_container_width=True):
                     set_sospetto(get_sospetto() - 25.0)
-                    st.info("Locale blindato per tutta la giornata per evitare guai.")
+                    st.info("Musica a volume basso per oggi per evitare rogne.")
                     st.session_state.evento_attivo = None
                     st.rerun()
 
         elif ev['tipo'] == 'vip':
             col_vip1, col_vip2 = st.columns(2)
             with col_vip1:
-                if st.button("✅ ACCETTA ORDINE VIP", use_container_width=True):
+                if st.button("✅ ACCETTA ORDINE DAL PALCO", use_container_width=True):
                     with get_connection() as conn:
                         qta_disp_vip = pd.read_sql_query("SELECT SUM(quantita_attuale) FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0", conn, params=(ev['prodotto_id'],)).iloc[0, 0]
                     qta_disp_vip = float(qta_disp_vip) if qta_disp_vip else 0.0
                     
                     if qta_disp_vip >= ev['quantita']:
-                        cli_vip_obj = {"nome": "Promotore VIP Praga", "prodotto_id": ev['prodotto_id'], "prodotto_nome": ev['prodotto_nome'], "quantita_richiesta": ev['quantita']}
+                        cli_vip_obj = {"nome": "Runner Palco Centrale", "prodotto_id": ev['prodotto_id'], "prodotto_nome": ev['prodotto_nome'], "quantita_richiesta": ev['quantita']}
                         esegui_transazione_vendita(cli_vip_obj, ev['prezzo_offerto'], "Subito")
-                        st.success(f"🎉 Ordine VIP completato! Incasso: €{ev['quantita'] * ev['prezzo_offerto']:.2f}")
+                        st.success(f"🎉 Rifornimento palco completato! Incasso: €{ev['quantita'] * ev['prezzo_offerto']:.2f}")
                         st.session_state.reputazione = min(100, st.session_state.reputazione + 5)
                         st.session_state.evento_attivo = None
                         st.rerun()
                     else:
-                        st.error("Scorte insufficienti per soddisfare il VIP!")
+                        st.error("Scorte insufficienti al mulino per questo ordine!")
             with col_vip2:
                 if st.button("❌ Rifiuta", use_container_width=True):
                     st.session_state.evento_attivo = None
                     st.rerun()
 
         elif ev['tipo'] == 'festival':
-            if st.button("🎉 Ottimo! Sfrutta il Festival", use_container_width=True):
+            if st.button("🎉 Ottimo! Goditi il Raduno", use_container_width=True):
                 st.session_state.evento_attivo = None
                 st.rerun()
 
         else:
-            if st.button("🛡️ Allontana Teppisti", use_container_width=True):
-                st.success("Li hai cacciati via dal quartiere senza danni.")
+            if st.button("🛡️ Allontana i Guastafeste", use_container_width=True):
+                st.success("Li hai cacciati via verso i sentieri secondari senza danni.")
                 st.session_state.evento_attivo = None
                 st.rerun()
 
@@ -1002,30 +1001,30 @@ if st.session_state.evento_attivo:
 # SCHEDE / TAB DELL'APPLICAZIONE
 # ==========================================
 tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "💸 Cassa", 
-    "👥 Pusher",
+    "🏕️ Base Mulino", 
+    "👥 Crew / Pusher",
     "📊 Dashboard", 
-    "🚚 Fornitori",
+    "🚚 Parcheggio Furgoni",
     "📈 Statistiche",
-    "📜 Storico & Obiettivi"
+    "📜 Mappa & Obiettivi"
 ])
 
 # ------------------------------------------
-# TAB 1: CASSA OPERATIVA
+# TAB 1: BASE MULINO (CASSA OPERATIVA)
 # ------------------------------------------
 with tab1:
     col_cassa, col_ledger = st.columns([1.2, 1])
     
     with col_cassa:
-        st.subheader("💸 Cassa Operativa (Praga)")
-        tipo_operazione = st.radio("Seleziona Modalità", ["Incontra Cliente (Manuale)", "Automazione Turno AI", "XME (Perk)"], horizontal=True)
+        st.subheader("🏕️ Spaccio al Campeggio / Mulino")
+        tipo_operazione = st.radio("Seleziona Attività", ["Incontra Raver (Manuale)", "Automazione Turni Sound System", "XME (Energia Personale)"], horizontal=True)
         
-        if tipo_operazione == "Incontra Cliente (Manuale)":
-            st.markdown("##### 👤 Cliente alla Cassa")
+        if tipo_operazione == "Incontra Raver (Manuale)":
+            st.markdown("##### ⛺ Raver al Banco del Mulino")
             cli_att = st.session_state.cliente_in_negozio
             if cli_att:
                 with st.container(border=True):
-                    st.markdown(f"### **{cli_att['nome']}** (Praga)")
+                    st.markdown(f"### **{cli_att['nome']}** (Dal Bosco)")
                     st.write(f"• **Richiesta:** ⭐ **{cli_att['prodotto_nome']}** ({cli_att['quantita_richiesta']} g)")
                     
                     with get_connection() as conn:
@@ -1036,8 +1035,8 @@ with tab1:
                     costo_base_u = float(costo_lotto_ref.iloc[0,0]) if not costo_lotto_ref.empty else 0.0
 
                     if qta_disp_tot < cli_att['quantita_richiesta']:
-                        st.error(f"❌ Scorte insufficienti! (Disponibili: {qta_disp_tot:.1f}g)")
-                        if st.button("👋 Congeda Cliente", use_container_width=True):
+                        st.error(f"❌ Scorte insufficienti al mulino! (Disponibili: {qta_disp_tot:.1f}g)")
+                        if st.button("👋 Manda via il Raver", use_container_width=True):
                             st.session_state.fedelta_clienti = max(0, st.session_state.fedelta_clienti - 1)
                             genera_cliente_in_negozio()
                             st.rerun()
@@ -1046,24 +1045,24 @@ with tab1:
                         totale_proposto = prezzo_proposto * cli_att['quantita_richiesta']
                         st.write(f"**Totale:** € {totale_proposto:.2f}")
 
-                        tipo_pagamento = st.radio("Pagamento", ["Subito", "Dopo (Credito)"], horizontal=True, key="pag_init")
+                        tipo_pagamento = st.radio("Pagamento", ["Subito", "Dopo (Credito / Ti pago al prossimo sound system)"], horizontal=True, key="pag_init")
+                        pagamento_db = "Subito" if "Subito" in tipo_pagamento else "Dopo (Credito)"
 
-                        if st.button("🤝 Vendi", use_container_width=True):
-                            esegui_transazione_vendita(cli_att, prezzo_proposto, tipo_pagamento)
+                        if st.button("🤝 Cedi Merce", use_container_width=True):
+                            esegui_transazione_vendita(cli_att, prezzo_proposto, pagamento_db)
                             genera_cliente_in_negozio()
                             st.rerun()
 
-        elif tipo_operazione == "Automazione Turno AI":
+        elif tipo_operazione == "Automazione Turni Sound System":
             idx_corrente = st.session_state.indice_fascia_oraria
             if idx_corrente >= len(FASCE_ORARIE):
-                st.warning("⚠️ Hai completato tutte le 5 fasce orarie della giornata! Clicca su **'🌙 Avanza Giorno (Notte Praghese)'** in cima per continuare.")
+                st.warning("⚠️ Hai completato tutte e 5 le fasce orarie della giornata nel bosco! Clicca su **'🌲 Avanza Giorno (Alba sul Fiume)'** in cima per continuare.")
                 
                 with st.container(border=True):
-                    st.markdown("### 📊 RECAP TOTALE GIORNATA (FINE TURNI)")
+                    st.markdown("### 📊 RECAP TOTALE GIORNATA NEL BOSCO (FINE TURNI)")
                     
                     with get_connection() as conn:
                         data_str_oggi = data_oggi.strftime("%Y-%m-%d")
-                        # Filtro rigoroso per prendere SOLO i movimenti di vendita della data odierna
                         mov_oggi_df = pd.read_sql_query("""
                             SELECT m.*, p.nome as prodotto_nome 
                             FROM movimenti m 
@@ -1081,31 +1080,31 @@ with tab1:
                     col_r1.metric("💵 Incasso Totale Giorno", f"€ {tot_incasso_giorno:,.2f}")
                     col_r2.metric("📈 Margine Netto Giorno", f"€ {tot_margine_giorno:,.2f}")
                     
-                    st.write(f"• **Clienti Unici Serviti:** 👥 {clienti_serviti_giorno} (Transazioni totali: {transazioni_totali})")
+                    st.write(f"• **Raver Unici Serviti:** 👥 {clienti_serviti_giorno} (Transazioni totali: {transazioni_totali})")
                     
-                    st.markdown("##### 📦 Quantità Vendute per Prodotto:")
+                    st.markdown("##### 📦 Quantità Distribuite per Prodotto:")
                     if not mov_oggi_df.empty:
                         qta_per_prodotto = mov_oggi_df.groupby('prodotto_nome')['quantita'].sum().reset_index()
                         for _, row_p in qta_per_prodotto.iterrows():
                             st.write(f"&bull; **{row_p['prodotto_nome']}**: {row_p['quantita']:.1f} g")
                     else:
-                        st.write("Nessuna vendita registrata oggi.")
+                        st.write("Nessuna transazione registrata oggi.")
             else:
                 fascia_corrente = FASCE_ORARIE[idx_corrente]
-                st.markdown(f"##### 🏪 Automazione Sales Engine (Praga Underground)")
+                st.markdown(f"##### 🔊 Automazione Spaccio Sound System")
                 st.info(f"Fascia oraria corrente: **{fascia_corrente}** ({idx_corrente + 1} di 5)")
                 
-                strategia_bot = st.selectbox("Strategia Bot", ["Onesta / Valore di Mercato", "Aggressiva (+20%)", "Generosa (-15%)"])
+                strategia_bot = st.selectbox("Strategia Crew", ["Onesta / Prezzo Popolare", "Aggressiva (+20%)", "Solidale (-15%)"])
 
                 with get_connection() as conn:
                     pusher_assunti = pd.read_sql_query("SELECT * FROM pusher WHERE assunto = 1", conn)
                 
                 if not pusher_assunti.empty:
-                    st.info(f"👥 Pusher attivi sul campo a percentuale!")
+                    st.info(f"👥 Crew di pusher attivi sul campo tra le tende!")
 
-                if st.button("🚀 Avvia Turno Fascia Corrente (-20% Energia)", use_container_width=True):
+                if st.button("🚀 Avvia Turno Fascia Corrente (-20% Energia Fisica)", use_container_width=True):
                     if st.session_state.energia < 20:
-                        st.error("Sei troppo stanco! Riposa.")
+                        st.error("Sei troppo stanco per correre tra i furgoni! Riposa.")
                     else:
                         st.session_state.energia -= 20
                         prodotti_tutti = get_prodotti_tutti_df()
@@ -1118,7 +1117,7 @@ with tab1:
                             bonus_efficienza_totale = pusher_assunti['efficienza'].sum() if not pusher_assunti.empty else 0.0
                             
                             num_clienti_tot = int((base_clienti + int(st.session_state.fedelta_clienti / 25) + int(bonus_efficienza_totale * 3)) * moltiplicatore_festivo)
-                            nomi_turno_disponibili = random.sample(LISTA_NOMI_PRAGA, min(len(LISTA_NOMI_PRAGA), max(4, num_clienti_tot + 2)))
+                            nomi_turno_disponibili = random.sample(LISTA_NOMI_RAVER, min(len(LISTA_NOMI_RAVER), max(4, num_clienti_tot + 2)))
                             
                             vendite_ok = 0
                             incasso_turno = 0.0
@@ -1139,7 +1138,7 @@ with tab1:
                                     lotti = cursor.fetchall()
                                     if not lotti: continue
                                     
-                                    prezzo_bot = val_m * 1.25 if "Aggressiva" in strategia_bot else (val_m * 0.85 if "Generosa" in strategia_bot else val_m)
+                                    prezzo_bot = val_m * 1.25 if "Aggressiva" in strategia_bot else (val_m * 0.85 if "Solidale" in strategia_bot else val_m)
                                     if st.session_state.evento_attivo and st.session_state.evento_attivo['tipo'] == 'festival':
                                         prezzo_bot *= 1.2
                                         
@@ -1157,10 +1156,10 @@ with tab1:
                                         quota_pusher = float(pusher_assegnato['quota_trattenuta'])
                                         guadagno_pusher = ricavo * quota_pusher
                                         guadagno_boss = ricavo - guadagno_pusher
-                                        note_movimento = f"Vendita tramite Pusher ({pusher_assegnato['nome']} - Trattenuta {quota_pusher*100:.0f}%, Guadagno Pusher: €{guadagno_pusher:.2f})"
+                                        note_movimento = f"Spaccio tramite Pusher ({pusher_assegnato['nome']} - Trattenuta {quota_pusher*100:.0f}%, Quota Pusher: €{guadagno_pusher:.2f})"
                                     else:
                                         guadagno_boss = ricavo
-                                        note_movimento = f"Vendita diretta gestita dal Boss"
+                                        note_movimento = f"Spaccio diretto gestito al Mulino"
                                     
                                     cursor.execute("""
                                         INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
@@ -1192,14 +1191,14 @@ with tab1:
                     st.markdown(f"##### 📋 Report Fascia: {rep_bot['fascia']}")
                     col_rb1, col_rb2 = st.columns(2)
                     col_rb1.metric("💵 Incasso Fascia", f"€ {rep_bot['incasso']:,.2f}")
-                    col_rb2.metric("👥 Clienti Serviti", rep_bot['vendite_ok'])
+                    col_rb2.metric("👥 Raver Serviti", rep_bot['vendite_ok'])
                     
-                    st.write("##### Quantità Vendute:")
+                    st.write("##### Quantità Distribuite:")
                     for prod_n, q_v in rep_bot['vendite_prodotti'].items():
                         st.write(f"&bull; **{prod_n}**: {q_v:.1f} g")
 
         else:
-            st.markdown("##### 🧪 Uso Personale XME (+30% Energia)")
+            st.markdown("##### 🧪 Ricarica Personale tra gli Alberi (+30% Energia)")
             lotti_df = get_lotti_attivi_df()
             if not lotti_df.empty:
                 with st.form("form_xme"):
@@ -1208,29 +1207,30 @@ with tab1:
                     lotto_id = opzioni_lotto[lotto_sel]
                     qta_xme = st.number_input("Quantità (g)", min_value=0.5, value=5.0, step=0.5)
 
-                    if st.form_submit_button("Usa XME"):
+                    if st.form_submit_button("Usa per Ricarica"):
                         lotto_row = lotti_df[lotti_df['id'] == lotto_id].iloc[0]
                         with get_connection() as conn:
                             cursor = conn.cursor()
                             nuova_q = float(lotto_row['quantita_attuale']) - qta_xme
                             p_id = int(get_prodotti_tutti_df()[get_prodotti_tutti_df()['nome'] == lotto_row['prodotto']].iloc[0]['id'])
                             cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_q, lotto_id))
-                            cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, margine, cliente, note) VALUES (?, ?, 'XME', ?, ?, ?, 'XME', 'Consumo Personale')", (p_id, lotto_id, qta_xme, qta_xme * float(lotto_row['costo_acquisto_unitario']), -qta_xme * float(lotto_row['costo_acquisto_unitario'])))
+                            cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, margine, cliente, note) VALUES (?, ?, 'XME', ?, ?, ?, 'Ricarica', 'Consumo nel Bosco')", (p_id, lotto_id, qta_xme, qta_xme * float(lotto_row['costo_acquisto_unitario']), -qta_xme * float(lotto_row['costo_acquisto_unitario'])))
                         st.session_state.energia = min(100, st.session_state.energia + 30)
                         st.rerun()
 
     with col_ledger:
-        st.subheader("📜 Registro Eventi")
+        st.subheader("📜 Cronaca del Bosco")
         with st.container(border=True):
             for log in st.session_state.log_gioco[:8]:
                 st.caption(log)
 
 # ------------------------------------------
-# TAB 2: GESTIONE PUSHER E PERSONALE
+# TAB 2: CREW / PUSHER NEL BOSCO
 # ------------------------------------------
+tab2_label = "👥 Crew / Pusher"
 with tab2:
-    st.subheader("👥 Gestione Pusher a Percentuale")
-    st.write("I pusher lavorano senza stipendio fisso trattenendo una percentuale fissa sulle vendite in base alla loro bravura (Vojta 25%, Kamil 35%, Anetka 40%). La merce viene scalata direttamente dal magazzino centrale.")
+    st.subheader("👥 Gestione Crew nel Bosco (A Percentuale)")
+    st.write("I membri della crew operano tra le tende e i furgoni senza stipendio fisso, trattenendo una percentuale fissa sulle vendite (Vojta 25%, Kamil 35%, Anetka 40%). La merce viene prelevata direttamente dal magazzino centrale del mulino.")
     
     with get_connection() as conn:
         pusher_df = pd.read_sql_query("SELECT * FROM pusher", conn)
@@ -1243,24 +1243,23 @@ with tab2:
             
             is_assunto = bool(p['assunto'])
             if is_assunto:
-                if col_p3.button("Licenzia", key=f"lic_{p['id']}"):
+                if col_p3.button("Allontana", key=f"lic_{p['id']}"):
                     with get_connection() as conn:
                         conn.execute("UPDATE pusher SET assunto = 0 WHERE id = ?", (p['id'],))
-                    st.success(f"Hai licenziato {p['nome']}.")
+                    st.success(f"Hai allontanato {p['nome']} dalla crew.")
                     st.rerun()
             else:
-                if col_p3.button("Assumi", key=f"ass_{p['id']}"):
+                if col_p3.button("Ingaggia", key=f"ass_{p['id']}"):
                     with get_connection() as conn:
                         conn.execute("UPDATE pusher SET assunto = 1 WHERE id = ?", (p['id'],))
-                    st.success(f"Hai assunto {p['nome']}!")
+                    st.success(f"Hai ingaggiato {p['nome']} nella crew!")
                     st.rerun()
 
     st.markdown("---")
-    st.subheader("📊 Recap Esclusivo Attività e Vendite dei Pusher (Oggi)")
+    st.subheader("📊 Recap Esclusivo Attività e Vendite della Crew (Oggi)")
     
     with get_connection() as conn:
         data_str_oggi = data_oggi.strftime("%Y-%m-%d")
-        # Filtriamo ESCLUSIVAMENTE i movimenti generati dai pusher nella giornata odierna
         mov_pusher_oggi_df = pd.read_sql_query("""
             SELECT m.*, p.nome as prodotto_nome 
             FROM movimenti m 
@@ -1293,25 +1292,25 @@ with tab2:
             profitto_boss_pusher += (ricavo_r - q_pusher)
 
         col_sq1, col_sq2, col_sq3 = st.columns(3)
-        col_sq1.metric("👥 Clienti Raggiunti (Pusher)", clienti_raggiunti_pusher)
-        col_sq2.metric("⚖️ Grammi Venduti (Pusher)", f"{tot_grammi_pusher:.1f} g")
-        col_sq3.metric("💰 Incasso Totale Pusher", f"€ {tot_incasso_pusher:,.2f}")
+        col_sq1.metric("👥 Raver Raggiunti (Crew)", clienti_raggiunti_pusher)
+        col_sq2.metric("⚖️ Grammi Venduti (Crew)", f"{tot_grammi_pusher:.1f} g")
+        col_sq3.metric("💰 Incasso Totale Crew", f"€ {tot_incasso_pusher:,.2f}")
         
-        st.write(f"• **Tuo Profitto Netto (dalle vendite dei pusher):** € {profitto_boss_pusher:,.2f}")
-        st.write(f"• **Guadagni Trattenuti dai Pusher:** € {profitto_trattenuto_pusher:,.2f}")
+        st.write(f"• **Tuo Profitto Netto (dalle vendite della crew):** € {profitto_boss_pusher:,.2f}")
+        st.write(f"• **Guadagni Trattenuti dalla Crew:** € {profitto_trattenuto_pusher:,.2f}")
         
-        st.markdown("##### 📦 Dettaglio Grammi Venduti dai Pusher per Prodotto:")
+        st.markdown("##### 📦 Dettaglio Grammi Venduti dalla Crew per Prodotto:")
         qta_prod_pusher = mov_pusher_oggi_df.groupby('prodotto_nome')['quantita'].sum().reset_index()
         for _, rsp in qta_prod_pusher.iterrows():
             st.write(f"&bull; **{rsp['prodotto_nome']}**: {rsp['quantita']:.1f} g")
     else:
-        st.info("Nessuna vendita registrata oggi tramite i pusher sul campo.")
+        st.info("Nessuna transazione registrata oggi tramite la crew nel bosco.")
 
 # ------------------------------------------
 # TAB 3: DASHBOARD & ANALYTICS
 # ------------------------------------------
 with tab3:
-    st.subheader("📊 Dashboard Finanziaria")
+    st.subheader("📊 Dashboard Economica del Mulino")
     df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
     movimenti_df = get_movimenti_dettagliati_df()
 
@@ -1323,18 +1322,18 @@ with tab3:
 
         st.markdown(f"""
         <div class="dashboard-grid">
-            <div class="custom-card"><div class="card-label">Valore (Costo)</div><div class="card-value">€ {val_costo:,.2f}</div></div>
-            <div class="custom-card"><div class="card-label">Valore (Vendita)</div><div class="card-value">€ {val_mercato:,.2f}</div></div>
+            <div class="custom-card"><div class="card-label">Valore Scorte (Costo)</div><div class="card-value">€ {val_costo:,.2f}</div></div>
+            <div class="custom-card"><div class="card-label">Valore Scorte (Mercato)</div><div class="card-value">€ {val_mercato:,.2f}</div></div>
             <div class="custom-card"><div class="card-label">Incasso Totale</div><div class="card-value">€ {incasso_tot:,.2f}</div></div>
             <div class="custom-card"><div class="card-label">Margine Netto</div><div class="card-value">€ {margine_tot:,.2f}</div></div>
         </div>
         """, unsafe_allow_html=True)
 
 # ------------------------------------------
-# TAB 4: RIFORNIMENTI & FORNITORI CON TRATTATIVA
+# TAB 4: PARCHEGGIO FURGONI & TRATTATIVE
 # ------------------------------------------
 with tab4:
-    st.subheader("🚚 Contatti Clandestini (Praga)")
+    st.subheader("🚚 Parcheggio Furgoni & Fornitori Nomadi")
     
     if st.session_state.offerta_fornitore:
         off = st.session_state.offerta_fornitore
@@ -1343,32 +1342,32 @@ with tab4:
 
         st.markdown(f"""
         <div class="heist-board">
-            <div class="heist-title">🎯 CONTATTO: {off['fornitore_nome'].upper()}</div>
+            <div class="heist-title">🎯 CONTATTO NEL FANGO: {off['fornitore_nome'].upper()}</div>
             <div class="heist-quote">{off['fornitore_frase']}</div>
             <div style="display: flex; justify-content: space-around; text-align: center; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
                 <div>
                     <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase;">Merce</span><br>
-                    <strong style="color: #f59e0b; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['prodotto_nome']}</strong><br>
+                    <strong style="color: #facc15; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['prodotto_nome']}</strong><br>
                     <span style="font-size: 0.65rem; color: #ef4444;">{off['tipo']}</span>
                 </div>
                 <div>
                     <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase;">Quantità Lotto</span><br>
-                    <strong style="color: #38bdf8; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['quantita']:,.1f} g</strong>
+                    <strong style="color: #34d399; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['quantita']:,.1f} g</strong>
                 </div>
                 <div>
                     <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase;">Costo Unitario</span><br>
-                    <strong style="color: #10b981; font-size: 1.1rem; font-family: 'Anton', sans-serif;">€ {off['costo_unitario']:.2f} / g</strong>
+                    <strong style="color: #60a5fa; font-size: 1.1rem; font-family: 'Anton', sans-serif;">€ {off['costo_unitario']:.2f} / g</strong>
                 </div>
             </div>
             <div style="text-align: center; margin-top: 18px; font-size: 1.25rem; font-family: 'Anton', sans-serif; color: #ffffff;">
-                INVESTIMENTO INTERO: <span style="color: #f59e0b;">€ {costo_tot:,.2f}</span>
+                INVESTIMENTO INTERO: <span style="color: #facc15;">€ {costo_tot:,.2f}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
         col_b1, col_b2 = st.columns(2)
         with col_b1:
-            if st.button("💼 COMPRA INTERO LOTTO", use_container_width=True, disabled=not ha_soldi):
+            if st.button("💼 COMPRA INTERO STOCK", use_container_width=True, disabled=not ha_soldi):
                 st.session_state.soldi_cassa -= costo_tot
                 set_sospetto(get_sospetto() + 6.0)
                 with get_connection() as conn:
@@ -1381,25 +1380,25 @@ with tab4:
                         INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     """, (p_id, off['codice_lotto'], off['quantita'], off['quantita'], off['costo_unitario'], date.today(), date.today()))
-                st.success("Acquisto completato!")
+                st.success("Stock caricato al mulino!")
                 st.session_state.offerta_fornitore = None
                 st.session_state.minigioco_trattativa = False
                 st.rerun()
         with col_b2:
-            if st.button("❌ Rifiuta e Brucia Contatto", use_container_width=True):
+            if st.button("❌ Rimanda via il Furgone", use_container_width=True):
                 st.session_state.offerta_fornitore = None
                 st.session_state.minigioco_trattativa = False
                 st.rerun()
 
         st.markdown("---")
         with st.container(border=True):
-            st.markdown("##### 📋 TRATTATIVA CLANDESTINA (OBIETTIVO BUDGET)")
+            st.markdown("##### 📋 TRATTATIVA NEL PARCHEGGIO (OBIETTIVO BUDGET)")
             budget_proposto = st.number_input("Il tuo Budget da Spendere (€):", min_value=5.0, max_value=max(5.0, float(st.session_state.soldi_cassa)), value=min(50.0, float(st.session_state.soldi_cassa)), step=5.0)
-            approccio = st.selectbox("Approccio Negoziazione", ["🤝 Profilo Basso / Affidabile", "😎 Bluff Tattico", "🔥 Pressing Totale"])
+            approccio = st.selectbox("Approccio Trattativa", ["🤝 Fratellanza / Solidarietà", "😎 Trattativa Dura", "🔥 Pressing al Furgone"])
             
-            if st.button("🎲 ESEGUI TRATTATIVA", use_container_width=True):
+            if st.button("🎲 NEGOZIA CON IL FORNITORE", use_container_width=True):
                 tiro = random.randint(1, 100) + int(st.session_state.reputazione / 2)
-                sconto = 0.93 if "Profilo" in approccio else (0.82 if "Bluff" in approccio else 0.70)
+                sconto = 0.93 if "Fratellanza" in approccio else (0.82 if "Dura" in approccio else 0.70)
                 nuovo_costo_u = round(off['costo_unitario'] * sconto, 2)
                 qta_calcolata = round(budget_proposto / nuovo_costo_u, 2) if nuovo_costo_u > 0 else 0.0
                 if qta_calcolata > off['quantita']:
@@ -1413,8 +1412,8 @@ with tab4:
 
             if 'minigioco_risultato' in st.session_state and st.session_state.minigioco_risultato:
                 res = st.session_state.minigioco_risultato
-                st.info(f"💬 Proposta accettata: **{res['qta_offerta']}g** a **€{res['costo_u']:.2f}/g** per un totale di **€{res['budget']:.2f}**.")
-                if st.button("✅ CONFERMA ACCORDO TRATTATIVA", use_container_width=True, disabled=st.session_state.soldi_cassa < res['budget']):
+                st.info(f"💬 Accordo raggiunto: **{res['qta_offerta']}g** a **€{res['costo_u']:.2f}/g** per un totale di **€{res['budget']:.2f}**.")
+                if st.button("✅ ACCETTA ACCORDO NEL FANGO", use_container_width=True, disabled=st.session_state.soldi_cassa < res['budget']):
                     st.session_state.soldi_cassa -= res['budget']
                     with get_connection() as conn:
                         cursor = conn.cursor()
@@ -1425,18 +1424,18 @@ with tab4:
                             INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
                             VALUES (?, ?, ?, ?, ?, ?, ?)
                         """, (p_id, f"{off['codice_lotto']}-B", res['qta_offerta'], res['qta_offerta'], res['costo_u'], date.today(), date.today()))
-                    st.success("Accordo concluso!")
+                    st.success("Accordo concluso nel parcheggio!")
                     st.session_state.offerta_fornitore = None
                     st.session_state.minigioco_risultato = None
                     st.rerun()
     else:
         fornitori_rimasti = st.session_state.max_fornitori_oggi - st.session_state.fornitori_visti_oggi
         if fornitori_rimasti > 0:
-            if st.button("📞 Cerca Contatto Clandestino", use_container_width=True):
+            if st.button("📞 Cerca Furgone nel Parcheggio", use_container_width=True):
                 genera_offerta_fornitore_casuale()
                 st.rerun()
         else:
-            st.warning("Nessun altro contatto disponibile oggi.")
+            st.warning("Nessun altro furgone disponibile nel parcheggio oggi.")
 
     st.markdown("---")
     soglia_attuale = get_soglia_esaurimento()
@@ -1445,10 +1444,10 @@ with tab4:
         st.dataframe(report_lotti_df, use_container_width=True, hide_index=True)
 
 # ------------------------------------------
-# TAB 5: STATISTICHE CLIENTI & DEBITI
+# TAB 5: CREDITI RAVER TRA LE TENDE
 # ------------------------------------------
 with tab5:
-    st.subheader("📈 Crediti Clienti")
+    st.subheader("📈 Crediti Raver tra le Tende")
     movimenti_df = get_movimenti_dettagliati_df()
     if not movimenti_df.empty:
         clienti_debito = movimenti_df[(movimenti_df['tipo'] == 'VENDITA') & (movimenti_df['stato_pagamento'] == 'Dopo (Credito)')]
@@ -1457,31 +1456,31 @@ with tab5:
             for _, r_d in debito_per_cliente.iterrows():
                 col_d1, col_d2 = st.columns([3, 1])
                 col_d1.write(f"**{r_d['cliente']}**: € {r_d['incasso']:,.2f}")
-                if col_d2.button("Salda", key=f"s_{r_d['cliente']}"):
+                if col_d2.button("Incassa", key=f"s_{r_d['cliente']}"):
                     segna_debito_pagato(r_d['cliente'])
                     st.rerun()
 
 # ------------------------------------------
-# TAB 6: STORICO & OBIETTIVI CAMPAGNA
+# TAB 6: MAPPA & OBIETTIVI CAMPAGNA
 # ------------------------------------------
 with tab6:
-    st.subheader("🎯 Obiettivi Campagna & Condizioni di Vittoria")
+    st.subheader("🎯 Obiettivi del Raduno & Condizioni di Vittoria")
     
     movimenti_df = get_movimenti_dettagliati_df()
     utile_totale = movimenti_df['margine'].sum() if not movimenti_df.empty else 0.0
     
-    st.write("Raggiungi gli obiettivi per completare la tua scalata nel sottosuolo di Praga:")
+    st.write("Raggiungi i fondi necessari per garantire la sopravvivenza del Sound System e del mulino nei boschi:")
     st.progress(min(1.0, utile_totale / 10000.0))
-    st.write(f"• **Utile Netto Attuale:** € {utile_totale:,.2f} / € 10,000.00 obiettivo campagna")
-    st.write(f"• **Sospetto Polizia Attuale:** {get_sospetto():.1f}% (Mantienilo sotto il 50% per evitare retate)")
+    st.write(f"• **Utile Netto Attuale:** € {utile_totale:,.2f} / € 10,000.00 obiettivo festival")
+    st.write(f"• **Attenzione Forestale Attuale:** {get_sospetto():.1f}% (Mantienila sotto il 50% per evitare retate nei boschi)")
 
     st.markdown("---")
-    st.subheader("📜 Storico Completo")
+    st.subheader("📜 Storico del Raduno")
     if not movimenti_df.empty:
         st.dataframe(movimenti_df, use_container_width=True, hide_index=True)
 
     st.markdown("---")
-    with st.expander("⚠️ Danger Zone: Reset Partita"):
-        if st.button("💥 Reset Totale"):
+    with st.expander("⚠️ Danger Zone: Smonta il Campo (Reset Partita)"):
+        if st.button("💥 Reset Totale del Mulino"):
             reset_completo_nuova_partita()
             st.rerun()
