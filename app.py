@@ -410,7 +410,6 @@ def genera_offerta_fornitore_casuale():
         valore_mercato_suggerito = 7.0
         gangster_frase_sola = f"«{gangster['nome']} ti guarda con un ghigno strano...» " + gangster['frase']
     else:
-        # RARITÀ RIFORNIMENTI: Skunk (40%), Hash Dry (35%), Lemon Haze (18%), Frozen Hash (7% Raro)
         varieta_scelta = random.choices(
             ["Skunk", "Hash Dry", "Lemon Haze", "Frozen Hash"],
             weights=[40, 35, 18, 7],
@@ -1065,18 +1064,57 @@ with tab1:
         elif tipo_operazione == "Automazione Turno AI":
             idx_corrente = st.session_state.indice_fascia_oraria
             if idx_corrente >= len(FASCE_ORARIE):
-                st.warning("⚠️ Turni giornalieri completati! Clicca su **'🌙 Riposa, Paga Stipendi e Avanza'** in cima.")
+                st.warning("⚠️ Hai completato tutte le 5 fasce orarie della giornata! Clicca su **'🌙 Riposa, Paga Stipendi e Avanza'** in cima per continuare.")
+                
+                # --- RECAP COMPLETO DINAMICO DI TUTTI I PRODOTTI DELLA GIORNATA ---
+                with st.container(border=True):
+                    st.markdown("### 📊 RECAP TOTALE GIORNATA (FINE TURNI)")
+                    
+                    with get_connection() as conn:
+                        mov_oggi_df = pd.read_sql_query("""
+                            SELECT m.*, p.nome as prodotto_nome 
+                            FROM movimenti m 
+                            JOIN prodotti p ON m.prodotto_id = p.id 
+                            WHERE m.tipo = 'VENDITA'
+                            ORDER BY m.data DESC
+                        """, conn)
+
+                    tot_incasso_giorno = mov_oggi_df['ricavo_totale'].sum() if not mov_oggi_df.empty else 0.0
+                    tot_margine_giorno = mov_oggi_df['margine'].sum() if not mov_oggi_df.empty else 0.0
+                    clienti_serviti_giorno = mov_oggi_df['cliente'].nunique() if not mov_oggi_df.empty else 0
+                    transazioni_totali = len(mov_oggi_df)
+                    
+                    col_r1, col_r2 = st.columns(2)
+                    col_r1.metric("💵 Incasso Totale Giorno", f"€ {tot_incasso_giorno:,.2f}")
+                    col_r2.metric("📈 Margine Netto Giorno", f"€ {tot_margine_giorno:,.2f}")
+                    
+                    st.write(f"• **Clienti Unici Serviti:** 👥 {clienti_serviti_giorno} (Transazioni totali: {transazioni_totali})")
+                    
+                    st.markdown("##### 📦 Quantità Vendute per Prodotto:")
+                    if not mov_oggi_df.empty:
+                        qta_per_prodotto = mov_oggi_df.groupby('prodotto_nome')['quantita'].sum().reset_index()
+                        for _, row_p in qta_per_prodotto.iterrows():
+                            st.write(f"&bull; **{row_p['prodotto_nome']}**: {row_p['quantita']:.1f} g")
+                    else:
+                        st.write("Nessuna vendita registrata oggi.")
+                    
+                    if not mov_oggi_df.empty:
+                        st.markdown("##### 🛒 Dettaglio Ultimi Clienti Serviti Oggi:")
+                        st.dataframe(mov_oggi_df[['data', 'cliente', 'prodotto_nome', 'quantita', 'ricavo_totale']].head(15), use_container_width=True, hide_index=True)
             else:
                 fascia_corrente = FASCE_ORARIE[idx_corrente]
-                st.markdown(f"##### 🏪 Turno: **{fascia_corrente}** ({idx_corrente + 1}/5)")
+                st.markdown(f"##### 🏪 Automazione Sales Engine (Praga Underground)")
+                st.info(f"Fascia oraria corrente: **{fascia_corrente}** ({idx_corrente + 1} di 5)")
                 
+                strategia_bot = st.selectbox("Strategia Bot", ["Onesta / Valore di Mercato", "Aggressiva (+20%)", "Generosa (-15%)"])
+
                 with get_connection() as conn:
                     pusher_attivi = pd.read_sql_query("SELECT * FROM pusher WHERE assunto = 1", conn)
                 bonus_pusher = pusher_attivi['efficienza'].sum() if not pusher_attivi.empty else 0.0
                 if bonus_pusher > 0:
                     st.info(f"👥 Pusher attivi sul campo (+{bonus_pusher*100:.0f}% efficienza automatica)!")
 
-                if st.button("🚀 Avvia Turno Fascia (-20% Energia)", use_container_width=True):
+                if st.button("🚀 Avvia Turno Fascia Corrente (-20% Energia)", use_container_width=True):
                     if st.session_state.energia < 20:
                         st.error("Sei troppo stanco! Riposa.")
                     else:
@@ -1084,17 +1122,27 @@ with tab1:
                         prodotti_tutti = get_prodotti_tutti_df()
                         
                         if not prodotti_tutti.empty:
-                            base_c = random.randint(3, 6)
-                            num_clienti = int((base_c + int(st.session_state.fedelta_clienti / 25)) * (1.0 + bonus_pusher))
-                            nomi_turno = random.sample(LISTA_NOMI_PRAGA, min(len(LISTA_NOMI_PRAGA), max(4, num_clienti + 2)))
+                            is_f, _ = e_festivo_o_weekend(get_data_corrente_gioco())
+                            moltiplicatore_festivo = 1.35 if is_f else 1.0
+                            
+                            if idx_corrente >= 3:
+                                base_clienti = random.randint(3, 6)
+                            elif idx_corrente == 1:
+                                base_clienti = random.randint(2, 5)
+                            else:
+                                base_clienti = random.randint(2, 4)
+                                
+                            num_clienti_tot = int((base_clienti + int(st.session_state.fedelta_clienti / 25)) * moltiplicatore_festivo * (1.0 + bonus_pusher))
+                            nomi_turno_disponibili = random.sample(LISTA_NOMI_PRAGA, min(len(LISTA_NOMI_PRAGA), max(4, num_clienti_tot + 2)))
                             
                             vendite_ok = 0
                             incasso_turno = 0.0
                             vendite_prodotti_turno = {}
                             
-                            for _ in range(num_clienti):
-                                if not nomi_turno: break
-                                cli_nome = nomi_turno.pop(0)
+                            for i in range(num_clienti_tot):
+                                if not nomi_turno_disponibili: break
+                                cli_nome = nomi_turno_disponibili.pop(0)
+
                                 prod_req = prodotti_tutti.sample(n=1).iloc[0]
                                 p_id = int(prod_req['id'])
                                 p_nome = prod_req['nome']
@@ -1106,8 +1154,11 @@ with tab1:
                                     lotti = cursor.fetchall()
                                     if not lotti: continue
                                     
-                                    prezzo_bot = val_m * (1.2 if st.session_state.evento_attivo and st.session_state.evento_attivo['tipo']=='festival' else 1.0)
-                                    qta_req = float(random.choice([1, 2, 5, 10, 15]))
+                                    prezzo_bot = val_m * 1.25 if "Aggressiva" in strategia_bot else (val_m * 0.85 if "Generosa" in strategia_bot else val_m)
+                                    if st.session_state.evento_attivo and st.session_state.evento_attivo['tipo'] == 'festival':
+                                        prezzo_bot *= 1.2
+                                        
+                                    qta_req = float(random.choices([1, 2, 5, 10, 15, 20], weights=[35, 30, 20, 10, 3, 2], k=1)[0])
                                     qta_req = min(lotti[0][1], qta_req)
                                     if qta_req <= 0: continue
                                     
@@ -1125,9 +1176,11 @@ with tab1:
                                     incasso_turno += ricavo
                                     vendite_ok += 1
                                     vendite_prodotti_turno[p_nome] = vendite_prodotti_turno.get(p_nome, 0.0) + qta_req
+                                    aggiungi_log(f"✅ BOT ({fascia_corrente[:10]}): {cli_nome} ha comprato {qta_req}g di '{p_nome}' (+€{ricavo:.2f})")
 
                             if vendite_ok > 0:
-                                set_sospetto(get_sospetto() + (vendite_ok * 0.8))
+                                st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 4)
+                                set_sospetto(get_sospetto() + (vendite_ok * 0.7))
                             
                             st.session_state.ultimo_report_bot = {
                                 "fascia": fascia_corrente,
@@ -1138,6 +1191,18 @@ with tab1:
 
                         st.session_state.indice_fascia_oraria += 1
                         st.rerun()
+
+            if st.session_state.ultimo_report_bot and st.session_state.indice_fascia_oraria < len(FASCE_ORARIE):
+                rep_bot = st.session_state.ultimo_report_bot
+                with st.container(border=True):
+                    st.markdown(f"##### 📋 Report Fascia: {rep_bot['fascia']}")
+                    col_rb1, col_rb2 = st.columns(2)
+                    col_rb1.metric("💵 Incasso Fascia", f"€ {rep_bot['incasso']:,.2f}")
+                    col_rb2.metric("👥 Clienti Serviti", rep_bot['vendite_ok'])
+                    
+                    st.write("##### Quantità Vendute:")
+                    for prod_n, q_v in rep_bot['vendite_prodotti'].items():
+                        st.write(f"&bull; **{prod_n}**: {q_v:.1f} g")
 
         else:
             st.markdown("##### 🧪 Uso Personale XME (+30% Energia)")
