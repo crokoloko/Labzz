@@ -662,10 +662,10 @@ if sfondo_b64:
     """
 else:
     bg_style = """
-    .stApp {{
+    .stApp {
         background-color: #030712 !important;
         background: linear-gradient(135deg, #020617 0%, #064e3b 50%, #0f172a 100%) !important;
-    }}
+    }
     """
 
 st.markdown(f"""
@@ -797,7 +797,7 @@ st.markdown(f"""
         box-shadow: 0 12px 35px rgba(0,0,0,0.9);
         margin-bottom: 20px;
         position: relative;
-    }
+    }}
     .heist-title {{
         font-family: 'Anton', sans-serif;
         color: #facc15;
