@@ -204,7 +204,7 @@ def genera_evento_casuale_giorno():
     else:
         st.session_state.evento_attivo = None
 
-def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento):
+def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento, callback_log=None):
     aggiungi_cliente_se_nuovo(cli_att['nome'])
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -232,6 +232,9 @@ def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento):
                 cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, l_id))
             
             cursor.execute("""
+                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezz_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
+                VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (cli_att['prodotto_id'], l_id, prelievo, prezzo_per_g, ricavo_q, costo_q, margine_q, cli_att['nome'], tipo_pagamento, f"Spaccio al Campeggio - Lotto {lotto['codice_lotto']}")) if "prezz_unitario" in [c[1] for c in cursor.execute("PRAGMA table_info(movimenti)").fetchall()] else cursor.execute("""
                 INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
                 VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?)
             """, (cli_att['prodotto_id'], l_id, prelievo, prezzo_per_g, ricavo_q, costo_q, margine_q, cli_att['nome'], tipo_pagamento, f"Spaccio al Campeggio - Lotto {lotto['codice_lotto']}"))
@@ -248,6 +251,5 @@ def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento):
         incremento_sospetto *= 1.8
     set_sospetto(get_sospetto() + incremento_sospetto)
 
-    from app import aggiungi_log, spara_fuochi_d_artificio
-    aggiungi_log(f"✅ SPACCIO: {cli_att['nome']} ha preso {cli_att['quantita_richiesta']}g di '{cli_att['prodotto_nome']}' al campeggio (+€{totale_incasso:.2f})")
-    spara_fuochi_d_artificio()
+    if callback_log:
+        callback_log(f"✅ SPACCIO: {cli_att['nome']} ha preso {cli_att['quantita_richiesta']}g di '{cli_att['prodotto_nome']}' al campeggio (+€{totale_incasso:.2f})")
