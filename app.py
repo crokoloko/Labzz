@@ -322,7 +322,6 @@ def genera_cliente_in_negozio():
         nome_c = random.choice(nomi_clienti)
         qta_req = float(random.choice([5, 10, 15, 20, 30]))
         
-        # Il budget varia in base al valore di mercato della varietà richiesta
         val_ref = float(prod['valore_mercato_unitario'])
         budget_u = val_ref * random.uniform(0.85, 1.35)
         
@@ -600,7 +599,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ------------------------------------------
-# TAB 1: CASSA CON VARIETÀ E VERIFICA SCORTE
+# TAB 1: CASSA CON BOT MULTI-PRODOTTO INTELLIGENTE
 # ------------------------------------------
 with tab1:
     col_cassa, col_ledger = st.columns([1.2, 1])
@@ -620,7 +619,6 @@ with tab1:
                     st.write(f"• **Varietà Richiesta:** ⭐ **{cli_att['prodotto_nome']}**")
                     st.write(f"• **Quantità Richiesta:** {cli_att['quantita_richiesta']} g")
                     
-                    # Controlla disponibilità effettiva della varietà specifica
                     with get_connection() as conn:
                         qta_disp_query = pd.read_sql_query("SELECT SUM(quantita_attuale) FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0", conn, params=(cli_att['prodotto_id'],)).iloc[0, 0]
                         costo_lotto_ref = pd.read_sql_query("SELECT costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC LIMIT 1", conn, params=(cli_att['prodotto_id'],))
@@ -628,7 +626,6 @@ with tab1:
                     qta_disp_tot = float(qta_disp_query) if (qta_disp_query is not None and not pd.isna(qta_disp_query)) else 0.0
                     costo_base_u = float(costo_lotto_ref.iloc[0,0]) if not costo_lotto_ref.empty else 0.0
 
-                    # SCENARIO 1: SCORTE INSUFFICIENTI O VARIETÀ NON DISPONIBILE
                     if qta_disp_tot < cli_att['quantita_richiesta']:
                         st.error(f"❌ NON HAI QUESTO PRODOTTO IN MAGAZZINO! (Disponibili: {qta_disp_tot:.1f}g di {cli_att['prodotto_nome']})")
                         st.write(f"«Pessimo servizio! Volevo proprio della **{cli_att['prodotto_nome']}**. Tornerò quando ti sarai rifornito!»")
@@ -639,11 +636,9 @@ with tab1:
                             genera_cliente_in_negozio()
                             st.rerun()
 
-                    # SCENARIO 2: DISPONIBILITÀ CONFERMATA -> TRATTATIVA
                     else:
                         st.info(f"Disponibilità in magazzino: {qta_disp_tot:.1f} g di {cli_att['prodotto_nome']}")
                         
-                        # CONTROFFERTA ATTIVA
                         if cli_att.get("controfferta_attiva", False):
                             st.warning(f"🗣️ **CONTROFFERTA DI {cli_att['nome'].upper()}:**")
                             st.write(f"«Troppo caro! Io ti offro **€ {cli_att['budget_max_g']:.2f} / g** per {cli_att['quantita_richiesta']}g di **{cli_att['prodotto_nome']}**.»")
@@ -675,7 +670,6 @@ with tab1:
                                     genera_cliente_in_negozio()
                                     st.rerun()
 
-                        # TRATTATIVA PRIMO TENTATIVO
                         else:
                             prezzo_proposto = st.number_input("Imposta il Tuo Prezzo al Grammo (€/g)", min_value=0.5, value=float(cli_att['budget_max_g']), step=0.5, format="%.2f")
                             totale_proposto = prezzo_proposto * cli_att['quantita_richiesta']
@@ -703,52 +697,80 @@ with tab1:
                                     st.rerun()
 
         elif tipo_operazione == "Automazione Turno AI":
-            st.markdown("##### 🏪 Automazione Sales Engine")
-            prodotti_disp_df = get_prodotti_disponibili_df()
+            st.markdown("##### 🏪 Automazione Sales Engine (L'IA Vende Tutto il Magazzino)")
+            st.caption("Il Bot gestirà la cassa servendo i clienti che chiedono qualsiasi varietà disponibile in magazzino.")
             
-            if prodotti_disp_df.empty:
-                st.warning("Nessun prodotto disponibile.")
-            else:
-                prod_target = st.selectbox("Seleziona Prodotto da Vendere", prodotti_disp_df['nome'].tolist(), key="select_prod_target")
-                p_target_row = prodotti_disp_df[prodotti_disp_df['nome'] == prod_target].iloc[0]
-                p_target_id = int(p_target_row['id'])
-                val_mercato_ref = float(p_target_row['valore_mercato_unitario'])
-                
-                prezzo_target_bot = st.number_input("Prezzo Target Bot (€/g)", min_value=0.1, value=val_mercato_ref, step=0.2, format="%.2f")
+            strategia_bot = st.selectbox(
+                "Scegli la Strategia del Bot", 
+                ["Onesta / Valore di Mercato (Standard)", "Aggressiva / Alto Margine (+20% sui prezzi)", "Generosa / Fidelizzazione (-15% sui prezzi)"]
+            )
 
-                if st.button("🚀 Avvia Automazione Turno (-20% Energia)", use_container_width=True):
-                    if st.session_state.energia < 20:
-                        st.error("Sei troppo stanco! Riposa.")
+            if st.button("🚀 Avvia Automazione Turno (-20% Energia)", use_container_width=True):
+                if st.session_state.energia < 20:
+                    st.error("Sei troppo stanco! Riposa.")
+                else:
+                    st.session_state.energia -= 20
+                    prodotti_tutti = get_prodotti_tutti_df()
+                    
+                    if prodotti_tutti.empty:
+                        st.warning("Nessun prodotto registrato.")
                     else:
-                        st.session_state.energia -= 20
-                        with get_connection() as conn:
-                            cursor = conn.cursor()
-                            num_clienti_tot = random.randint(2, 5) + int(st.session_state.fedelta_clienti / 20)
-                            clienti_nomi = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP", "Matteo"]
+                        num_clienti_tot = random.randint(3, 7) + int(st.session_state.fedelta_clienti / 15)
+                        clienti_nomi = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP", "Matteo", "Valentina"]
+                        vendite_ok = 0
+                        
+                        for _ in range(num_clienti_tot):
+                            prod_req = prodotti_tutti.sample(n=1).iloc[0]
+                            p_id = int(prod_req['id'])
+                            p_nome = prod_req['nome']
+                            val_m = float(prod_req['valore_mercato_unitario'])
+                            cli_nome = random.choice(clienti_nomi)
                             
-                            for _ in range(num_clienti_tot):
-                                cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", (p_target_id,))
+                            with get_connection() as conn:
+                                cursor = conn.cursor()
+                                cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", (p_id,))
                                 lotti = cursor.fetchall()
-                                if not lotti: break
                                 
-                                cli = random.choice(clienti_nomi)
-                                tolleranza_cliente = val_mercato_ref * random.uniform(0.85, 1.35) * (1 + (st.session_state.fedelta_clienti / 200))
+                                if not lotti:
+                                    aggiungi_log(f"⚠️ BOT: {cli_nome} voleva '{p_nome}' ma era esaurito.")
+                                    continue
                                 
-                                if prezzo_target_bot <= tolleranza_cliente:
-                                    qta = min(lotti[0][1], float(random.choice([5, 10, 20, 30])))
-                                    if qta <= 0: continue
-                                    
-                                    l_id, l_qta, l_costo = lotti[0]
-                                    cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale - ? WHERE id = ?", (qta, l_id))
-                                    ricavo = qta * prezzo_target_bot
-                                    margine = ricavo - (qta * l_costo)
-                                    
-                                    cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento) VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, 'Subito')", (p_target_id, l_id, qta, prezzo_target_bot, ricavo, qta * l_costo, margine, cli))
-                                    aggiungi_log(f"✅ BOT: {cli} ha comprato {qta}g di {prod_target} per €{ricavo:.2f}")
+                                # Calcolo del prezzo bot in base alla strategia
+                                if "Aggressiva" in strategia_bot:
+                                    prezzo_bot = val_m * 1.25
+                                elif "Generosa" in strategia_bot:
+                                    prezzo_bot = val_m * 0.85
                                 else:
-                                    aggiungi_log(f"❌ BOT: {cli} ha rifiutato €{prezzo_target_bot:.2f}/g")
+                                    prezzo_bot = val_m
+                                
+                                budget_cli = val_m * random.uniform(0.85, 1.35) * (1 + (st.session_state.fedelta_clienti / 200))
+                                
+                                if prezzo_bot <= budget_cli:
+                                    qta_req = min(lotti[0][1], float(random.choice([5, 10, 15, 20])))
+                                    if qta_req <= 0: continue
+                                    
+                                    l_id, l_qta, l_costo, l_cod = lotti[0]
+                                    cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale - ? WHERE id = ?", (qta_req, l_id))
+                                    ricavo = qta_req * prezzo_bot
+                                    margine = ricavo - (qta_req * l_costo)
+                                    
+                                    cursor.execute("""
+                                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento)
+                                        VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, 'Subito')
+                                    """, (p_id, l_id, qta_req, prezzo_bot, ricavo, qta_req * l_costo, margine, cli_nome))
+                                    
+                                    vendite_ok += 1
+                                    aggiungi_log(f"✅ BOT: {cli_nome} ha comprato {qta_req}g di '{p_nome}' a €{prezzo_bot:.2f}/g")
+                                else:
+                                    aggiungi_log(f"❌ BOT: {cli_nome} ha rifiutato l'offerta di '{p_nome}' a €{prezzo_bot:.2f}/g")
 
-                        st.rerun()
+                        if vendite_ok > 0:
+                            st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 4)
+                            st.success(f"Turno IA Completato! Serviti {vendite_ok} clienti con successo.")
+                        else:
+                            st.warning("Nessuna vendita conclusa nel turno.")
+
+                    st.rerun()
 
         elif tipo_operazione == "XME":
             st.markdown("##### 🧪 Registra Uso Personale XME (+30% Energia)")
@@ -863,7 +885,6 @@ with tab3:
                 if st.button("✅ ACCETTA OFFERTA LOTTO", use_container_width=True):
                     with get_connection() as conn:
                         cursor = conn.cursor()
-                        # Inserisci il prodotto se non esiste ancora nel catalogo
                         cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
                         cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],))
                         p_id = cursor.fetchone()[0]
