@@ -1066,7 +1066,6 @@ with tab1:
             if idx_corrente >= len(FASCE_ORARIE):
                 st.warning("⚠️ Hai completato tutte le 5 fasce orarie della giornata! Clicca su **'🌙 Riposa, Paga Stipendi e Avanza'** in cima per continuare.")
                 
-                # --- RECAP COMPLETO DINAMICO DI TUTTI I PRODOTTI DELLA GIORNATA ---
                 with st.container(border=True):
                     st.markdown("### 📊 RECAP TOTALE GIORNATA (FINE TURNI)")
                     
@@ -1261,6 +1260,39 @@ with tab2:
                     st.success(f"Hai assunti {p['nome']}!")
                     st.rerun()
 
+    st.markdown("---")
+    st.subheader("📊 Recap Attività e Vendite Giornaliere (Pusher / Squadra)")
+    
+    with get_connection() as conn:
+        mov_oggi_pusher_df = pd.read_sql_query("""
+            SELECT m.*, p.nome as prodotto_nome 
+            FROM movimenti m 
+            JOIN prodotti p ON m.prodotto_id = p.id 
+            WHERE m.tipo = 'VENDITA'
+            ORDER BY m.data DESC
+        """, conn)
+
+    if not mov_oggi_pusher_df.empty:
+        tot_incasso_p = mov_oggi_pusher_df['ricavo_totale'].sum()
+        tot_margine_p = mov_oggi_pusher_df['margine'].sum()
+        clienti_unici_p = mov_oggi_pusher_df['cliente'].nunique()
+        
+        col_pp1, col_pp2 = st.columns(2)
+        col_pp1.metric("💵 Incasso Totale Squadra Oggi", f"€ {tot_incasso_p:,.2f}")
+        col_pp2.metric("📈 Margine Netto Squadra Oggi", f"€ {tot_margine_p:,.2f}")
+        
+        st.write(f"• **Clienti Unici Incontrati in Strada:** 👥 {clienti_unici_p} clienti ({len(mov_oggi_pusher_df)} transazioni totali)")
+        
+        st.markdown("##### 📦 Quantità Vendute per Prodotto:")
+        qta_prod_p = mov_oggi_pusher_df.groupby('prodotto_nome')['quantita'].sum().reset_index()
+        for _, rp in qta_prod_p.iterrows():
+            st.write(f"&bull; **{rp['prodotto_nome']}**: {rp['quantita']:.1f} g")
+            
+        st.markdown("##### 🛒 Ultime Transazioni Registrate dai Pusher:")
+        st.dataframe(mov_oggi_pusher_df[['data', 'cliente', 'prodotto_nome', 'quantita', 'ricavo_totale']].head(10), use_container_width=True, hide_index=True)
+    else:
+        st.info("Nessuna vendita registrata oggi dalla squadra o in cassa.")
+
 # ------------------------------------------
 # TAB 3: DASHBOARD & ANALYTICS
 # ------------------------------------------
@@ -1285,7 +1317,7 @@ with tab3:
         """, unsafe_allow_html=True)
 
 # ------------------------------------------
-# TAB 4: RIFORNIMENTI & FORNITORI
+# TAB 4: RIFORNIMENTI & FORNITORI CON TRATTATIVA
 # ------------------------------------------
 with tab4:
     st.subheader("🚚 Contatti Clandestini (Praga)")
@@ -1299,8 +1331,23 @@ with tab4:
         <div class="heist-board">
             <div class="heist-title">🎯 CONTATTO: {off['fornitore_nome'].upper()}</div>
             <div class="heist-quote">{off['fornitore_frase']}</div>
-            <div style="text-align: center; margin-top: 10px; color: #38bdf8;">
-                <strong>{off['prodotto_nome']}</strong> &bull; {off['quantita']}g a €{off['costo_unitario']:.2f}/g (Tot: €{costo_tot:.2f})
+            <div style="display: flex; justify-content: space-around; text-align: center; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <div>
+                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase;">Merce</span><br>
+                    <strong style="color: #f59e0b; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['prodotto_nome']}</strong><br>
+                    <span style="font-size: 0.65rem; color: #ef4444;">{off['tipo']}</span>
+                </div>
+                <div>
+                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase;">Quantità Lotto</span><br>
+                    <strong style="color: #38bdf8; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['quantita']:,.1f} g</strong>
+                </div>
+                <div>
+                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase;">Costo Unitario</span><br>
+                    <strong style="color: #10b981; font-size: 1.1rem; font-family: 'Anton', sans-serif;">€ {off['costo_unitario']:.2f} / g</strong>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 18px; font-size: 1.25rem; font-family: 'Anton', sans-serif; color: #ffffff;">
+                INVESTIMENTO INTERO: <span style="color: #f59e0b;">€ {costo_tot:,.2f}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -1322,11 +1369,52 @@ with tab4:
                     """, (p_id, off['codice_lotto'], off['quantita'], off['quantita'], off['costo_unitario'], date.today(), date.today()))
                 st.success("Acquisto completato!")
                 st.session_state.offerta_fornitore = None
+                st.session_state.minigioco_trattativa = False
                 st.rerun()
         with col_b2:
-            if st.button("❌ Rifiuta", use_container_width=True):
+            if st.button("❌ Rifiuta e Brucia Contatto", use_container_width=True):
                 st.session_state.offerta_fornitore = None
+                st.session_state.minigioco_trattativa = False
                 st.rerun()
+
+        st.markdown("---")
+        with st.container(border=True):
+            st.markdown("##### 📋 TRATTATIVA CLANDESTINA (OBIETTIVO BUDGET)")
+            budget_proposto = st.number_input("Il tuo Budget da Spendere (€):", min_value=5.0, max_value=max(5.0, float(st.session_state.soldi_cassa)), value=min(50.0, float(st.session_state.soldi_cassa)), step=5.0)
+            approccio = st.selectbox("Approccio Negoziazione", ["🤝 Profilo Basso / Affidabile", "😎 Bluff Tattico", "🔥 Pressing Totale"])
+            
+            if st.button("🎲 ESEGUI TRATTATIVA", use_container_width=True):
+                tiro = random.randint(1, 100) + int(st.session_state.reputazione / 2)
+                sconto = 0.93 if "Profilo" in approccio else (0.82 if "Bluff" in approccio else 0.70)
+                nuovo_costo_u = round(off['costo_unitario'] * sconto, 2)
+                qta_calcolata = round(budget_proposto / nuovo_costo_u, 2) if nuovo_costo_u > 0 else 0.0
+                if qta_calcolata > off['quantita']:
+                    qta_calcolata = float(off['quantita'])
+                    budget_proposto = round(qta_calcolata * nuovo_costo_u, 2)
+
+                st.session_state.minigioco_risultato = {
+                    "budget": budget_proposto, "costo_u": nuovo_costo_u, "qta_offerta": qta_calcolata
+                }
+                st.rerun()
+
+            if 'minigioco_risultato' in st.session_state and st.session_state.minigioco_risultato:
+                res = st.session_state.minigioco_risultato
+                st.info(f"💬 Proposta accettata: **{res['qta_offerta']}g** a **€{res['costo_u']:.2f}/g** per un totale di **€{res['budget']:.2f**.")
+                if st.button("✅ CONFERMA ACCORDO TRATTATIVA", use_container_width=True, disabled=st.session_state.soldi_cassa < res['budget']):
+                    st.session_state.soldi_cassa -= res['budget']
+                    with get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
+                        p_id = cursor.fetchone() or cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],)).fetchone()[0]
+                        if isinstance(p_id, tuple): p_id = p_id[0]
+                        cursor.execute("""
+                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (p_id, f"{off['codice_lotto']}-B", res['qta_offerta'], res['qta_offerta'], res['costo_u'], date.today(), date.today()))
+                    st.success("Accordo concluso!")
+                    st.session_state.offerta_fornitore = None
+                    st.session_state.minigioco_risultato = None
+                    st.rerun()
     else:
         fornitori_rimasti = st.session_state.max_fornitori_oggi - st.session_state.fornitori_visti_oggi
         if fornitori_rimasti > 0:
