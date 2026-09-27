@@ -128,7 +128,6 @@ def inizializza_pusher_db():
         cursor = conn.cursor()
         for p in PUSHER_DISPONIBILI:
             cursor.execute("INSERT OR IGNORE INTO pusher (nome, quota_trattenuta, efficienza, assunto) VALUES (?, ?, ?, 0)", (p['nome'], p['quota_trattenuta'], p['efficienza']))
-            # Aggiorna eventuali quote esistenti con i nuovi valori calibrati
             cursor.execute("UPDATE pusher SET quota_trattenuta = ?, efficienza = ? WHERE nome = ?", (p['quota_trattenuta'], p['efficienza'], p['nome']))
 inizializza_pusher_db()
 
@@ -1062,13 +1061,15 @@ with tab1:
                     st.markdown("### 📊 RECAP TOTALE GIORNATA (FINE TURNI)")
                     
                     with get_connection() as conn:
+                        # Filtriamo i movimenti odierni per data di gioco corrente
+                        data_str_oggi = data_oggi.strftime("%Y-%m-%d")
                         mov_oggi_df = pd.read_sql_query("""
                             SELECT m.*, p.nome as prodotto_nome 
                             FROM movimenti m 
                             JOIN prodotti p ON m.prodotto_id = p.id 
-                            WHERE m.tipo = 'VENDITA'
+                            WHERE m.tipo = 'VENDITA' AND DATE(m.data) = ?
                             ORDER BY m.data DESC
-                        """, conn)
+                        """, conn, params=(data_str_oggi,))
 
                     tot_incasso_giorno = mov_oggi_df['ricavo_totale'].sum() if not mov_oggi_df.empty else 0.0
                     tot_margine_giorno = mov_oggi_df['margine'].sum() if not mov_oggi_df.empty else 0.0
@@ -1277,7 +1278,6 @@ with tab2:
             note_m = str(row_m['note'])
             ricavo_r = float(row_m['ricavo_totale'])
             if "Pusher" in note_m:
-                # Estraiamo o calcoliamo la quota esatta dal testo della nota o stimata in base alla media dei pusher assunti
                 if "Vojta" in note_m:
                     q_pusher = ricavo_r * 0.25
                 elif "Kamil" in note_m:
