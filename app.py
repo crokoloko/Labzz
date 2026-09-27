@@ -304,30 +304,30 @@ def genera_offerta_fornitore_casuale():
     if categoria_stock == "Micro":
         p_nome = "Micro Stock (G Inconsueti)"
         qta = float(random.choice([12, 13, 14, 15, 16, 17, 18, 19, 21, 22]))
-        costo_u = round(random.uniform(5.50, 6.80), 2)
+        costo_u = round(random.uniform(4.50, 5.80), 2)
         tipo_offerta = "⚠️ Pochi grammi al dettaglio"
-        valore_mercato_suggerito = 8.50
+        valore_mercato_suggerito = float(random.randint(8, 10)) # 8-10 al grammo
 
     elif categoria_stock == "Standard":
         p_nome = "Varietà Standard"
         qta = float(random.choice([25, 50, 100]))
-        costo_u = round(random.uniform(4.00, 5.00), 2)
+        costo_u = round(random.uniform(3.50, 4.50), 2)
         tipo_offerta = "🏷️ Stock Taglio Medio"
-        valore_mercato_suggerito = 7.00
+        valore_mercato_suggerito = float(random.randint(8, 10)) # 8-10 al grammo
 
     elif categoria_stock == "TopQuality":
         p_nome = "Top Quality Special"
         qta = float(random.choice([25, 50, 100]))
-        costo_u = round(random.uniform(6.50, 8.00), 2)
+        costo_u = round(random.uniform(7.00, 9.50), 2)
         tipo_offerta = "💎 Special Top Quality"
-        valore_mercato_suggerito = round(costo_u * 1.5, 2)
+        valore_mercato_suggerito = float(random.randint(12, 15)) # 12-15 al grammo
 
     else:
         p_nome = "Stock Volume"
         qta = float(random.choice([150, 200, 250, 300, 500]))
-        costo_u = round(random.uniform(3.00, 3.90), 2)
+        costo_u = round(random.uniform(2.50, 3.50), 2)
         tipo_offerta = "📦 Stock Volume Gran Taglio"
-        valore_mercato_suggerito = 6.00
+        valore_mercato_suggerito = float(random.randint(8, 10)) # 8-10 al grammo
 
     costo_tot = round(qta * costo_u, 2)
 
@@ -350,7 +350,6 @@ def genera_cliente_in_negozio():
         nomi_clienti = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP", "Matteo", "Valentina"]
         nome_c = random.choice(nomi_clienti)
         
-        # SCELTA QUANTITÀ REALISTICA: Maggioranza 1, 2, 5, 10g. Occasionalmente 15, 20 o 30g.
         qta_req = float(random.choices([1, 2, 5, 10, 15, 20, 30], weights=[25, 30, 25, 12, 4, 3, 1], k=1)[0])
         
         val_ref = float(prod['valore_mercato_unitario'])
@@ -447,7 +446,7 @@ def reset_completo_nuova_partita():
         cursor.execute("DELETE FROM prodotti;")
         cursor.execute("DELETE FROM clienti;")
         
-        cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario, scorta_minima_g) VALUES ('Varietà Iniziale', 6.0, 20.0);")
+        cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario, scorta_minima_g) VALUES ('Varietà Iniziale', 9.0, 20.0);")
         p_id = cursor.lastrowid
         cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, 'START-01', 50.0, 50.0, 3.50, ?, ?);", (p_id, date.today(), date.today()))
         l_id = cursor.lastrowid
@@ -814,7 +813,6 @@ with tab1:
                                 budget_cli = val_m * random.uniform(0.85, 1.35) * (1 + (st.session_state.fedelta_clienti / 200))
                                 
                                 if prezzo_bot <= budget_cli:
-                                    # Tagli realistici anche per il bot
                                     qta_req = float(random.choices([1, 2, 5, 10, 15, 20], weights=[30, 30, 25, 10, 3, 2], k=1)[0])
                                     qta_req = min(lotti[0][1], qta_req)
                                     if qta_req <= 0: continue
@@ -1051,7 +1049,7 @@ with tab3:
             cod_lotto_m = st.text_input("Codice Lotto", value=genera_codice_lotto_automatico(data_acq_m))
             qta_lotto_m = st.number_input("Quantità (g)", value=25.0)
             costo_u_lotto_m = st.number_input("Costo d'Acquisto (€/g)", value=4.0)
-            prezzo_v_init = st.number_input("Prezzo Vendita (€/g)", value=6.0)
+            prezzo_v_init = st.number_input("Prezzo Vendita (€/g)", value=9.0)
 
             if st.form_submit_button("Crea Prodotto e Registra Lotto"):
                 costo_t_m = qta_lotto_m * costo_u_lotto_m
