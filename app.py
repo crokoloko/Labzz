@@ -349,7 +349,9 @@ def genera_cliente_in_negozio():
         prod = prodotti_tutti.sample(n=1).iloc[0]
         nomi_clienti = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP", "Matteo", "Valentina"]
         nome_c = random.choice(nomi_clienti)
-        qta_req = float(random.choice([5, 10, 15, 20, 30]))
+        
+        # SCELTA QUANTITÀ REALISTICA: Maggioranza 1, 2, 5, 10g. Occasionalmente 15, 20 o 30g.
+        qta_req = float(random.choices([1, 2, 5, 10, 15, 20, 30], weights=[25, 30, 25, 12, 4, 3, 1], k=1)[0])
         
         val_ref = float(prod['valore_mercato_unitario'])
         budget_u = val_ref * random.uniform(0.85, 1.35)
@@ -812,7 +814,9 @@ with tab1:
                                 budget_cli = val_m * random.uniform(0.85, 1.35) * (1 + (st.session_state.fedelta_clienti / 200))
                                 
                                 if prezzo_bot <= budget_cli:
-                                    qta_req = min(lotti[0][1], float(random.choice([5, 10, 15, 20])))
+                                    # Tagli realistici anche per il bot
+                                    qta_req = float(random.choices([1, 2, 5, 10, 15, 20], weights=[30, 30, 25, 10, 3, 2], k=1)[0])
+                                    qta_req = min(lotti[0][1], qta_req)
                                     if qta_req <= 0: continue
                                     
                                     l_id, l_qta, l_costo = lotti[0]
@@ -843,7 +847,7 @@ with tab1:
                     opzioni_lotto = {f"{r['prodotto']} - Lotto: {r['codice_lotto']} (Disp: {r['quantita_attuale']:,.1f} g)": r['id'] for _, r in lotti_df.iterrows()}
                     lotto_sel = st.selectbox("Seleziona Lotto", list(opzioni_lotto.keys()))
                     lotto_id = opzioni_lotto[lotto_sel]
-                    qta_xme = st.number_input("Quantità (g)", min_value=0.5, value=10.0, step=0.5)
+                    qta_xme = st.number_input("Quantità (g)", min_value=0.5, value=5.0, step=0.5)
 
                     if st.form_submit_button("Conferma Uscita XME"):
                         lotto_row = lotti_df[lotti_df['id'] == lotto_id].iloc[0]
@@ -864,12 +868,10 @@ with tab1:
             st.session_state.giorno += 1
             st.session_state.energia = 100
             
-            # Azzeramento fornitori del giorno precedente (non si accumulano)
             st.session_state.offerta_fornitore = None
             st.session_state.fornitori_visti_oggi = 0
             st.session_state.max_fornitori_oggi = random.choice([0, 1, 1, 2])
             
-            # Eventuale generazione automatica all'alba del nuovo giorno se il limite lo prevede
             if st.session_state.max_fornitori_oggi > 0 and random.random() < 0.60:
                 genera_offerta_fornitore_casuale()
                 
@@ -993,8 +995,8 @@ with tab3:
             # --- CONTROFFERTA / TAGLIO MINORE ---
             st.markdown("---")
             with st.expander("🗣️ Chiedi un Taglio Minore (Prezzo/g maggiorato)"):
-                st.write("«Non ho tutti questi soldi o non voglio così stock intero. Me ne dai meno?»")
-                qta_ridotta = st.number_input("Quanti grammi vuoi chiedere?", min_value=1.0, max_value=float(off['quantita'] - 1.0), value=min(15.0, float(off['quantita'] - 1.0)), step=1.0)
+                st.write("«Non ho tutti questi soldi o non voglio stock intero. Me ne dai meno?»")
+                qta_ridotta = st.number_input("Quanti grammi vuoi chiedere?", min_value=1.0, max_value=float(off['quantita'] - 1.0), value=min(10.0, float(off['quantita'] - 1.0)), step=1.0)
                 
                 maggiorazione = 1.25 if qta_ridotta < (off['quantita'] / 2) else 1.15
                 nuovo_costo_u = round(off['costo_unitario'] * maggiorazione, 2)
@@ -1047,7 +1049,7 @@ with tab3:
             nome_nuovo = st.text_input("Nome Prodotto")
             data_acq_m = st.date_input("Data Acquisto", value=date.today())
             cod_lotto_m = st.text_input("Codice Lotto", value=genera_codice_lotto_automatico(data_acq_m))
-            qta_lotto_m = st.number_input("Quantità (g)", value=50.0)
+            qta_lotto_m = st.number_input("Quantità (g)", value=25.0)
             costo_u_lotto_m = st.number_input("Costo d'Acquisto (€/g)", value=4.0)
             prezzo_v_init = st.number_input("Prezzo Vendita (€/g)", value=6.0)
 
