@@ -1385,7 +1385,9 @@ with tab3:
             st.markdown("##### 📋 TRATTATIVA CLANDESTINA (OBIETTIVO BUDGET)")
             st.write("«Imposta quanti **soldi (€)** vuoi investire in questa trattativa: il fornitore calcolerà quanti grammi offrirti in base alla tua offerta e alle tue mosse tattiche.»")
             
-            budget_proposto = st.number_input("Il tuo Budget da Spendere (€):", min_value=5.0, max_value=float(st.session_state.soldi_cassa), value=min(50.0, float(st.session_state.soldi_cassa)), step=5.0)
+            max_budget_val = max(5.0, float(st.session_state.soldi_cassa))
+            default_budget_val = min(50.0, max_budget_val)
+            budget_proposto = st.number_input("Il tuo Budget da Spendere (€):", min_value=5.0, max_value=max_budget_val, value=default_budget_val, step=5.0)
             
             approccio = st.selectbox("Approccio Negoziazione", [
                 "🤝 Profilo Basso / Affidabile (Rischio minimo)", 
