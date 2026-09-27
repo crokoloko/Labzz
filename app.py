@@ -151,6 +151,13 @@ def get_video_base64(file_path):
         return base64.b64encode(data).decode('utf-8')
     return None
 
+def get_soglia_esaurimento():
+    with get_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT valore FROM impostazioni WHERE chiave = 'soglia_esaurimento'")
+        row = cursor.fetchone()
+        return float(row[0]) if row else 10.0
+
 def get_sospetto():
     with get_connection() as conn:
         cursor = conn.cursor()
@@ -477,7 +484,6 @@ def genera_cliente_in_negozio():
         st.session_state.cliente_in_negozio = None
 
 def genera_evento_casuale_giorno():
-    # Gestione sospetto e polizia automatica
     sosp = get_sospetto()
     if sosp >= 75.0 or random.random() < 0.35:
         evento_tipo = random.choice(["polizia", "vip", "tossici", "festival"])
@@ -559,7 +565,6 @@ def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento):
     st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 3)
     st.session_state.reputazione = min(100, st.session_state.reputazione + 1)
     
-    # Aumenta leggermente il sospetto polizia in base alla quantità e al tipo venduto
     incremento_sospetto = cli_att['quantita_richiesta'] * 0.15
     if "Frozen" in cli_att['prodotto_nome']:
         incremento_sospetto *= 1.8
@@ -892,13 +897,12 @@ with st.container(border=True):
     col_n1, col_n2, col_n3 = st.columns([1, 2, 1])
     with col_n2:
         if st.button("🌙 Riposa, Paga Stipendi e Avanza", use_container_width=True):
-            # Paga stipendi pusher assunti
             with get_connection() as conn:
                 pusher_assunti = pd.read_sql_query("SELECT * FROM pusher WHERE assunto = 1", conn)
             tot_stipendi = pusher_assunti['stipendio_giornaliero'].sum() if not pusher_assunti.empty else 0.0
             
             st.session_state.soldi_cassa -= tot_stipendi
-            set_sospetto(get_sospetto() - 8.0) # La notte cala il sospetto
+            set_sospetto(get_sospetto() - 8.0)
             
             trigger_effetto_notte()
             st.session_state.giorno += 1
@@ -929,7 +933,7 @@ with st.container(border=True):
 st.markdown("---")
 
 # ==========================================
-# GESTIONE EVENTI SPECIALI (POLIZIA / VIP / FESTIVAL)
+# GESTIONE EVENTI SPECIALI
 # ==========================================
 if st.session_state.evento_attivo:
     ev = st.session_state.evento_attivo
@@ -1066,7 +1070,6 @@ with tab1:
                 fascia_corrente = FASCE_ORARIE[idx_corrente]
                 st.markdown(f"##### 🏪 Turno: **{fascia_corrente}** ({idx_corrente + 1}/5)")
                 
-                # Calcola bonus vendite se pusher assunti lavorano in automatico
                 with get_connection() as conn:
                     pusher_attivi = pd.read_sql_query("SELECT * FROM pusher WHERE assunto = 1", conn)
                 bonus_pusher = pusher_attivi['efficienza'].sum() if not pusher_attivi.empty else 0.0
@@ -1297,7 +1300,6 @@ with tab5:
 with tab6:
     st.subheader("🎯 Obiettivi Campagna & Condizioni di Vittoria")
     
-    # Calcolo utile netto totale per la vittoria
     movimenti_df = get_movimenti_dettagliati_df()
     utile_totale = movimenti_df['margine'].sum() if not movimenti_df.empty else 0.0
     
