@@ -678,37 +678,31 @@ st.markdown("""
         border-left: 4px solid #f59e0b !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 6px !important;
-        padding: 10px 8px !important;
+        padding: 12px 8px !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;
         align-items: center !important;
         text-align: center !important;
         width: 100% !important;
+        min-height: 85px !important;
         box-shadow: 0 4px 12px rgba(0,0,0,0.5);
     }
 
     .card-label {
         color: #9ca3af !important;
-        font-size: 0.70rem !important;
+        font-size: 0.68rem !important;
         font-weight: 700 !important;
         letter-spacing: 1px;
         text-transform: uppercase;
-        margin-bottom: 2px !important;
+        margin-bottom: 4px !important;
     }
 
     .card-value {
         font-family: 'Anton', sans-serif !important;
-        font-size: 1.2rem !important;
+        font-size: 1.15rem !important;
         letter-spacing: 1px;
         color: #38bdf8 !important;
-    }
-
-    .card-subtext {
-        font-size: 0.70rem !important;
-        color: #fbbf24 !important;
-        font-weight: 700 !important;
-        margin-top: 2px !important;
     }
 
     .stTabs [data-baseweb="tab-list"] {
@@ -800,7 +794,6 @@ with get_connection() as conn:
         GROUP BY p.nome
     """, conn)
 
-# Estrazione quantità per singola varietà con i relativi simbolotti
 def get_qta_prodotto(nome_prod):
     if not df_lotti_scorte.empty and nome_prod in df_lotti_scorte['nome'].values:
         val = df_lotti_scorte[df_lotti_scorte['nome'] == nome_prod]['qta'].values[0]
@@ -822,7 +815,7 @@ st.markdown(f"""
     </div>
     <div class="custom-card">
         <div class="card-label">📦 Scorte Magazzino</div>
-        <div class="card-value" style="font-size: 0.78rem; font-weight: 700; margin-top: 6px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; color: #38bdf8;">
+        <div style="font-size: 0.65rem; font-weight: 700; margin-top: 2px; display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; color: #38bdf8; line-height: 1.3;">
             <span>🌿 {qta_skunk:.1f}g</span> &bull; 
             <span>🧱 {qta_hash:.1f}g</span> &bull; 
             <span>🍋 {qta_lemon:.1f}g</span> &bull; 
