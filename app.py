@@ -782,7 +782,6 @@ with st.container(border=True):
             aggiungi_log(f"🌙 Giorno {st.session_state.giorno} ({data_formattata}) iniziato. Energia 100%. Fornitori disponibili: {st.session_state.max_fornitori_oggi}")
             st.rerun()
 
-    # Data sottile, minimal e non invasiva sotto il pulsante
     st.markdown(f"""
         <div style="text-align: center; font-family: 'Fredoka', sans-serif; font-size: 0.78rem; font-weight: 300; color: #64748b; margin-top: 6px; letter-spacing: 0.5px;">
             {data_formattata} &bull; <span style="color: #38bdf8;">{desc_fest}</span>
@@ -904,12 +903,6 @@ with tab1:
         tipo_operazione = st.radio("Seleziona Modalità", ["Incontra Cliente (Manuale)", "Automazione Turno AI", "XME (Perk)"], horizontal=True)
         
         if tipo_operazione == "Incontra Cliente (Manuale)":
-            st.markdown("##### 📜 Registro Eventi Turno")
-            with st.container(border=True):
-                for log in st.session_state.log_gioco[:10]:
-                    st.caption(log)
-
-            st.markdown("---")
             st.markdown("##### 👤 Cliente Attualmente alla Cassa")
             
             cli_att = st.session_state.cliente_in_negozio
@@ -1019,9 +1012,9 @@ with tab1:
                             is_f, _ = e_festivo_o_weekend(get_data_corrente_gioco())
                             moltiplicatore_festivo = 1.45 if is_f else 1.0
                             
-                            if idx_corrente >= 3: # Sera o Notte
+                            if idx_corrente >= 3:
                                 base_clienti = random.randint(6, 10)
-                            elif idx_corrente == 1: # Mezzogiorno
+                            elif idx_corrente == 1:
                                 base_clienti = random.randint(4, 7)
                             else:
                                 base_clienti = random.randint(3, 6)
@@ -1102,11 +1095,9 @@ with tab1:
                                 "contrattati": clienti_contrattato
                             }
 
-                        # Avanza alla prossima fascia oraria
                         st.session_state.indice_fascia_oraria += 1
                         st.rerun()
 
-            # --- SPECIFICHE ULTIMO TURNO BOT SOTTO IL PULSANTE ---
             if st.session_state.ultimo_report_bot:
                 rep_bot = st.session_state.ultimo_report_bot
                 with st.container(border=True):
