@@ -377,15 +377,17 @@ def genera_cliente_in_negozio():
         st.session_state.cliente_in_negozio = None
 
 def genera_evento_casuale_giorno():
-    if random.random() < 0.35:
-        evento_tipo = random.choice(["polizia", "vip"])
+    # Eventi rari (probabilità circa 38% totale)
+    if random.random() < 0.38:
+        evento_tipo = random.choice(["polizia", "vip", "tossici"])
+        
         if evento_tipo == "polizia":
             st.session_state.evento_attivo = {
                 "tipo": "polizia",
-                "titolo": "🚨 ALLARTE POSTO DI BLOCCO / CONTROLLI!",
-                "testo": "Voci di corridoio dicono che la Finanza sta controllando la zona e fermando i sospetti vicino al locale. C'è tensione alta!"
+                "titolo": "🚨 BLITZ / POSTO DI BLOCCO DELLA FINANZA!",
+                "testo": "Voci di corridoio dicono che le forze dell'ordine stanno setacciando la zona con controlli a tappeto vicino al locale. Tensione alle stelle!"
             }
-        else:
+        elif evento_tipo == "vip":
             prodotti_disp = get_prodotti_disponibili_df()
             if not prodotti_disp.empty:
                 prod_vip = prodotti_disp.sample(n=1).iloc[0]
@@ -400,6 +402,14 @@ def genera_evento_casuale_giorno():
                     "quantita": qta_vip,
                     "prezzo_offerto": prezzo_vip
                 }
+            else:
+                st.session_state.evento_attivo = None
+        else: # Tossici in astinenza / ladri
+            st.session_state.evento_attivo = {
+                "tipo": "tossici",
+                "titolo": "🧟 IRRUZIONE DI TOSSICI IN ASTINENZA!",
+                "testo": "Un gruppo di disperati in astinenza si aggira con fare minaccioso intorno al locale urlando e strattonando la porta. Vogliono rubare scorte perché non hanno un centesimo!"
+            }
     else:
         st.session_state.evento_attivo = None
 
@@ -741,7 +751,7 @@ with st.container(border=True):
 st.markdown("---")
 
 # ==========================================
-# GESTIONE EVENTI SPECIALI (POLIZIA / VIP) IN EVIDENZA
+# GESTIONE EVENTI SPECIALI (POLIZIA / VIP / TOSSICI) IN EVIDENZA
 # ==========================================
 if st.session_state.evento_attivo:
     ev = st.session_state.evento_attivo
@@ -768,10 +778,10 @@ if st.session_state.evento_attivo:
                         aggiungi_log("🚨 POLIZIA: Controlli superati nascondendo la merce.")
                     else:
                         st.warning("Ti hanno perquisito il magazzino e sequestrato un po' di scorte!")
-                        aggiungi_log("🚨 POLIZIA: Perquisizione subita! Perdita parziale di scorte.")
+                        aggiungi_log("🚨 POLIZIA: Perquisizione subita! Sequestro parziale di scorte.")
                         with get_connection() as conn:
                             cursor = conn.cursor()
-                            cursor.execute("UPDATE lotti SET quantita_attuale = MAX(0.0, quantita_attuale - 5.0) WHERE quantita_attuale > 0 LIMIT 2")
+                            cursor.execute("UPDATE lotti SET quantita_attuale = MAX(0.0, quantita_attuale - 8.0) WHERE quantita_attuale > 0 LIMIT 3")
                     st.session_state.evento_attivo = None
                     st.rerun()
             with col_ev3:
@@ -802,6 +812,31 @@ if st.session_state.evento_attivo:
             with col_vip2:
                 if st.button("❌ RIFIUTA ORDINE", use_container_width=True):
                     st.info("Hai declinato l'offerta VIP.")
+                    st.session_state.evento_attivo = None
+                    st.rerun()
+
+        elif ev['tipo'] == 'tossici':
+            col_tox1, col_tox2 = st.columns(2)
+            with col_tox1:
+                if st.button("🛡️ Affrontali e Difendi il Locale", use_container_width=True):
+                    if random.random() < 0.60:
+                        st.success("Sei riuscito a cacciarli via a malo modo senza subire perdite!")
+                        aggiungi_log("🧟 TOSSICI: Cacciati via con successo dal locale.")
+                    else:
+                        st.warning("Hanno sfondato e arraffato un po' di merce prima di darsi alla fuga!")
+                        aggiungi_log("🧟 TOSSICI: Subito saccheggio! Perdita di scorte dal magazzino.")
+                        with get_connection() as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("UPDATE lotti SET quantita_attuale = MAX(0.0, quantita_attuale - 10.0) WHERE quantita_attuale > 0 LIMIT 2")
+                    st.session_state.evento_attivo = None
+                    st.rerun()
+            with col_tox2:
+                if st.button("🏃 Scappa e Lascia Fare", use_container_width=True):
+                    st.error("I tossici sono entrati e hanno ripulito parte delle scorte senza incontrare resistenza!")
+                    aggiungi_log("🧟 TOSSICI: Locale saccheggiato in tua assenza.")
+                    with get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("UPDATE lotti SET quantita_attuale = MAX(0.0, quantita_attuale - 12.0) WHERE quantita_attuale > 0 LIMIT 2")
                     st.session_state.evento_attivo = None
                     st.rerun()
 
