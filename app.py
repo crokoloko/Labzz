@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# HELPER & FUNZIONI DATABASE (DEFINITE PRIMA)
+# HELPER & FUNZIONI DATABASE
 # ==========================================
 DB_NAME = "magazzino.db"
 
@@ -295,7 +295,7 @@ def spara_fuochi_d_artificio():
     st.components.v1.html(js_code, height=0)
 
 # ==========================================
-# LOGICA GENERAZIONE OFFERTE RARA & CASUALE
+# GENERAZIONE OFFERTE & CLIENTE ATTUALE IN NEGOZIO
 # ==========================================
 def genera_offerta_fornitore_casuale():
     prodotti_df = get_prodotti_tutti_df()
@@ -306,28 +306,21 @@ def genera_offerta_fornitore_casuale():
         
         roll_tipo = random.random()
         
-        # 1. RARO: Prezzo Stracciato Base (< 3.50€/g)
         if roll_tipo < 0.10:
             qta = float(random.choice([200, 300, 500]))
             costo_u = round(random.uniform(2.80, 3.40), 2)
             tipo_offerta = "🔥 Sottocosto Raro (Standard Base)"
             valore_mercato_suggerito = 5.00
-            
-        # 2. SPECIAL / TOP QUALITY: Prezzi Superiori ad Alto Ricavo
         elif roll_tipo < 0.30:
             qta = float(random.choice([200, 300, 400]))
             costo_u = round(random.uniform(6.50, 9.00), 2)
             tipo_offerta = "💎 Special Top Quality (Vendita ad Alto Margine)"
             valore_mercato_suggerito = costo_u * 1.6
-            
-        # 3. QUANTITÀ ELEVATE (>2 etti: 200g - 500g) -> 3.50€ - 4.50€
         elif roll_tipo < 0.70:
             qta = float(random.choice([200, 300, 500]))
             costo_u = round(random.uniform(3.50, 4.50), 2)
             tipo_offerta = "📦 Stock Volume (>2 etti)"
             valore_mercato_suggerito = 6.00
-            
-        # 4. QUANTITÀ BASE (1 Etto / 100g) -> 4.50€ - 6.00€
         else:
             qta = 100.0
             costo_u = round(random.uniform(4.50, 6.00), 2)
@@ -345,21 +338,34 @@ def genera_offerta_fornitore_casuale():
             "codice_lotto": f"OFF-{random.randint(100,999)}"
         }
 
+def genera_cliente_in_negozio():
+    prod_disp = get_prodotti_disponibili_df()
+    if not prod_disp.empty:
+        prod = prod_disp.sample(n=1).iloc[0]
+        nomi_clienti = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP", "Matteo", "Valentina"]
+        nome_c = random.choice(nomi_clienti)
+        qta_req = float(random.choice([5, 10, 15, 20, 30]))
+        budget_u = float(prod['valore_mercato_unitario']) * random.uniform(0.85, 1.35)
+        
+        st.session_state.cliente_in_negozio = {
+            "nome": nome_c,
+            "prodotto_id": int(prod['id']),
+            "prodotto_nome": prod['nome'],
+            "quantita_richiesta": qta_req,
+            "budget_max_g": round(budget_u, 2)
+        }
+    else:
+        st.session_state.cliente_in_negozio = None
+
 def verifica_arrivo_offerta_dinamica():
-    """Determina se un'offerta deve essere generata in base alle scorte e al tempo"""
     if st.session_state.offerta_fornitore is not None:
-        return  # Esiste già un'offerta in attesa di risposta
+        return
 
     df_disp = calcola_stato_magazzino(solo_disponibili=True)
     scorta_totale = df_disp['qta_disponibile'].sum() if not df_disp.empty else 0
     soglia_alert = get_soglia_esaurimento()
 
-    # Se le scorte stanno finendo, la probabilità sale all'80%
-    if scorta_totale <= soglia_alert:
-        probabilita = 0.80
-    else:
-        # Frequenza normale: circa 1.5 offerte a settimana (~22% al giorno)
-        probabilita = 0.22
+    probabilita = 0.80 if scorta_totale <= soglia_alert else 0.22
 
     if random.random() < probabilita:
         genera_offerta_fornitore_casuale()
@@ -377,8 +383,12 @@ if 'log_gioco' not in st.session_state:
     st.session_state.log_gioco = ["🎮 Benvenuto! Il sistema gestionale e Tycoon è attivo."]
 if 'offerta_fornitore' not in st.session_state:
     st.session_state.offerta_fornitore = None
+if 'cliente_in_negozio' not in st.session_state:
+    st.session_state.cliente_in_negozio = None
 
-# Prima offerta di partenza all'avvio
+if st.session_state.cliente_in_negozio is None:
+    genera_cliente_in_negozio()
+
 if st.session_state.giorno == 1 and st.session_state.offerta_fornitore is None:
     genera_offerta_fornitore_casuale()
 
@@ -406,7 +416,9 @@ def reset_completo_nuova_partita():
     st.session_state.fedelta_clienti = 10
     st.session_state.log_gioco = ["✨ Nuova Avventura Iniziata! Tutti i dati sono stati resettati a zero."]
     st.session_state.offerta_fornitore = None
+    st.session_state.cliente_in_negozio = None
     genera_offerta_fornitore_casuale()
+    genera_cliente_in_negozio()
 
 # ==========================================
 # INIEZIONE CSS CUSTOM ORIGINALE
@@ -571,7 +583,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ------------------------------------------
-# TAB 1: CASSA OPERATIVA
+# TAB 1: CASSA OPERATIVA (INTERATTIVA)
 # ------------------------------------------
 with tab1:
     st.subheader("💸 Cassa Operativa & Modalità Vendita")
@@ -579,74 +591,88 @@ with tab1:
     col_t1, col_t2 = st.columns([2, 1])
     
     with col_t1:
-        tipo_operazione = st.radio("Seleziona Tipo Registrazione", ["Vendita Diretta", "Automazione Turno AI", "XME (Perk)"], horizontal=True)
+        tipo_operazione = st.radio("Seleziona Tipo Registrazione", ["Incontra Cliente (Manuale)", "Automazione Turno AI", "XME (Perk)"], horizontal=True)
         prodotti_disp_df = get_prodotti_disponibili_df()
         
         if prodotti_disp_df.empty:
             st.warning("⚠️ Nessun prodotto disponibile in magazzino. Aggiungi un lotto dalla scheda 'Rifornimenti'.")
         else:
-            if tipo_operazione == "Vendita Diretta":
-                prod_nome = st.selectbox("Seleziona Prodotto", prodotti_disp_df['nome'].tolist())
-                prod_row = prodotti_disp_df[prodotti_disp_df['nome'] == prod_nome].iloc[0]
-                p_id = int(prod_row['id'])
+            if tipo_operazione == "Incontra Cliente (Manuale)":
+                st.markdown("##### 👤 Cliente Attualmente alla Cassa")
                 
-                with get_connection() as conn:
-                    lotti_disponibili = pd.read_sql_query("SELECT * FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC, id ASC", conn, params=(p_id,))
-
-                qta_tot_disp = float(lotti_disponibili['quantita_attuale'].sum()) if not lotti_disponibili.empty else 0.0
-                st.info(f"Disponibilità totale: {qta_tot_disp:,.1f} g")
-                
-                col1, col2 = st.columns(2)
-                with col1:
-                    quantita_vendita = st.number_input("Quantità (g)", min_value=0.0, value=0.0, step=0.5, format="%.1f")
-                    totale_incassato = st.number_input("Euro (€)", min_value=0.0, value=0.0, step=1.0, format="%.2f")
-                with col2:
-                    prezzo_unitario_calc = (totale_incassato / quantita_vendita) if quantita_vendita > 0 else 0.0
-                    st.metric("Prezzo al Grammo", f"€ {prezzo_unitario_calc:,.2f} / g")
-                    
-                    clienti_esistenti = get_clienti_registrati()
-                    input_cliente = st.text_input("Nome Cliente", value="", placeholder="Inizia a digitare...")
-
-                tipo_pagamento = st.radio("Modalità Pagamento", ["Subito", "Dopo (Credito)"], horizontal=True)
-
-                if st.button("Conferma Vendita Diretta"):
-                    if quantita_vendita <= 0 or totale_incassato <= 0:
-                        st.error("Inserisci quantità e importo validi.")
-                    elif quantita_vendita > qta_tot_disp:
-                        st.error("Quantità superiore alla disponibilità.")
-                    else:
-                        nome_cli = input_cliente.strip().capitalize() if input_cliente.strip() != "" else "Anonimo"
-                        aggiungi_cliente_se_nuovo(nome_cli)
-
-                        with get_connection() as conn:
-                            cursor = conn.cursor()
-                            qta_da_scaricare = float(quantita_vendita)
-                            
-                            for _, lotto in lotti_disponibili.iterrows():
-                                if qta_da_scaricare <= 0: break
-                                l_id = int(lotto['id'])
-                                qta_lotto_disp = float(lotto['quantita_attuale'])
-                                prelievo = min(qta_lotto_disp, qta_da_scaricare)
-                                nuova_qta = qta_lotto_disp - prelievo
-                                qta_da_scaricare -= prelievo
-                                
-                                ricavo_quota = prelievo * prezzo_unitario_calc
-                                costo_quota = prelievo * float(lotto['costo_acquisto_unitario'])
-                                margine_quota = ricavo_quota - costo_quota
-                                
-                                if nuova_qta == 0:
-                                    cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (date.today(), l_id))
-                                else:
-                                    cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, l_id))
-                                
-                                cursor.execute("""
-                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
-                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?)
-                                """, (p_id, l_id, prelievo, prezzo_unitario_calc, ricavo_quota, costo_quota, margine_quota, nome_cli, tipo_pagamento, f"Lotto {lotto['codice_lotto']}"))
+                cli_att = st.session_state.cliente_in_negozio
+                if cli_att:
+                    with st.container(border=True):
+                        st.markdown(f"### **{cli_att['nome']}** è qui per comprare!")
+                        st.write(f"• **Richiesta:** {cli_att['quantita_richiesta']} g di *{cli_att['prodotto_nome']}*")
                         
-                        st.session_state.energia = max(0, st.session_state.energia - 10)
-                        spara_fuochi_d_artificio()
-                        st.success(f"✅ Vendita registrata!")
+                        with get_connection() as conn:
+                            lotti_disp = pd.read_sql_query("SELECT SUM(quantita_attuale) FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0", conn, params=(cli_att['prodotto_id'],)).iloc[0, 0]
+                        qta_disp_tot = float(lotti_disp) if lotti_disp else 0.0
+
+                        if qta_disp_tot < cli_att['quantita_richiesta']:
+                            st.error(f"⚠️ Non hai abbastanza scorte! Servono {cli_att['quantita_richiesta']}g ma ne hai solo {qta_disp_tot:.1f}g.")
+                        else:
+                            st.info(f"Disponibilità in magazzino: {qta_disp_tot:.1f} g")
+                            
+                            col_p1, col_p2 = st.columns(2)
+                            with col_p1:
+                                prezzo_proposto = st.number_input("Imposta il Tuo Prezzo al Grammo (€/g)", min_value=0.5, value=6.0, step=0.5, format="%.2f")
+                                totale_proposto = prezzo_proposto * cli_att['quantita_richiesta']
+                                st.write(f"**Totale Incasso Proposto:** € {totale_proposto:.2f}")
+
+                            tipo_pagamento = st.radio("Modalità Pagamento", ["Subito", "Dopo (Credito)"], horizontal=True)
+
+                            col_act1, col_act2 = st.columns(2)
+                            with col_act1:
+                                if st.button("🤝 Proponi Offerta e Vendi"):
+                                    # Verifica se il prezzo proposto supera la tolleranza del cliente
+                                    if prezzo_proposto <= cli_att['budget_max_g']:
+                                        aggiungi_cliente_se_nuovo(cli_att['nome'])
+                                        with get_connection() as conn:
+                                            cursor = conn.cursor()
+                                            lotti_df = pd.read_sql_query("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", conn, params=(cli_att['prodotto_id'],))
+                                            
+                                            qta_da_scaricare = cli_att['quantita_richiesta']
+                                            for _, lotto in lotti_df.iterrows():
+                                                if qta_da_scaricare <= 0: break
+                                                l_id = int(lotto['id'])
+                                                qta_lotto_disp = float(lotto['quantita_attuale'])
+                                                prelievo = min(qta_lotto_disp, qta_da_scaricare)
+                                                nuova_qta = qta_lotto_disp - prelievo
+                                                qta_da_scaricare -= prelievo
+                                                
+                                                ricavo_q = prelievo * prezzo_proposto
+                                                costo_q = prelievo * float(lotto['costo_acquisto_unitario'])
+                                                margine_q = ricavo_q - costo_q
+                                                
+                                                if nuova_qta == 0:
+                                                    cursor.execute("UPDATE lotti SET quantita_attuale = 0, data_completamento = ? WHERE id = ?", (date.today(), l_id))
+                                                else:
+                                                    cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, l_id))
+                                                
+                                                cursor.execute("""
+                                                    INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
+                                                    VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?)
+                                                """, (cli_att['prodotto_id'], l_id, prelievo, prezzo_proposto, ricavo_q, costo_q, margine_q, cli_att['nome'], tipo_pagamento, f"Lotto {lotto['codice_lotto']}"))
+
+                                        st.session_state.energia = max(0, st.session_state.energia - 10)
+                                        st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 3)
+                                        spara_fuochi_d_artificio()
+                                        st.success(f"🎉 {cli_att['nome']} ha ACCETTATO! Incassati € {totale_proposto:.2f}")
+                                        genera_cliente_in_negozio()
+                                        st.rerun()
+                                    else:
+                                        st.session_state.fedelta_clienti = max(0, st.session_state.fedelta_clienti - 2)
+                                        st.error(f"❌ {cli_att['nome']} ritiene che €{prezzo_proposto:.2f}/g sia troppo caro e se n'è andato!")
+                                        genera_cliente_in_negozio()
+                                        st.rerun()
+
+                            with col_act2:
+                                if st.button("🚪 Rifiuta / Prossimo Cliente"):
+                                    st.info("Cliente congedato.")
+                                    genera_cliente_in_negozio()
+                                    st.rerun()
 
             elif tipo_operazione == "Automazione Turno AI":
                 st.markdown("##### 🏪 Automazione Sales Engine (Istruisci il Bot di Vendita)")
@@ -742,6 +768,7 @@ with tab1:
             st.session_state.giorno += 1
             st.session_state.energia = 100
             verifica_arrivo_offerta_dinamica()
+            genera_cliente_in_negozio()
             aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Energia al 100%.")
             st.rerun()
 
