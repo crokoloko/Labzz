@@ -510,4 +510,541 @@ if st.session_state.evento_attivo:
                     st.rerun()
             with col_ev3:
                 if st.button("🔇 Abbassa i Sound System", use_container_width=True):
-                    set_sospetto(get_sospetto() - 25.
+                    set_sospetto(get_sospetto() - 25.0)
+                    st.info("Musica a volume basso per oggi per evitare rogne.")
+                    st.session_state.evento_attivo = None
+                    st.rerun()
+
+        elif ev['tipo'] == 'vip':
+            col_vip1, col_vip2 = st.columns(2)
+            with col_vip1:
+                if st.button("✅ ACCETTA ORDINE DAL PALCO", use_container_width=True):
+                    with get_connection() as conn:
+                        qta_disp_vip = pd.read_sql_query("SELECT SUM(quantita_attuale) FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0", conn, params=(ev['prodotto_id'],)).iloc[0, 0]
+                    qta_disp_vip = float(qta_disp_vip) if qta_disp_vip else 0.0
+                    
+                    if qta_disp_vip >= ev['quantita']:
+                        cli_vip_obj = {"nome": "Runner Palco Centrale", "prodotto_id": ev['prodotto_id'], "prodotto_nome": ev['prodotto_nome'], "quantita_richiesta": ev['quantita']}
+                        esegui_transazione_vendita(cli_vip_obj, ev['prezzo_offerto'], "Subito")
+                        st.success(f"🎉 Rifornimento palco completato! Incasso: €{ev['quantita'] * ev['prezzo_offerto']:.2f}")
+                        st.session_state.reputazione = min(100, st.session_state.reputazione + 5)
+                        st.session_state.evento_attivo = None
+                        st.rerun()
+                    else:
+                        st.error("Scorte insufficienti al mulino per questo ordine!")
+            with col_vip2:
+                if st.button("❌ Rifiuta", use_container_width=True):
+                    st.session_state.evento_attivo = None
+                    st.rerun()
+
+        elif ev['tipo'] == 'festival':
+            if st.button("🎉 Ottimo! Goditi il Raduno", use_container_width=True):
+                st.session_state.evento_attivo = None
+                st.rerun()
+
+        else:
+            if st.button("🛡️ Allontana i Guastafeste", use_container_width=True):
+                st.success("Li hai cacciati via verso i sentieri secondari senza danni.")
+                st.session_state.evento_attivo = None
+                st.rerun()
+
+# ==========================================
+# TAB DELL'APPLICAZIONE
+# ==========================================
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "🏕️ Base Mulino", 
+    "👥 Crew / Pusher",
+    "📊 Dashboard", 
+    "🚚 Parcheggio Furgoni",
+    "📈 Statistiche",
+    "📜 Mappa & Obiettivi"
+])
+
+# ------------------------------------------
+# TAB 1: BASE MULINO
+# ------------------------------------------
+with tab1:
+    col_cassa, col_ledger = st.columns([1.2, 1])
+    
+    with col_cassa:
+        st.subheader("🏕️ Spaccio al Campeggio / Mulino")
+        tipo_operazione = st.radio("Seleziona Attività", ["Incontra Raver (Manuale)", "Automazione Turni Sound System", "XME (Energia Personale)"], horizontal=True)
+        
+        if tipo_operazione == "Incontra Raver (Manuale)":
+            st.markdown("##### ⛺ Raver al Banco del Mulino")
+            cli_att = st.session_state.cliente_in_negozio
+            if cli_att:
+                with st.container(border=True):
+                    st.markdown(f"### **{cli_att['nome']}** (Dal Bosco)")
+                    st.write(f"• **Richiesta:** ⭐ **{cli_att['prodotto_nome']}** ({cli_att['quantita_richiesta']} g)")
+                    
+                    with get_connection() as conn:
+                        qta_disp_query = pd.read_sql_query("SELECT SUM(quantita_attuale) FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0", conn, params=(cli_att['prodotto_id'],)).iloc[0, 0]
+                        costo_lotto_ref = pd.read_sql_query("SELECT costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", conn, params=(cli_att['prodotto_id'],))
+                        
+                    qta_disp_tot = float(qta_disp_query) if (qta_disp_query is not None and not pd.isna(qta_disp_query)) else 0.0
+                    costo_base_u = float(costo_lotto_ref.iloc[0,0]) if not costo_lotto_ref.empty else 0.0
+
+                    if qta_disp_tot < cli_att['quantita_richiesta']:
+                        st.error(f"❌ Scorte insufficienti al mulino! (Disponibili: {qta_disp_tot:.1f}g)")
+                        if st.button("👋 Manda via il Raver", use_container_width=True):
+                            st.session_state.fedelta_clienti = max(0, st.session_state.fedelta_clienti - 1)
+                            genera_cliente_in_negozio()
+                            st.rerun()
+                    else:
+                        prezzo_proposto = st.number_input("Prezzo al Grammo (€/g)", min_value=0.5, value=float(cli_att['budget_max_g']), step=0.5, format="%.2f")
+                        totale_proposto = prezzo_proposto * cli_att['quantita_richiesta']
+                        st.write(f"**Totale:** € {totale_proposto:.2f}")
+
+                        tipo_pagamento = st.radio("Pagamento", ["Subito", "Dopo (Credito / Ti pago al prossimo sound system)"], horizontal=True, key="pag_init")
+                        pagamento_db = "Subito" if "Subito" in tipo_pagamento else "Dopo (Credito)"
+
+                        if st.button("🤝 Cedi Merce", use_container_width=True):
+                            esegui_transazione_vendita(cli_att, prezzo_proposto, pagamento_db)
+                            genera_cliente_in_negozio()
+                            st.rerun()
+
+        elif tipo_operazione == "Automazione Turni Sound System":
+            idx_corrente = st.session_state.indice_fascia_oraria
+            if idx_corrente >= len(FASCE_ORARIE):
+                st.warning("⚠️ Hai completato tutte e 5 le fasce orarie della giornata nel bosco! Clicca su **'🌲 Avanza Giorno (Alba sul Fiume)'** in cima per continuare.")
+                
+                with st.container(border=True):
+                    st.markdown("### 📊 RECAP TOTALE GIORNATA NEL BOSCO (FINE TURNI)")
+                    recap_data = st.session_state.get('recap_giornata_corrente')
+                    if recap_data:
+                        col_r1, col_r2 = st.columns(2)
+                        col_r1.metric("💵 Incasso Totale Giorno", f"€ {recap_data['incasso_totale']:,.2f}")
+                        col_r2.metric("📈 Margine Netto Giorno", f"€ {recap_data['margine_totale']:,.2f}")
+                        
+                        st.write(f"• **Raver Unici Serviti:** 👥 {recap_data['clienti_serviti']} (Transazioni totali: {recap_data['transazioni_totali']})")
+                        
+                        st.markdown("##### 📦 Quantità Distribuite per Prodotto:")
+                        if recap_data['prodotti_distribuiti']:
+                            for prod_n, q_v in recap_data['prodotti_distribuiti'].items():
+                                st.write(f"&bull; **{prod_n}**: {q_v:.1f} g")
+                        else:
+                            st.write("Nessuna quantità distribuita oggi.")
+                    else:
+                        st.info("Nessun dato di recap registrato per questa sessione.")
+            else:
+                st.markdown(f"##### 🔊 Automazione Spaccio Sound System (Autonoma)")
+                st.info(f"Fascia oraria corrente: **{FASCE_ORARIE[idx_corrente]}** ({idx_corrente + 1} di 5)")
+                
+                strategia_bot = st.selectbox("Strategia Crew", ["Onesta / Prezzo Popolare", "Aggressiva (+20%)", "Solidale (-15%)"])
+
+                with get_connection() as conn:
+                    pusher_assunti = pd.read_sql_query("SELECT * FROM pusher WHERE assunto = 1", conn)
+
+                if st.button("🚀 AVVIA CICLO AUTOMATICO GIORNATA (5 Turni)", use_container_width=True):
+                    if st.session_state.energia < 20:
+                        st.error("Sei troppo stanco per avviare il ciclo automatico! Riposa.")
+                    else:
+                        placeholder_progresso = st.empty()
+                        
+                        incasso_totale_giorno = 0.0
+                        margine_totale_giorno = 0.0
+                        clienti_serviti_set = set()
+                        transazioni_totali_giorno = 0
+                        prodotti_distribuiti_giorno = {}
+                        
+                        while st.session_state.indice_fascia_oraria < len(FASCE_ORARIE):
+                            idx_c = st.session_state.indice_fascia_oraria
+                            fascia_nome = FASCE_ORARIE[idx_c]
+                            placeholder_progresso.markdown(f"⏳ **Esecuzione in corso:** {fascia_nome}...")
+                            
+                            st.session_state.energia = max(0, st.session_state.energia - 10)
+                            prodotti_tutti = get_prodotti_tutti_df()
+                            
+                            if not prodotti_tutti.empty:
+                                is_f, _ = e_festivo_o_weekend(get_data_corrente_gioco())
+                                moltiplicatore_festivo = 1.35 if is_f else 1.0
+                                
+                                base_clienti = random.randint(3, 6) if idx_c >= 3 else random.randint(2, 4)
+                                bonus_efficienza_totale = pusher_assunti['efficienza'].sum() if not pusher_assunti.empty else 0.0
+                                
+                                num_clienti_tot = int((base_clienti + int(st.session_state.fedelta_clienti / 25) + int(bonus_efficienza_totale * 3)) * moltiplicatore_festivo)
+                                nomi_turno_disponibili = random.sample(LISTA_NOMI_RAVER, min(len(LISTA_NOMI_RAVER), max(4, num_clienti_tot + 2)))
+                                
+                                vendite_ok = 0
+                                incasso_turno = 0.0
+                                vendite_prodotti_turno = {}
+                                
+                                for i in range(num_clienti_tot):
+                                    if not nomi_turno_disponibili: break
+                                    cli_nome = nomi_turno_disponibili.pop(0)
+
+                                    prod_req = prodotti_tutti.sample(n=1).iloc[0]
+                                    p_id = int(prod_req['id'])
+                                    p_nome = prod_req['nome']
+                                    val_m = float(prod_req['valore_mercato_unitario'])
+                                    
+                                    with get_connection() as conn:
+                                        cursor = conn.cursor()
+                                        cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", (p_id,))
+                                        lotti = cursor.fetchall()
+                                        if not lotti: continue
+                                        
+                                        prezzo_bot = val_m * 1.25 if "Aggressiva" in strategia_bot else (val_m * 0.85 if "Solidale" in strategia_bot else val_m)
+                                        if st.session_state.evento_attivo and st.session_state.evento_attivo['tipo'] == 'festival':
+                                            prezzo_bot *= 1.2
+                                            
+                                        qta_req = float(random.choices([1, 2, 5, 10, 15, 20], weights=[35, 30, 20, 10, 3, 2], k=1)[0])
+                                        qta_req = min(lotti[0][1], qta_req)
+                                        if qta_req <= 0: continue
+                                        
+                                        l_id, l_qta, l_costo = lotti[0]
+                                        cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale - ? WHERE id = ?", (qta_req, l_id))
+                                        ricavo = qta_req * prezzo_bot
+                                        margine = ricavo - (qta_req * l_costo)
+                                        
+                                        if not pusher_assunti.empty:
+                                            pusher_assegnato = pusher_assunti.sample(n=1).iloc[0]
+                                            quota_pusher = float(pusher_assegnato['quota_trattenuta'])
+                                            guadagno_pusher = ricavo * quota_pusher
+                                            guadagno_boss = ricavo - guadagno_pusher
+                                            note_movimento = f"Spaccio tramite Pusher ({pusher_assegnato['nome']} - Trattenuta {quota_pusher*100:.0f}%, Quota Pusher: €{guadagno_pusher:.2f})"
+                                        else:
+                                            guadagno_boss = ricavo
+                                            note_movimento = f"Spaccio diretto gestito al Mulino"
+                                        
+                                        cursor.execute("""
+                                            INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
+                                            VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, 'Subito', ?)
+                                        """, (p_id, l_id, qta_req, prezzo_bot, ricavo, qta_req * l_costo, margine, cli_nome, note_movimento))
+                                        
+                                        st.session_state.soldi_cassa += guadagno_boss
+                                        incasso_turno += ricavo
+                                        vendite_ok += 1
+                                        vendite_prodotti_turno[p_nome] = vendite_prodotti_turno.get(p_nome, 0.0) + qta_req
+
+                                        incasso_totale_giorno += ricavo
+                                        margine_totale_giorno += margine
+                                        clienti_serviti_set.add(cli_nome)
+                                        transazioni_totali_giorno += 1
+                                        prodotti_distribuiti_giorno[p_nome] = prodotti_distribuiti_giorno.get(p_nome, 0.0) + qta_req
+
+                                if vendite_ok > 0:
+                                    st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 4)
+                                    set_sospetto(get_sospetto() + (vendite_ok * 0.7))
+                                
+                                st.session_state.ultimo_report_bot = {
+                                    "fascia": fascia_nome,
+                                    "vendite_ok": vendite_ok,
+                                    "incasso": incasso_turno,
+                                    "vendite_prodotti": vendite_prodotti_turno
+                                }
+
+                            st.session_state.indice_fascia_oraria += 1
+                            time.sleep(2.5)
+
+                        st.session_state.recap_giornata_corrente = {
+                            "incasso_totale": incasso_totale_giorno,
+                            "margine_totale": margine_totale_giorno,
+                            "clienti_serviti": len(clienti_serviti_set),
+                            "transazioni_totali": transazioni_totali_giorno,
+                            "prodotti_distribuiti": prodotti_distribuiti_giorno
+                        }
+                            
+                        placeholder_progresso.success("🎉 Tutti i turni della giornata sono stati completati con successo!")
+                        time.sleep(1)
+                        st.rerun()
+
+            if st.session_state.ultimo_report_bot and st.session_state.indice_fascia_oraria < len(FASCE_ORARIE):
+                rep_bot = st.session_state.ultimo_report_bot
+                with st.container(border=True):
+                    st.markdown(f"##### 📋 Report Ultima Fascia: {rep_bot['fascia']}")
+                    col_rb1, col_rb2 = st.columns(2)
+                    col_rb1.metric("💵 Incasso Fascia", f"€ {rep_bot['incasso']:,.2f}")
+                    col_rb2.metric("👥 Raver Serviti", rep_bot['vendite_ok'])
+                    
+                    st.write("##### Quantità Distribuite:")
+                    for prod_n, q_v in rep_bot['vendite_prodotti'].items():
+                        st.write(f"&bull; **{prod_n}**: {q_v:.1f} g")
+
+        else:
+            st.markdown("##### 🧪 Ricarica Personale tra gli Alberi (+30% Energia)")
+            lotti_df = get_lotti_attivi_df()
+            if not lotti_df.empty:
+                with st.form("form_xme"):
+                    opzioni_lotto = {f"{r['prodotto']} - Lotto: {r['codice_lotto']} (Disp: {r['quantita_attuale']:,.1f} g)": r['id'] for _, r in lotti_df.iterrows()}
+                    lotto_sel = st.selectbox("Lotto", list(opzioni_lotto.keys()))
+                    lotto_id = opzioni_lotto[lotto_sel]
+                    qta_xme = st.number_input("Quantità (g)", min_value=0.5, value=5.0, step=0.5)
+
+                    if st.form_submit_button("Usa per Ricarica"):
+                        lotto_row = lotti_df[lotti_df['id'] == lotto_id].iloc[0]
+                        with get_connection() as conn:
+                            cursor = conn.cursor()
+                            nuova_q = float(lotto_row['quantita_attuale']) - qta_xme
+                            p_id = int(get_prodotti_tutti_df()[get_prodotti_tutti_df()['nome'] == lotto_row['prodotto']].iloc[0]['id'])
+                            cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_q, lotto_id))
+                            cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, margine, cliente, note) VALUES (?, ?, 'XME', ?, ?, ?, 'Ricarica', 'Consumo nel Bosco')", (p_id, lotto_id, qta_xme, qta_xme * float(lotto_row['costo_acquisto_unitario']), -qta_xme * float(lotto_row['costo_acquisto_unitario'])))
+                        st.session_state.energia = min(100, st.session_state.energia + 30)
+                        st.rerun()
+
+    with col_ledger:
+        st.subheader("📜 Cronaca del Bosco")
+        with st.container(border=True):
+            for log in st.session_state.log_gioco[:8]:
+                st.caption(log)
+
+# ------------------------------------------
+# TAB 2: CREW / PUSHER
+# ------------------------------------------
+with tab2:
+    st.subheader("👥 Gestione Crew nel Bosco (A Percentuale)")
+    st.write("I membri della crew operano tra le tende e i furgoni senza stipendio fisso, trattenendo una percentuale fissa sulle vendite.")
+    
+    with get_connection() as conn:
+        pusher_df = pd.read_sql_query("SELECT * FROM pusher", conn)
+        
+    for _, p in pusher_df.iterrows():
+        with st.container(border=True):
+            col_p1, col_p2, col_p3 = st.columns([2, 2, 1])
+            col_p1.markdown(f"### **{p['nome']}**")
+            col_p2.write(f"• **Trattiene (Commissione):** {p['quota_trattenuta']*100:.0f}%\n• **Efficienza / Abilità:** +{p['efficienza']*100:.0f}%")
+            
+            is_assunto = bool(p['assunto'])
+            if is_assunto:
+                if col_p3.button("Allontana", key=f"lic_{p['id']}"):
+                    with get_connection() as conn:
+                        conn.execute("UPDATE pusher SET assunto = 0 WHERE id = ?", (p['id'],))
+                    st.success(f"Hai allontanato {p['nome']} dalla crew.")
+                    st.rerun()
+            else:
+                if col_p3.button("Ingaggia", key=f"ass_{p['id']}"):
+                    with get_connection() as conn:
+                        conn.execute("UPDATE pusher SET assunto = 1 WHERE id = ?", (p['id'],))
+                    st.success(f"Hai ingaggiato {p['nome']} nella crew!")
+                    st.rerun()
+
+    st.markdown("---")
+    st.subheader("📊 Recap Esclusivo Attività e Vendite della Crew (Oggi)")
+    
+    with get_connection() as conn:
+        data_str_oggi = data_oggi.strftime("%Y-%m-%d")
+        mov_pusher_oggi_df = pd.read_sql_query("""
+            SELECT m.*, p.nome as prodotto_nome 
+            FROM movimenti m 
+            JOIN prodotti p ON m.prodotto_id = p.id 
+            WHERE m.tipo = 'VENDITA' AND m.note LIKE '%Pusher%' AND DATE(m.data) = ?
+            ORDER BY m.data DESC
+        """, conn, params=(data_str_oggi,))
+
+    if not mov_pusher_oggi_df.empty:
+        tot_incasso_pusher = mov_pusher_oggi_df['ricavo_totale'].sum()
+        clienti_raggiunti_pusher = mov_pusher_oggi_df['cliente'].nunique()
+        tot_grammi_pusher = mov_pusher_oggi_df['quantita'].sum()
+        
+        profitto_boss_pusher = 0.0
+        profitto_trattenuto_pusher = 0.0
+        
+        for _, row_m in mov_pusher_oggi_df.iterrows():
+            note_m = str(row_m['note'])
+            ricavo_r = float(row_m['ricavo_totale'])
+            if "Vojta" in note_m:
+                q_pusher = ricavo_r * 0.25
+            elif "Kamil" in note_m:
+                q_pusher = ricavo_r * 0.35
+            elif "Anetka" in note_m:
+                q_pusher = ricavo_r * 0.40
+            else:
+                q_pusher = ricavo_r * 0.30
+            
+            profitto_trattenuto_pusher += q_pusher
+            profitto_boss_pusher += (ricavo_r - q_pusher)
+
+        col_sq1, col_sq2, col_sq3 = st.columns(3)
+        col_sq1.metric("👥 Raver Raggiunti (Crew)", clienti_raggiunti_pusher)
+        col_sq2.metric("⚖️ Grammi Venduti (Crew)", f"{tot_grammi_pusher:.1f} g")
+        col_sq3.metric("💰 Incasso Totale Crew", f"€ {tot_incasso_pusher:,.2f}")
+        
+        st.write(f"• **Tuo Profitto Netto (dalle vendite della crew):** € {profitto_boss_pusher:,.2f}")
+        st.write(f"• **Guadagni Trattenuti dalla Crew:** € {profitto_trattenuto_pusher:,.2f}")
+        
+        st.markdown("##### 📦 Dettaglio Grammi Venduti dalla Crew per Prodotto:")
+        qta_prod_pusher = mov_pusher_oggi_df.groupby('prodotto_nome')['quantita'].sum().reset_index()
+        for _, rsp in qta_prod_pusher.iterrows():
+            st.write(f"&bull; **{rsp['prodotto_nome']}**: {rsp['quantita']:.1f} g")
+    else:
+        st.info("Nessuna transazione registrata oggi tramite la crew nel bosco.")
+
+# ------------------------------------------
+# TAB 3: DASHBOARD
+# ------------------------------------------
+with tab3:
+    st.subheader("📊 Dashboard Economica del Mulino")
+    df_stato_disp = calcola_stato_magazzino(solo_disponibili=True)
+    movimenti_df = get_movimenti_dettagliati_df()
+
+    if not df_stato_disp.empty or not movimenti_df.empty:
+        val_costo = df_stato_disp['valore_totale_costo'].sum() if not df_stato_disp.empty else 0
+        val_mercato = df_stato_disp['valore_totale_mercato'].sum() if not df_stato_disp.empty else 0
+        incasso_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['incasso'].sum() if not movimenti_df.empty else 0
+        margine_tot = movimenti_df[movimenti_df['tipo'] == 'VENDITA']['margine'].sum() if not movimenti_df.empty else 0
+
+        st.markdown(f"""
+        <div class="dashboard-grid">
+            <div class="custom-card"><div class="card-label">Valore Scorte (Costo)</div><div class="card-value">€ {val_costo:,.2f}</div></div>
+            <div class="custom-card"><div class="card-label">Valore Scorte (Mercato)</div><div class="card-value">€ {val_mercato:,.2f}</div></div>
+            <div class="custom-card"><div class="card-label">Incasso Totale</div><div class="card-value">€ {incasso_tot:,.2f}</div></div>
+            <div class="custom-card"><div class="card-label">Margine Netto</div><div class="card-value">€ {margine_tot:,.2f}</div></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# ------------------------------------------
+# TAB 4: PARCHEGGIO FURGONI
+# ------------------------------------------
+with tab4:
+    st.subheader("🚚 Parcheggio Furgoni & Fornitori Nomadi")
+    
+    if st.session_state.offerta_fornitore:
+        off = st.session_state.offerta_fornitore
+        costo_tot = off['costo_totale']
+        ha_soldi = st.session_state.soldi_cassa >= costo_tot
+
+        st.markdown(f"""
+        <div class="heist-board">
+            <div class="heist-title">🎯 CONTATTO NEL FANGO: {off['fornitore_nome'].upper()}</div>
+            <div class="heist-quote">{off['fornitore_frase']}</div>
+            <div style="display: flex; justify-content: space-around; text-align: center; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <div>
+                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase;">Merce</span><br>
+                    <strong style="color: #facc15; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['prodotto_nome']}</strong><br>
+                    <span style="font-size: 0.65rem; color: #ef4444;">{off['tipo']}</span>
+                </div>
+                <div>
+                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase;">Quantità Lotto</span><br>
+                    <strong style="color: #34d399; font-size: 1.1rem; font-family: 'Anton', sans-serif;">{off['quantita']:,.1f} g</strong>
+                </div>
+                <div>
+                    <span style="font-size: 0.70rem; color: #9ca3af; text-transform: uppercase;">Costo Unitario</span><br>
+                    <strong style="color: #60a5fa; font-size: 1.1rem; font-family: 'Anton', sans-serif;">€ {off['costo_unitario']:.2f} / g</strong>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 18px; font-size: 1.25rem; font-family: 'Anton', sans-serif; color: #ffffff;">
+                INVESTIMENTO INTERO: <span style="color: #facc15;">€ {costo_tot:,.2f}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        col_b1, col_b2 = st.columns(2)
+        with col_b1:
+            if st.button("💼 COMPRA INTERO STOCK", use_container_width=True, disabled=not ha_soldi):
+                st.session_state.soldi_cassa -= costo_tot
+                set_sospetto(get_sospetto() + 6.0)
+                with get_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
+                    p_id = cursor.fetchone() or cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],)).fetchone()[0]
+                    if isinstance(p_id, tuple): p_id = p_id[0]
+
+                    cursor.execute("""
+                        INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (p_id, off['codice_lotto'], off['quantita'], off['quantita'], off['costo_unitario'], date.today(), date.today()))
+                st.success("Stock caricato al mulino!")
+                st.session_state.offerta_fornitore = None
+                st.session_state.minigioco_trattativa = False
+                st.rerun()
+        with col_b2:
+            if st.button("❌ Rimanda via il Furgone", use_container_width=True):
+                st.session_state.offerta_fornitore = None
+                st.session_state.minigioco_trattativa = False
+                st.rerun()
+
+        st.markdown("---")
+        with st.container(border=True):
+            st.markdown("##### 📋 TRATTATIVA NEL PARCHEGGIO (OBIETTIVO BUDGET)")
+            budget_proposto = st.number_input("Il tuo Budget da Spendere (€):", min_value=5.0, max_value=max(5.0, float(st.session_state.soldi_cassa)), value=min(50.0, float(st.session_state.soldi_cassa)), step=5.0)
+            approccio = st.selectbox("Approccio Trattativa", ["🤝 Fratellanza / Solidarietà", "😎 Trattativa Dura", "🔥 Pressing al Furgone"])
+            
+            if st.button("🎲 NEGOZIA CON IL FORNITORE", use_container_width=True):
+                tiro = random.randint(1, 100) + int(st.session_state.reputazione / 2)
+                sconto = 0.93 if "Fratellanza" in approccio else (0.82 if "Dura" in approccio else 0.70)
+                nuovo_costo_u = round(off['costo_unitario'] * sconto, 2)
+                qta_calcolata = round(budget_proposto / nuevo_costo_u if 'nuevo_costo_u' in locals() else budget_proposto / nuovo_costo_u, 2) if nuovo_costo_u > 0 else 0.0
+                if qta_calcolata > off['quantita']:
+                    qta_calcolata = float(off['quantita'])
+                    budget_proposto = round(qta_calcolata * nuovo_costo_u, 2)
+
+                st.session_state.minigioco_risultato = {
+                    "budget": budget_proposto, "costo_u": nuovo_costo_u, "qta_offerta": qta_calcolata
+                }
+                st.rerun()
+
+            if 'minigioco_risultato' in st.session_state and st.session_state.minigioco_risultato:
+                res = st.session_state.minigioco_risultato
+                st.info(f"💬 Accordo raggiunto: **{res['qta_offerta']}g** a **€{res['costo_u']:.2f}/g** per un totale di **€{res['budget']:,.2f}**.")
+                if st.button("✅ ACCETTA ACCORDO NEL FANGO", use_container_width=True, disabled=st.session_state.soldi_cassa < res['budget']):
+                    st.session_state.soldi_cassa -= res['budget']
+                    with get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
+                        p_id = cursor.fetchone() or cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],)).fetchone()[0]
+                        if isinstance(p_id, tuple): p_id = p_id[0]
+                        cursor.execute("""
+                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (p_id, f"{off['codice_lotto']}-B", res['qta_offerta'], res['qta_offerta'], res['costo_u'], date.today(), date.today()))
+                    st.success("Accordo concluso nel parcheggio!")
+                    st.session_state.offerta_fornitore = None
+                    st.session_state.minigioco_risultato = None
+                    st.rerun()
+    else:
+        fornitori_rimasti = st.session_state.max_fornitori_oggi - st.session_state.fornitori_visti_oggi
+        if fornitori_rimasti > 0:
+            if st.button("📞 Cerca Furgone nel Parcheggio", use_container_width=True):
+                genera_offerta_fornitore_casuale()
+                st.rerun()
+        else:
+            st.warning("Nessun altro furgone disponibile nel parcheggio oggi.")
+
+    st.markdown("---")
+    soglia_attuale = get_soglia_esaurimento()
+    report_lotti_df = get_report_lotti_integrato_df(soglia_esaurimento_g=soglia_attuale)
+    if not report_lotti_df.empty:
+        st.dataframe(report_lotti_df, use_container_width=True, hide_index=True)
+
+# ------------------------------------------
+# TAB 5: STATISTICHE (CREDITI)
+# ------------------------------------------
+with tab5:
+    st.subheader("📈 Crediti Raver tra le Tende")
+    movimenti_df = get_movimenti_dettagliati_df()
+    if not movimenti_df.empty:
+        clienti_debito = movimenti_df[(movimenti_df['tipo'] == 'VENDITA') & (movimenti_df['stato_pagamento'] == 'Dopo (Credito)')]
+        if not clienti_debito.empty:
+            debito_per_cliente = clienti_debito.groupby('cliente')['incasso'].sum().reset_index()
+            for _, r_d in debito_per_cliente.iterrows():
+                col_d1, col_d2 = st.columns([3, 1])
+                col_d1.write(f"**{r_d['cliente']}**: € {r_d['incasso']:,.2f}")
+                if col_d2.button("Incassa", key=f"s_{r_d['cliente']}"):
+                    segna_debito_pagato(r_d['cliente'])
+                    st.rerun()
+
+# ------------------------------------------
+# TAB 6: MAPPA & OBIETTIVI
+# ------------------------------------------
+with tab6:
+    st.subheader("🎯 Obiettivi del Raduno & Condizioni di Vittoria")
+    
+    movimenti_df = get_movimenti_dettagliati_df()
+    utile_totale = movimenti_df['margine'].sum() if not movimenti_df.empty else 0.0
+    
+    st.write("Raggiungi i fondi necessari per garantire la sopravvivenza del Sound System e del mulino nei boschi:")
+    st.progress(min(1.0, utile_totale / 10000.0))
+    st.write(f"• **Utile Netto Attuale:** € {utile_totale:,.2f} / € 10,000.00 obiettivo festival")
+    st.write(f"• **Attenzione Forestale Attuale:** {get_sospetto():.1f}% (Mantienilo sotto il 50% per evitare retate nei boschi)")
+
+    st.markdown("---")
+    st.subheader("📜 Storico del Raduno")
+    if not movimenti_df.empty:
+        st.dataframe(movimenti_df, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+    with st.expander("⚠️ Danger Zone: Smonta il Campo (Reset Partita)"):
+        if st.button("💥 Reset Totale del Mulino"):
+            reset_completo_nuova_partita()
+            st.rerun()
