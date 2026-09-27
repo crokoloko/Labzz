@@ -295,7 +295,6 @@ def genera_offerta_fornitore_casuale():
     budget_attuale = st.session_state.soldi_cassa
     gangster = random.choice(GANGSTER_FORNITORI)
     
-    # Tetto massimo di spesa: massimo il 50% del budget attuale (minimo 30€)
     budget_massimo_spesa = max(30.0, budget_attuale * 0.50)
     
     if budget_attuale < 150:
@@ -544,6 +543,15 @@ st.markdown("""
         margin-bottom: 15px !important;
     }
 
+    /* GRIGLIA DASHBOARD COMPATTA IN ALTO */
+    .top-metrics-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 10px !important;
+        width: 100% !important;
+        margin-bottom: 20px !important;
+    }
+
     .dashboard-grid {
         display: grid !important;
         grid-template-columns: repeat(2, 1fr) !important;
@@ -556,8 +564,8 @@ st.markdown("""
         background: rgba(15, 23, 42, 0.75) !important;
         backdrop-filter: blur(16px) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 16px !important;
-        padding: 14px 8px !important;
+        border-radius: 14px !important;
+        padding: 10px 8px !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;
@@ -568,16 +576,23 @@ st.markdown("""
 
     .card-label {
         color: #94a3b8 !important;
-        font-size: 0.75rem !important;
+        font-size: 0.70rem !important;
         font-weight: 600 !important;
         text-transform: uppercase;
-        margin-bottom: 6px !important;
+        margin-bottom: 4px !important;
     }
 
     .card-value {
-        font-size: 1.2rem !important;
+        font-size: 1.1rem !important;
         font-weight: 700 !important;
         color: #38bdf8 !important;
+    }
+
+    .card-subtext {
+        font-size: 0.75rem !important;
+        color: #38bdf8 !important;
+        font-weight: 600 !important;
+        margin-top: 2px !important;
     }
 
     .stTabs [data-baseweb="tab"] {
@@ -616,13 +631,50 @@ else:
     else:
         st.title("LaBzz Tycoon")
 
-# HEADER METRICHE TYCOON GIOCATORE CON CASSA
-c_g1, c_g2, c_g3, c_g4, c_g5 = st.columns(5)
-c_g1.metric("💵 Cassa Liquida", f"€ {st.session_state.soldi_cassa:,.2f}")
-c_g2.metric("📅 Giorno", f"Giorno {st.session_state.giorno}")
-c_g3.metric("⚡ Energia", f"{st.session_state.energia}%")
-c_g4.metric("⭐ Reputazione", f"{st.session_state.reputazione}/100")
-c_g5.metric("❤️ Fedeltà", f"{st.session_state.fedelta_clienti}%")
+# ==========================================
+# HEADER METRICHE TYCOON GRIGLIA COMPATTA 2 PER COLONNA
+# ==========================================
+with get_connection() as conn:
+    df_lotti_scorte = pd.read_sql_query("""
+        SELECT p.nome, SUM(l.quantita_attuale) as qta 
+        FROM lotti l 
+        JOIN prodotti p ON l.prodotto_id = p.id 
+        WHERE l.quantita_attuale > 0 
+        GROUP BY p.nome
+    """, conn)
+
+qta_totale_magazzino = df_lotti_scorte['qta'].sum() if not df_lotti_scorte.empty else 0.0
+qta_top_quality = df_lotti_scorte[df_lotti_scorte['nome'].str.contains("Top Quality", case=False, na=False)]['qta'].sum() if not df_lotti_scorte.empty else 0.0
+
+st.markdown(f"""
+<div class="top-metrics-grid">
+    <div class="custom-card">
+        <div class="card-label">💵 Cassa Liquida</div>
+        <div class="card-value">€ {st.session_state.soldi_cassa:,.2f}</div>
+    </div>
+    <div class="custom-card">
+        <div class="card-label">📦 Scorte Magazzino</div>
+        <div class="card-value">{qta_totale_magazzino:.1f} g</div>
+        <div class="card-subtext">⭐ {qta_top_quality:.1f} g Top Quality</div>
+    </div>
+    <div class="custom-card">
+        <div class="card-label">📅 Turno / Giorno</div>
+        <div class="card-value">Giorno {st.session_state.giorno}</div>
+    </div>
+    <div class="custom-card">
+        <div class="card-label">⚡ Energia Imprenditore</div>
+        <div class="card-value">{st.session_state.energia}%</div>
+    </div>
+    <div class="custom-card">
+        <div class="card-label">⭐ Reputazione</div>
+        <div class="card-value">{st.session_state.reputazione} / 100</div>
+    </div>
+    <div class="custom-card">
+        <div class="card-label">❤️ Fedeltà Clienti</div>
+        <div class="card-value">{st.session_state.fedelta_clienti}%</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown("---")
 
