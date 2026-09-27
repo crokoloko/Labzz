@@ -90,8 +90,7 @@ def trigger_effetto_notte():
     st.components.v1.html(js_code, height=0)
 
 def aggiungi_log(testo):
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    st.session_state.log_gioco.insert(0, f"[{timestamp}] {testo}")
+    st.session_state.log_gioco.insert(0, testo)
 
 # INITIAL STATE
 if 'soldi_cassa' not in st.session_state:
@@ -109,7 +108,7 @@ if 'reputazione' not in st.session_state:
 if 'fedelta_clienti' not in st.session_state:
     st.session_state.fedelta_clienti = 10
 if 'log_gioco' not in st.session_state:
-    st.session_state.log_gioco = ["🌲 Benvenuto al Mulino nel Bosco! Il sound system è montato. Capitale: €200."]
+    st.session_state.log_gioco = ["🪵 **[Giorno 1]** Montati i primi teli e acceso il generatore. I bassi iniziano a vibrare tra gli alberi del mulino. Cassa iniziale: €200."]
 if 'offerta_fornitore' not in st.session_state:
     st.session_state.offerta_fornitore = None
 if 'cliente_in_negozio' not in st.session_state:
@@ -157,7 +156,7 @@ def reset_completo_nuova_partita():
     st.session_state.energia = 100
     st.session_state.reputazione = 15
     st.session_state.fedelta_clienti = 10
-    st.session_state.log_gioco = ["✨ Nuovo Raduno Iniziato! Il bosco risuona. Budget: €200."]
+    st.session_state.log_gioco = ["🪵 **[Giorno 1]** Si ricomincia da capo. Il sound system riprende vita nel bosco. Cassa: €200."]
     st.session_state.offerta_fornitore = None
     st.session_state.cliente_in_negozio = None
     st.session_state.fornitori_visti_oggi = 0
@@ -172,7 +171,7 @@ def reset_completo_nuova_partita():
     genera_evento_casuale_giorno()
 
 # ==========================================
-# INIEZIONE CSS CUSTOM
+# CSS CUSTOM
 # ==========================================
 sfondo_b64 = get_file_base64("sfondo.jpg")
 bg_style = ""
@@ -325,7 +324,9 @@ with st.container(border=True):
                 
             genera_cliente_in_negozio()
             genera_evento_casuale_giorno()
-            aggiungi_log("🌲 È sorta l'alba sul mulino. Un nuovo giorno di festa nel bosco comincia.")
+            
+            nuovo_giorno = st.session_state.giorno
+            aggiungi_log(f"🌅 **[Giorno {nuovo_giorno}]** Il sole sorge sul fiume. Nuovi furgoni nel parcheggio e carovane pronte ad accendere i sound system.")
             st.rerun()
 
     st.markdown(f"""
@@ -351,7 +352,8 @@ if st.session_state.evento_attivo:
                         st.session_state.soldi_cassa -= 50.0
                         set_sospetto(get_sospetto() - 35.0)
                         st.success("Accordo trovato lungo il fiume! La pattuglia si allontana.")
-                        aggiungi_log("🌲 BOSCO: Pagata tangente alla guardia forestale di €50.")
+                        g_n = st.session_state.giorno
+                        aggiungi_log(f"🚓 **[Giorno {g_n}]** Pagata tangente di €50 alla guardia forestale lungo il sentiero. La situazione si calma.")
                         st.session_state.evento_attivo = None
                         st.rerun()
                     else:
@@ -590,6 +592,10 @@ with tab1:
                             "transazioni_totali": transazioni_totali_giorno,
                             "prodotti_distribuiti": prodotti_distribuiti_giorno
                         }
+                        
+                        g_n = st.session_state.giorno
+                        aggiungi_log(f"🔊 **[Giorno {g_n}]** Completati i turni di sound system. Incassati €{incasso_totale_giorno:,.2f} con {len(clienti_serviti_set)} raver unici serviti tra le tende.")
+                        
                         placeholder_progresso.success("🎉 Tutti i turni della giornata sono stati completati con successo!")
                         time.sleep(1)
                         st.rerun()
@@ -628,8 +634,9 @@ with tab1:
     with col_ledger:
         st.subheader("📜 Cronaca del Bosco")
         with st.container(border=True):
-            for log in st.session_state.log_gioco[:8]:
-                st.caption(log)
+            for log in st.session_state.log_gioco[:10]:
+                st.markdown(log)
+                st.markdown("---")
 
 with tab2:
     st.subheader("👥 Gestione Crew nel Bosco (A Percentuale)")
@@ -695,6 +702,9 @@ with tab4:
                         INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
                         VALUES (?, ?, ?, ?, ?, ?, ?)
                     """, (p_id, off['codice_lotto'], off['quantita'], off['quantita'], off['costo_unitario'], date.today(), date.today()))
+                
+                g_n = st.session_state.giorno
+                aggiungi_log(f"📦 **[Giorno {g_n}]** Chiuso affare con {off['fornitore_nome']}: caricati **{off['quantita']}g** di *{off['prodotto_nome']}* al mulino.")
                 st.session_state.offerta_fornitore = None
                 st.rerun()
         with col_b2:
@@ -717,7 +727,7 @@ with tab5:
         clienti_debito = movimenti_df[(movimenti_df['tipo'] == 'VENDITA') & (movimenti_df['stato_pagamento'] == 'Dopo (Credito)')]
         if not clienti_debito.empty:
             debito_per_cliente = clienti_debito.groupby('cliente')['incasso'].sum().reset_index()
-            for _, r_d in debito_per_clienti if 'debito_per_clienti' in locals() else debito_per_cliente.iterrows():
+            for _, r_d in debito_per_cliente.iterrows():
                 col_d1, col_d2 = st.columns([3, 1])
                 col_d1.write(f"**{r_d['cliente']}**: € {r_d['incasso']:,.2f}")
                 if col_d2.button("Incassa", key=f"s_{r_d['cliente']}"):
