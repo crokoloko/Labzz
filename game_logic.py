@@ -232,9 +232,6 @@ def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento, callback_l
                 cursor.execute("UPDATE lotti SET quantita_attuale = ? WHERE id = ?", (nuova_qta, l_id))
             
             cursor.execute("""
-                INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezz_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
-                VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (cli_att['prodotto_id'], l_id, prelievo, prezzo_per_g, ricavo_q, costo_q, margine_q, cli_att['nome'], tipo_pagamento, f"Spaccio al Campeggio - Lotto {lotto['codice_lotto']}")) if "prezz_unitario" in [c[1] for c in cursor.execute("PRAGMA table_info(movimenti)").fetchall()] else cursor.execute("""
                 INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
                 VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?)
             """, (cli_att['prodotto_id'], l_id, prelievo, prezzo_per_g, ricavo_q, costo_q, margine_q, cli_att['nome'], tipo_pagamento, f"Spaccio al Campeggio - Lotto {lotto['codice_lotto']}"))
@@ -252,4 +249,5 @@ def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento, callback_l
     set_sospetto(get_sospetto() + incremento_sospetto)
 
     if callback_log:
-        callback_log(f"✅ SPACCIO: {cli_att['nome']} ha preso {cli_att['quantita_richiesta']}g di '{cli_att['prodotto_nome']}' al campeggio (+€{totale_incasso:.2f})")
+        giorno_num = st.session_state.get('giorno', 1)
+        callback_log(f"🪵 **[Giorno {giorno_num}]** Spaccio al banco: {cli_att['nome']} si prende **{cli_att['quantita_richiesta']}g** di *{cli_att['prodotto_nome']}*. Cassa +€{totale_incasso:.2f}.")
