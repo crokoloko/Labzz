@@ -310,6 +310,40 @@ def spara_fuochi_d_artificio():
     """
     st.components.v1.html(js_code, height=0)
 
+def trigger_effetto_notte():
+    js_code = """
+    <div id="night-overlay" style="
+        position: fixed;
+        top: 0; left: 0; width: 100vw; height: 100vh;
+        background: linear-gradient(180deg, #020617 0%, #090d16 50%, #1e1b4b 100%);
+        backdrop-filter: blur(0px);
+        z-index: 99999;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 1.2s ease-in-out, backdrop-filter 1.2s ease-in-out;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: #fbbf24;
+        font-family: 'Anton', sans-serif;
+        font-size: 2.5rem;
+        letter-spacing: 3px;
+        text-shadow: 0 0 20px rgba(251, 191, 36, 0.6);
+    ">🌙 PASSAGGIO DELLA NOTTE... ALBA IN ARRIVO ☀️</div>
+    <script>
+        const overlay = document.getElementById('night-overlay');
+        setTimeout(() => {
+            overlay.style.opacity = '1';
+            overlay.style.backdropFilter = 'blur(12px)';
+        }, 50);
+        setTimeout(() => {
+            overlay.style.opacity = '0';
+            overlay.style.backdropFilter = 'blur(0px)';
+        }, 2200);
+    </script>
+    """
+    st.components.v1.html(js_code, height=0)
+
 # ==========================================
 # GANGSTER E FORNITORI
 # ==========================================
@@ -598,7 +632,6 @@ st.markdown("""
         object-fit: contain !important;
     }
 
-    /* Stile Titoli ispirati a GTA / Heist Board */
     h1, h2, h3, h4, h5, h6 {
         font-family: 'Anton', sans-serif !important;
         color: #ffffff !important;
@@ -687,7 +720,6 @@ st.markdown("""
         border-color: #f59e0b !important;
     }
 
-    /* Stile Lavagna Rapina / Clandestino */
     .heist-board {
         background: #0f172a;
         border: 2px dashed rgba(245, 158, 11, 0.4);
@@ -792,6 +824,7 @@ with st.container(border=True):
     col_n1, col_n2, col_n3 = st.columns([1, 2, 1])
     with col_n2:
         if st.button("🌙 Riposa e Passa al Giorno Successivo", use_container_width=True):
+            trigger_effetto_notte()
             st.session_state.giorno += 1
             st.session_state.giorni_trascorsi_offset += 1
             st.session_state.indice_fascia_oraria = 0
@@ -1020,16 +1053,17 @@ with tab1:
 
         elif tipo_operazione == "Automazione Turno AI":
             idx_corrente = st.session_state.indice_fascia_oraria
-            fascia_corrente = FASCE_ORARIE[idx_corrente]
 
-            st.markdown(f"##### 🏪 Automazione Sales Engine")
-            st.info(f"Fascia oraria corrente: **{fascia_corrente}** ({idx_corrente + 1} di 5)")
-
-            strategia_bot = st.selectbox("Strategia Bot", ["Onesta / Valore di Mercato", "Aggressiva (+20%)", "Generosa (-15%)"])
-
-            if idx_corrente >= 5:
-                st.warning("⚠️ Hai completato tutte le 5 fasce orarie della giornata! Clicca su **'🌙 Riposa e Passa al Giorno Successivo'** in cima.")
+            if idx_corrente >= len(FASCE_ORARIE):
+                st.warning("⚠️ Hai completato tutte le 5 fasce orarie della giornata! Clicca su **'🌙 Riposa e Passa al Giorno Successivo'** in cima per continuare.")
             else:
+                fascia_corrente = FASCE_ORARIE[idx_corrente]
+
+                st.markdown(f"##### 🏪 Automazione Sales Engine")
+                st.info(f"Fascia oraria corrente: **{fascia_corrente}** ({idx_corrente + 1} di 5)")
+
+                strategia_bot = st.selectbox("Strategia Bot", ["Onesta / Valore di Mercato", "Aggressiva (+20%)", "Generosa (-15%)"])
+
                 if st.button("🚀 Avvia Turno Fascia Corrente (-20% Energia)", use_container_width=True):
                     if st.session_state.energia < 20:
                         st.error("Sei troppo stanco! Riposa.")
@@ -1233,7 +1267,6 @@ with tab3:
         costo_tot = off['costo_totale']
         ha_abbastanza_soldi = st.session_state.soldi_cassa >= costo_tot
 
-        # Contenitore Heist Board / GTA Style
         st.markdown(f"""
         <div class="heist-board">
             <div class="heist-title">🎯 OBIETTIVO / CONTATTO: {off['fornitore_nome'].upper()}</div>
@@ -1293,7 +1326,6 @@ with tab3:
                 st.session_state.minigioco_trattativa = False
                 st.rerun()
 
-        # --- MINIGIOCO DI TRATTATIVA GTA / HEIST BOARD ---
         st.markdown("---")
         with st.container(border=True):
             st.markdown("##### 📋 PIANIFICAZIONE TRATTATIVA CLANDESTINA")
