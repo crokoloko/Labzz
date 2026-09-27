@@ -278,7 +278,7 @@ def spara_fuochi_d_artificio():
     st.components.v1.html(js_code, height=0)
 
 # ==========================================
-# GENERAZIONE FORNITORI GANGSTER NON TARATI
+# GANGSTER E FORNITORI
 # ==========================================
 GANGSTER_FORNITORI = [
     {"nome": "Don Cornetto", "frase": "«Un'offerta che non puoi rifiutare... o finisci a fare i cappucci!»"},
@@ -292,11 +292,13 @@ GANGSTER_FORNITORI = [
 ]
 
 def genera_offerta_fornitore_casuale():
-    # Incrementa il contatore giornaliero
+    if st.session_state.fornitori_visti_oggi >= st.session_state.max_fornitori_oggi:
+        st.info("Per oggi non ci sono altri contatti disponibili.")
+        return
+
     st.session_state.fornitori_visti_oggi += 1
     gangster = random.choice(GANGSTER_FORNITORI)
     
-    # Generazione non tarata sul budget: pesca liberamente dalle fasce reali
     categoria_stock = random.choice(["Micro", "Standard", "Volume", "TopQuality"])
     
     if categoria_stock == "Micro":
@@ -403,19 +405,6 @@ def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento):
     aggiungi_log(f"✅ VENDITA: {cli_att['nome']} ha comprato {cli_att['quantita_richiesta']}g di '{cli_att['prodotto_nome']}' a €{prezzo_per_g:.2f}/g (+€{totale_incasso:.2f})")
     spara_fuochi_d_artificio()
 
-def verifica_arrivo_offerta_dinamica():
-    # Verifica il limite di massimo 2 fornitori al giorno
-    if st.session_state.fornitori_visti_oggi >= st.session_state.max_fornitori_oggi:
-        return
-
-    if st.session_state.offerta_fornitore is not None:
-        return
-
-    # 40% di probabilità che arrivi un fornitore (se non abbiamo superato il limite del giorno)
-    if random.random() < 0.40:
-        genera_offerta_fornitore_casuale()
-        aggiungi_log(f"📨 Un nuovo fornitore ({st.session_state.offerta_fornitore['fornitore_nome']}) ti ha contattato!")
-
 # INITIAL STATE
 if 'soldi_cassa' not in st.session_state:
     st.session_state.soldi_cassa = 200.0
@@ -436,7 +425,7 @@ if 'cliente_in_negozio' not in st.session_state:
 if 'fornitori_visti_oggi' not in st.session_state:
     st.session_state.fornitori_visti_oggi = 0
 if 'max_fornitori_oggi' not in st.session_state:
-    st.session_state.max_fornitori_oggi = random.choice([0, 1, 1, 2]) # 0, 1 o max 2 al giorno
+    st.session_state.max_fornitori_oggi = random.choice([0, 1, 1, 2])
 
 if st.session_state.cliente_in_negozio is None:
     genera_cliente_in_negozio()
@@ -471,8 +460,9 @@ def reset_completo_nuova_partita():
     st.session_state.offerta_fornitore = None
     st.session_state.cliente_in_negozio = None
     st.session_state.fornitori_visti_oggi = 0
-    st.session_state.max_fornitori_oggi = random.choice([1, 2])
-    genera_offerta_fornitore_casuale()
+    st.session_state.max_fornitori_oggi = random.choice([0, 1, 2])
+    if st.session_state.max_fornitori_oggi > 0:
+        genera_offerta_fornitore_casuale()
     genera_cliente_in_negozio()
 
 # ==========================================
@@ -545,7 +535,6 @@ st.markdown("""
         margin-bottom: 15px !important;
     }
 
-    /* GRIGLIA DASHBOARD COMPATTA IN ALTO */
     .top-metrics-grid {
         display: grid !important;
         grid-template-columns: repeat(2, 1fr) !important;
@@ -874,15 +863,18 @@ with tab1:
         if st.button("🌙 Riposa e Passa al Giorno Successivo", use_container_width=True):
             st.session_state.giorno += 1
             st.session_state.energia = 100
+            
+            # Azzeramento fornitori del giorno precedente (non si accumulano)
+            st.session_state.offerta_fornitore = None
             st.session_state.fornitori_visti_oggi = 0
             st.session_state.max_fornitori_oggi = random.choice([0, 1, 1, 2])
-            st.session_state.offerta_fornitore = None
             
+            # Eventuale generazione automatica all'alba del nuovo giorno se il limite lo prevede
             if st.session_state.max_fornitori_oggi > 0 and random.random() < 0.60:
                 genera_offerta_fornitore_casuale()
                 
             genera_cliente_in_negozio()
-            aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Energia 100%. Max fornitori oggi: {st.session_state.max_fornitori_oggi}")
+            aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Energia 100%. Fornitori disponibili oggi: {st.session_state.max_fornitori_oggi}")
             st.rerun()
 
     # --------------------------------------
@@ -992,19 +984,18 @@ with tab3:
                     st.rerun()
 
             with col_b2:
-                if st.button("❌ RIFIUTA OFFERTA", use_container_width=True):
-                    aggiungi_log(f"❌ Rifiutata offerta di {off['fornitore_nome']}.")
-                    st.info(f"Hai rifiutato l'offerta di {off['fornitore_nome']}.")
+                if st.button("❌ RIFIUTA E MANDALO VIA", use_container_width=True):
+                    aggiungi_log(f"❌ Rifiutata offerta di {off['fornitore_nome']} (l'offerta è scaduta).")
+                    st.info(f"Hai mandato via {off['fornitore_nome']}. Se n'è andato.")
                     st.session_state.offerta_fornitore = None
                     st.rerun()
 
             # --- CONTROFFERTA / TAGLIO MINORE ---
             st.markdown("---")
             with st.expander("🗣️ Chiedi un Taglio Minore (Prezzo/g maggiorato)"):
-                st.write("«Non ho tutti questi soldi o non voglio così tanto stock. Me ne dai meno?»")
+                st.write("«Non ho tutti questi soldi o non voglio così stock intero. Me ne dai meno?»")
                 qta_ridotta = st.number_input("Quanti grammi vuoi chiedere?", min_value=1.0, max_value=float(off['quantita'] - 1.0), value=min(15.0, float(off['quantita'] - 1.0)), step=1.0)
                 
-                # Sovrapprezzo al grammo per il disturbo
                 maggiorazione = 1.25 if qta_ridotta < (off['quantita'] / 2) else 1.15
                 nuovo_costo_u = round(off['costo_unitario'] * maggiorazione, 2)
                 nuovo_costo_tot = round(qta_ridotta * nuovo_costo_u, 2)
@@ -1040,7 +1031,7 @@ with tab3:
                 genera_offerta_fornitore_casuale()
                 st.rerun()
         else:
-            st.warning("⚠️ Per oggi nessun altro fornitore è disponibile o disposto ad incontrarti. Riposa per passare al giorno successivo.")
+            st.warning("⚠️ Per oggi nessun fornitore è disponibile o disposto ad incontrarti. Riposa per passare al giorno successivo.")
 
     st.markdown("---")
     st.markdown("### 📋 Stato Lotti e Scorte Attuali")
