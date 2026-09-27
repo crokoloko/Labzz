@@ -1061,7 +1061,6 @@ with tab1:
                     st.markdown("### 📊 RECAP TOTALE GIORNATA (FINE TURNI)")
                     
                     with get_connection() as conn:
-                        # Filtriamo i movimenti odierni per data di gioco corrente
                         data_str_oggi = data_oggi.strftime("%Y-%m-%d")
                         mov_oggi_df = pd.read_sql_query("""
                             SELECT m.*, p.nome as prodotto_nome 
