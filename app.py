@@ -62,7 +62,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS pusher (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT UNIQUE NOT NULL,
-            stipendio_giornaliero REAL NOT NULL,
+            quota_trattenuta REAL NOT NULL,
             efficienza REAL NOT NULL,
             assunto INTEGER DEFAULT 0
         )""")
@@ -113,16 +113,16 @@ LISTA_NOMI_PRAGA = [
 ]
 
 PUSHER_DISPONIBILI = [
-    {"nome": "Vojta 'Il Veloce'", "stipendio": 15.0, "efficienza": 0.8},
-    {"nome": "Kamil 'Ghost'", "stipendio": 25.0, "efficienza": 1.3},
-    {"nome": "Anetka 'Bassi'", "stipendio": 10.0, "efficienza": 0.5}
+    {"nome": "Vojta 'Il Veloce'", "quota_trattenuta": 0.25, "efficienza": 0.8},
+    {"nome": "Kamil 'Ghost'", "quota_trattenuta": 0.15, "efficienza": 1.3},
+    {"nome": "Anetka 'Bassi'", "quota_trattenuta": 0.35, "efficienza": 0.5}
 ]
 
 def inizializza_pusher_db():
     with get_connection() as conn:
         cursor = conn.cursor()
         for p in PUSHER_DISPONIBILI:
-            cursor.execute("INSERT OR IGNORE INTO pusher (nome, stipendio_giornaliero, efficienza, assunto) VALUES (?, ?, ?, 0)", (p['nome'], p['stipendio'], p['efficienza']))
+            cursor.execute("INSERT OR IGNORE INTO pusher (nome, quota_trattenuta, efficienza, assunto) VALUES (?, ?, ?, 0)", (p['nome'], p['quota_trattenuta'], p['efficienza']))
 inizializza_pusher_db()
 
 def get_data_corrente_gioco():
@@ -384,7 +384,7 @@ GANGSTER_FORNITORI = [
     {"nome": "Don Cornetto", "frase": "«Un'offerta da Praga che non puoi rifiutare...»"},
     {"nome": "Tony Pesto", "frase": "«O compri questo stock o stasera le cotolette le fai coi denti!»"},
     {"nome": "Al Cacio", "frase": "«Robina fresca fresca di contrabbando, scesa dal treno da Berlino.»"},
-    {"nome": "Franky 'Cinque Dita'", "frase": "«Guarda che kualitas, sfiorala soltanto e ti senti a Karlin!»"},
+    {"nome": "Franky 'Cinque Dita'", "frase": "«Guarda che qualità, sfiorala soltanto e ti senti a Karlin!»"},
     {"nome": "Peppe 'u Scannatore", "frase": "«Vedi di fare in fretta prima che arrivi la polizia ceca...»"},
     {"nome": "Luigi 'O Calibro", "frase": "«Prezzo da amico, ma non farmi domande su dove l'ho preso nei club.»"}
 ]
@@ -895,14 +895,8 @@ data_formattata = data_oggi.strftime("%d %B %Y")
 with st.container(border=True):
     col_n1, col_n2, col_n3 = st.columns([1, 2, 1])
     with col_n2:
-        if st.button("🌙 Riposa, Paga Stipendi e Avanza", use_container_width=True):
-            with get_connection() as conn:
-                pusher_assunti = pd.read_sql_query("SELECT * FROM pusher WHERE assunto = 1", conn)
-            tot_stipendi = pusher_assunti['stipendio_giornaliero'].sum() if not pusher_assunti.empty else 0.0
-            
-            st.session_state.soldi_cassa -= tot_stipendi
+        if st.button("🌙 Avanza Giorno (Notte Praghese)", use_container_width=True):
             set_sospetto(get_sospetto() - 8.0)
-            
             trigger_effetto_notte()
             st.session_state.giorno += 1
             st.session_state.giorni_trascorsi_offset += 1
@@ -920,7 +914,7 @@ with st.container(border=True):
                 
             genera_cliente_in_negozio()
             genera_evento_casuale_giorno()
-            aggiungi_log(f"🌙 Notte trascorsa a Praga. Stipendi pusher pagati: -€{tot_stipendi:.2f}")
+            aggiungi_log("🌙 Notte trascorsa a Praga. Inizia un nuovo giorno.")
             st.rerun()
 
     st.markdown(f"""
@@ -1064,7 +1058,7 @@ with tab1:
         elif tipo_operazione == "Automazione Turno AI":
             idx_corrente = st.session_state.indice_fascia_oraria
             if idx_corrente >= len(FASCE_ORARIE):
-                st.warning("⚠️ Hai completato tutte le 5 fasce orarie della giornata! Clicca su **'🌙 Riposa, Paga Stipendi e Avanza'** in cima per continuare.")
+                st.warning("⚠️ Hai completato tutte le 5 fasce orarie della giornata! Clicca su **'🌙 Avanza Giorno (Notte Praghese)'** in cima per continuare.")
                 
                 with st.container(border=True):
                     st.markdown("### 📊 RECAP TOTALE GIORNATA (FINE TURNI)")
@@ -1096,10 +1090,6 @@ with tab1:
                             st.write(f"&bull; **{row_p['prodotto_nome']}**: {row_p['quantita']:.1f} g")
                     else:
                         st.write("Nessuna vendita registrata oggi.")
-                    
-                    if not mov_oggi_df.empty:
-                        st.markdown("##### 🛒 Dettaglio Ultimi Clienti Serviti Oggi:")
-                        st.dataframe(mov_oggi_df[['data', 'cliente', 'prodotto_nome', 'quantita', 'ricavo_totale']].head(15), use_container_width=True, hide_index=True)
             else:
                 fascia_corrente = FASCE_ORARIE[idx_corrente]
                 st.markdown(f"##### 🏪 Automazione Sales Engine (Praga Underground)")
@@ -1108,10 +1098,10 @@ with tab1:
                 strategia_bot = st.selectbox("Strategia Bot", ["Onesta / Valore di Mercato", "Aggressiva (+20%)", "Generosa (-15%)"])
 
                 with get_connection() as conn:
-                    pusher_attivi = pd.read_sql_query("SELECT * FROM pusher WHERE assunto = 1", conn)
-                bonus_pusher = pusher_attivi['efficienza'].sum() if not pusher_attivi.empty else 0.0
-                if bonus_pusher > 0:
-                    st.info(f"👥 Pusher attivi sul campo (+{bonus_pusher*100:.0f}% efficienza automatica)!")
+                    pusher_assunti = pd.read_sql_query("SELECT * FROM pusher WHERE assunto = 1", conn)
+                
+                if not pusher_assunti.empty:
+                    st.info(f"👥 Pusher attivi sul campo a percentuale!")
 
                 if st.button("🚀 Avvia Turno Fascia Corrente (-20% Energia)", use_container_width=True):
                     if st.session_state.energia < 20:
@@ -1124,14 +1114,10 @@ with tab1:
                             is_f, _ = e_festivo_o_weekend(get_data_corrente_gioco())
                             moltiplicatore_festivo = 1.35 if is_f else 1.0
                             
-                            if idx_corrente >= 3:
-                                base_clienti = random.randint(3, 6)
-                            elif idx_corrente == 1:
-                                base_clienti = random.randint(2, 5)
-                            else:
-                                base_clienti = random.randint(2, 4)
-                                
-                            num_clienti_tot = int((base_clienti + int(st.session_state.fedelta_clienti / 25)) * moltiplicatore_festivo * (1.0 + bonus_pusher))
+                            base_clienti = random.randint(3, 6) if idx_corrente >= 3 else random.randint(2, 4)
+                            bonus_efficienza_totale = pusher_assunti['efficienza'].sum() if not pusher_assunti.empty else 0.0
+                            
+                            num_clienti_tot = int((base_clienti + int(st.session_state.fedelta_clienti / 25) + int(bonus_efficienza_totale * 3)) * moltiplicatore_festivo)
                             nomi_turno_disponibili = random.sample(LISTA_NOMI_PRAGA, min(len(LISTA_NOMI_PRAGA), max(4, num_clienti_tot + 2)))
                             
                             vendite_ok = 0
@@ -1166,16 +1152,25 @@ with tab1:
                                     ricavo = qta_req * prezzo_bot
                                     margine = ricavo - (qta_req * l_costo)
                                     
-                                    cursor.execute("""
-                                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento)
-                                        VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, 'Subito')
-                                    """, (p_id, l_id, qta_req, prezzo_bot, ricavo, qta_req * l_costo, margine, cli_nome))
+                                    # Gestione guadagno Pusher a percentuale se ci sono pusher assunti
+                                    if not pusher_assunti.empty:
+                                        pusher_assegnato = pusher_assunti.sample(n=1).iloc[0]
+                                        quota_pusher = ricavo * float(pusher_assegnato['quota_trattenuta'])
+                                        guadagno_boss = ricavo - quota_pusher
+                                        note_movimento = f"Vendita tramite Pusher ({pusher_assegnato['nome']})"
+                                    else:
+                                        guadagno_boss = ricavo
+                                        note_movimento = f"Vendita diretta gestita dal Boss"
                                     
-                                    st.session_state.soldi_cassa += ricavo
+                                    cursor.execute("""
+                                        INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
+                                        VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, 'Subito', ?)
+                                    """, (p_id, l_id, qta_req, prezzo_bot, ricavo, qta_req * l_costo, margine, cli_nome, note_movimento))
+                                    
+                                    st.session_state.soldi_cassa += guadagno_boss
                                     incasso_turno += ricavo
                                     vendite_ok += 1
                                     vendite_prodotti_turno[p_nome] = vendite_prodotti_turno.get(p_nome, 0.0) + qta_req
-                                    aggiungi_log(f"✅ BOT ({fascia_corrente[:10]}): {cli_nome} ha comprato {qta_req}g di '{p_nome}' (+€{ricavo:.2f})")
 
                             if vendite_ok > 0:
                                 st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 4)
@@ -1234,8 +1229,8 @@ with tab1:
 # TAB 2: GESTIONE PUSHER E PERSONALE
 # ------------------------------------------
 with tab2:
-    st.subheader("👥 Gestione Pusher & Collaboratori a Praga")
-    st.write("Assumi collaboratori locali per automatizzare parte delle vendite durante i turni e aumentare il volume d'affari.")
+    st.subheader("👥 Gestione Pusher a Percentuale")
+    st.write("I pusher lavorano senza stipendio fisso: trattengono una percentuale fissa sulle vendite effettuate in base alla loro abilità. La merce viene scalata direttamente dal magazzino centrale.")
     
     with get_connection() as conn:
         pusher_df = pd.read_sql_query("SELECT * FROM pusher", conn)
@@ -1244,7 +1239,7 @@ with tab2:
         with st.container(border=True):
             col_p1, col_p2, col_p3 = st.columns([2, 2, 1])
             col_p1.markdown(f"### **{p['nome']}**")
-            col_p2.write(f"• **Stipendio:** €{p['stipendio_giornaliero']:.1f}/giorno\n• **Efficienza:** +{p['efficienza']*100:.0f}%")
+            col_p2.write(f"• **Trattiene (Commissione):** {p['quota_trattenuta']*100:.0f}%\n• **Efficienza / Abilità:** +{p['efficienza']*100:.0f}%")
             
             is_assunto = bool(p['assunto'])
             if is_assunto:
@@ -1257,14 +1252,14 @@ with tab2:
                 if col_p3.button("Assumi", key=f"ass_{p['id']}"):
                     with get_connection() as conn:
                         conn.execute("UPDATE pusher SET assunto = 1 WHERE id = ?", (p['id'],))
-                    st.success(f"Hai assunti {p['nome']}!")
+                    st.success(f"Hai assunto {p['nome']}!")
                     st.rerun()
 
     st.markdown("---")
-    st.subheader("📊 Recap Attività e Vendite Giornaliere (Pusher / Squadra)")
+    st.subheader("📊 Recap Attività e Vendite della Squadra (Oggi)")
     
     with get_connection() as conn:
-        mov_oggi_pusher_df = pd.read_sql_query("""
+        mov_squadra_df = pd.read_sql_query("""
             SELECT m.*, p.nome as prodotto_nome 
             FROM movimenti m 
             JOIN prodotti p ON m.prodotto_id = p.id 
@@ -1272,26 +1267,40 @@ with tab2:
             ORDER BY m.data DESC
         """, conn)
 
-    if not mov_oggi_pusher_df.empty:
-        tot_incasso_p = mov_oggi_pusher_df['ricavo_totale'].sum()
-        tot_margine_p = mov_oggi_pusher_df['margine'].sum()
-        clienti_unici_p = mov_oggi_pusher_df['cliente'].nunique()
+    if not mov_squadra_df.empty:
+        tot_ricavo_squadra = mov_squadra_df['ricavo_totale'].sum()
+        clienti_raggiunti = mov_squadra_df['cliente'].nunique()
+        tot_grammi_venduti = mov_squadra_df['quantita'].sum()
         
-        col_pp1, col_pp2 = st.columns(2)
-        col_pp1.metric("💵 Incasso Totale Squadra Oggi", f"€ {tot_incasso_p:,.2f}")
-        col_pp2.metric("📈 Margine Netto Squadra Oggi", f"€ {tot_margine_p:,.2f}")
+        # Calcolo approssimativo profitti Boss vs Pusher basato sulle quote medie
+        # Se c'è un mix, stimiamo la divisione in base ai movimenti registrati
+        ricavo_boss = 0.0
+        ricavo_pusher = 0.0
         
-        st.write(f"• **Clienti Unici Incontrati in Strada:** 👥 {clienti_unici_p} clienti ({len(mov_oggi_pusher_df)} transazioni totali)")
+        for _, row_m in mov_squadra_df.iterrows():
+            note_m = str(row_m['note'])
+            ricavo_r = float(row_m['ricavo_totale'])
+            if "Pusher" in note_m:
+                # Troviamo quale pusher se possibile o usiamo una quota media del 25%
+                ricavo_pusher += ricavo_r * 0.25
+                ricavo_boss += ricavo_r * 0.75
+            else:
+                ricavo_boss += ricavo_r
+
+        col_sq1, col_sq2, col_sq3 = st.columns(3)
+        col_sq1.metric("👥 Clienti Raggiunti", clienti_raggiunti)
+        col_sq2.metric("⚖️ Grammi Venduti", f"{tot_grammi_venduti:.1f} g")
+        col_sq3.metric("💰 Incasso Totale", f"€ {tot_ricavo_squadra:,.2f}")
         
-        st.markdown("##### 📦 Quantità Vendute per Prodotto:")
-        qta_prod_p = mov_oggi_pusher_df.groupby('prodotto_nome')['quantita'].sum().reset_index()
-        for _, rp in qta_prod_p.iterrows():
-            st.write(f"&bull; **{rp['prodotto_nome']}**: {rp['quantita']:.1f} g")
-            
-        st.markdown("##### 🛒 Ultime Transazioni Registrate dai Pusher:")
-        st.dataframe(mov_oggi_pusher_df[['data', 'cliente', 'prodotto_nome', 'quantita', 'ricavo_totale']].head(10), use_container_width=True, hide_index=True)
+        st.write(f"• **Profitto Netto Tuo (Boss):** € {ricavo_boss:,.2f}")
+        st.write(f"• **Guadagni Trattenuti dai Pusher:** € {ricavo_pusher:,.2f}")
+        
+        st.markdown("##### 📦 Dettaglio Grammi per Prodotto:")
+        qta_prod_sq = mov_squadra_df.groupby('prodotto_nome')['quantita'].sum().reset_index()
+        for _, rsp in qta_prod_sq.iterrows():
+            st.write(f"&bull; **{rsp['prodotto_nome']}**: {rsp['quantita']:.1f} g")
     else:
-        st.info("Nessuna vendita registrata oggi dalla squadra o in cassa.")
+        st.info("Nessuna vendita registrata oggi dalla squadra in strada.")
 
 # ------------------------------------------
 # TAB 3: DASHBOARD & ANALYTICS
