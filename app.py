@@ -673,32 +673,6 @@ else:
         st.title("LaBzz Tycoon")
 
 # ==========================================
-# PULSANTE TURNO NOTTURNO (SOTTO IL LOGO, SOPRA LE METRICHE)
-# ==========================================
-with st.container(border=True):
-    col_n1, col_n2, col_n3 = st.columns([1, 2, 1])
-    with col_n2:
-        if st.button("🌙 Riposa e Passa al Giorno Successivo", use_container_width=True):
-            st.session_state.giorno += 1
-            st.session_state.energia = 100
-            
-            st.session_state.offerta_fornitore = None
-            st.session_state.fornitori_visti_oggi = 0
-            st.session_state.max_fornitori_oggi = random.choice([0, 1, 1, 2])
-            st.session_state.minigioco_trattativa = False
-            st.session_state.ultimo_report_bot = None
-            
-            if st.session_state.max_fornitori_oggi > 0 and random.random() < 0.60:
-                genera_offerta_fornitore_casuale()
-                
-            genera_cliente_in_negozio()
-            genera_evento_casuale_giorno()
-            aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Energia 100%. Fornitori disponibili oggi: {st.session_state.max_fornitori_oggi}")
-            st.rerun()
-
-st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
-
-# ==========================================
 # HEADER METRICHE TYCOON GRIGLIA COMPATTA
 # ==========================================
 with get_connection() as conn:
@@ -739,6 +713,30 @@ st.markdown(f"""
     </div>
 </div>
 """, unsafe_allow_html=True)
+
+# ==========================================
+# PULSANTE TURNO NOTTURNO (APPENA SOTTO LE STATISTICHE)
+# ==========================================
+with st.container(border=True):
+    col_n1, col_n2, col_n3 = st.columns([1, 2, 1])
+    with col_n2:
+        if st.button("🌙 Riposa e Passa al Giorno Successivo", use_container_width=True):
+            st.session_state.giorno += 1
+            st.session_state.energia = 100
+            
+            st.session_state.offerta_fornitore = None
+            st.session_state.fornitori_visti_oggi = 0
+            st.session_state.max_fornitori_oggi = random.choice([0, 1, 1, 2])
+            st.session_state.minigioco_trattativa = False
+            st.session_state.ultimo_report_bot = None
+            
+            if st.session_state.max_fornitori_oggi > 0 and random.random() < 0.60:
+                genera_offerta_fornitore_casuale()
+                
+            genera_cliente_in_negozio()
+            genera_evento_casuale_giorno()
+            aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Energia 100%. Fornitori disponibili oggi: {st.session_state.max_fornitori_oggi}")
+            st.rerun()
 
 st.markdown("---")
 
@@ -1048,7 +1046,7 @@ with tab1:
                         st.rerun()
 
     # --------------------------------------
-    # COLONNA 2: REGISTRO EVENTI SOPRA, LEDGER IN FONDO
+    # COLONNA 2: REGISTRO EVENTI SOPRA, MOVIMENTI LIVE (LEDGER) SOTTO
     # --------------------------------------
     with col_ledger:
         st.subheader("📜 Registro Eventi Turno")
