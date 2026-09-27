@@ -248,7 +248,8 @@ def get_movimenti_dettagliati_df():
             m.ricavo_totale AS incasso, 
             m.margine, 
             COALESCE(m.cliente, 'Anonimo') AS cliente,
-            COALESCE(m.pagamento, 'Subito') AS stato_pagamento
+            COALESCE(m.pagamento, 'Subito') AS stato_pagamento,
+            COALESCE(m.note, '') AS note
         FROM movimenti m
         JOIN prodotti p ON m.prodotto_id = p.id
         LEFT JOIN lotti l ON m.lotto_id = l.id
@@ -552,7 +553,7 @@ def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento):
             cursor.execute("""
                 INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, prezzo_unitario, ricavo_totale, costo_totale, margine, cliente, pagamento, note)
                 VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (cli_att['prodotto_id'], l_id, prelievo, prezzo_per_g, ricavo_q, costo_q, margine_q, cli_att['nome'], tipo_pagamento, f"Lotto {lotto['codice_lotto']}"))
+            """, (cli_att['prodotto_id'], l_id, prelievo, prezzo_per_g, ricavo_q, costo_q, margine_q, cli_att['nome'], tipo_pagamento, f"Vendita Diretta Banco - Lotto {lotto['codice_lotto']}"))
 
     if tipo_pagamento == "Subito":
         st.session_state.soldi_cassa += totale_incasso
@@ -1062,6 +1063,7 @@ with tab1:
                     
                     with get_connection() as conn:
                         data_str_oggi = data_oggi.strftime("%Y-%m-%d")
+                        # Filtro rigoroso per prendere SOLO i movimenti di vendita della data odierna
                         mov_oggi_df = pd.read_sql_query("""
                             SELECT m.*, p.nome as prodotto_nome 
                             FROM movimenti m 
@@ -1254,56 +1256,56 @@ with tab2:
                     st.rerun()
 
     st.markdown("---")
-    st.subheader("📊 Recap Attività e Vendite della Squadra (Oggi)")
+    st.subheader("📊 Recap Esclusivo Attività e Vendite dei Pusher (Oggi)")
     
     with get_connection() as conn:
-        mov_squadra_df = pd.read_sql_query("""
+        data_str_oggi = data_oggi.strftime("%Y-%m-%d")
+        # Filtriamo ESCLUSIVAMENTE i movimenti generati dai pusher nella giornata odierna
+        mov_pusher_oggi_df = pd.read_sql_query("""
             SELECT m.*, p.nome as prodotto_nome 
             FROM movimenti m 
             JOIN prodotti p ON m.prodotto_id = p.id 
-            WHERE m.tipo = 'VENDITA'
+            WHERE m.tipo = 'VENDITA' AND m.note LIKE '%Pusher%' AND DATE(m.data) = ?
             ORDER BY m.data DESC
-        """, conn)
+        """, conn, params=(data_str_oggi,))
 
-    if not mov_squadra_df.empty:
-        tot_ricavo_squadra = mov_squadra_df['ricavo_totale'].sum()
-        clienti_raggiunti = mov_squadra_df['cliente'].nunique()
-        tot_grammi_venduti = mov_squadra_df['quantita'].sum()
+    if not mov_pusher_oggi_df.empty:
+        tot_incasso_pusher = mov_pusher_oggi_df['ricavo_totale'].sum()
+        clienti_raggiunti_pusher = mov_pusher_oggi_df['cliente'].nunique()
+        tot_grammi_pusher = mov_pusher_oggi_df['quantita'].sum()
         
-        ricavo_boss = 0.0
-        ricavo_pusher = 0.0
+        profitto_boss_pusher = 0.0
+        profitto_trattenuto_pusher = 0.0
         
-        for _, row_m in mov_squadra_df.iterrows():
+        for _, row_m in mov_pusher_oggi_df.iterrows():
             note_m = str(row_m['note'])
             ricavo_r = float(row_m['ricavo_totale'])
-            if "Pusher" in note_m:
-                if "Vojta" in note_m:
-                    q_pusher = ricavo_r * 0.25
-                elif "Kamil" in note_m:
-                    q_pusher = ricavo_r * 0.35
-                elif "Anetka" in note_m:
-                    q_pusher = ricavo_r * 0.40
-                else:
-                    q_pusher = ricavo_r * 0.30
-                ricavo_pusher += q_pusher
-                ricavo_boss += (ricavo_r - q_pusher)
+            if "Vojta" in note_m:
+                q_pusher = ricavo_r * 0.25
+            elif "Kamil" in note_m:
+                q_pusher = ricavo_r * 0.35
+            elif "Anetka" in note_m:
+                q_pusher = ricavo_r * 0.40
             else:
-                ricavo_boss += ricavo_r
+                q_pusher = ricavo_r * 0.30
+            
+            profitto_trattenuto_pusher += q_pusher
+            profitto_boss_pusher += (ricavo_r - q_pusher)
 
         col_sq1, col_sq2, col_sq3 = st.columns(3)
-        col_sq1.metric("👥 Clienti Raggiunti", clienti_raggiunti)
-        col_sq2.metric("⚖️ Grammi Venduti", f"{tot_grammi_venduti:.1f} g")
-        col_sq3.metric("💰 Incasso Totale", f"€ {tot_ricavo_squadra:,.2f}")
+        col_sq1.metric("👥 Clienti Raggiunti (Pusher)", clienti_raggiunti_pusher)
+        col_sq2.metric("⚖️ Grammi Venduti (Pusher)", f"{tot_grammi_pusher:.1f} g")
+        col_sq3.metric("💰 Incasso Totale Pusher", f"€ {tot_incasso_pusher:,.2f}")
         
-        st.write(f"• **Profitto Netto Tuo (Boss):** € {ricavo_boss:,.2f}")
-        st.write(f"• **Guadagni Trattenuti dai Pusher:** € {ricavo_pusher:,.2f}")
+        st.write(f"• **Tuo Profitto Netto (dalle vendite dei pusher):** € {profitto_boss_pusher:,.2f}")
+        st.write(f"• **Guadagni Trattenuti dai Pusher:** € {profitto_trattenuto_pusher:,.2f}")
         
-        st.markdown("##### 📦 Dettaglio Grammi per Prodotto:")
-        qta_prod_sq = mov_squadra_df.groupby('prodotto_nome')['quantita'].sum().reset_index()
-        for _, rsp in qta_prod_sq.iterrows():
+        st.markdown("##### 📦 Dettaglio Grammi Venduti dai Pusher per Prodotto:")
+        qta_prod_pusher = mov_pusher_oggi_df.groupby('prodotto_nome')['quantita'].sum().reset_index()
+        for _, rsp in qta_prod_pusher.iterrows():
             st.write(f"&bull; **{rsp['prodotto_nome']}**: {rsp['quantita']:.1f} g")
     else:
-        st.info("Nessuna vendita registrata oggi dalla squadra in strada.")
+        st.info("Nessuna vendita registrata oggi tramite i pusher sul campo.")
 
 # ------------------------------------------
 # TAB 3: DASHBOARD & ANALYTICS
