@@ -209,6 +209,16 @@ def aggiungi_cliente_se_nuovo(nome):
             cursor = conn.cursor()
             cursor.execute("INSERT OR IGNORE INTO clienti (nome) VALUES (?)", (nome_pulito,))
 
+def calcola_grado_reputazione(rep):
+    if rep < 30:
+        return "🌱 Principiante di Quartiere"
+    elif rep < 60:
+        return "🥈 Spacciatore Rispettato"
+    elif rep < 85:
+        return "🥇 Boss della Zona"
+    else:
+        return "👑 Re del Quartiere"
+
 def calcola_stato_magazzino(solo_disponibili=False):
     with get_connection() as conn:
         prodotti_df = pd.read_sql_query("SELECT * FROM prodotti", conn)
@@ -306,28 +316,28 @@ def genera_offerta_fornitore_casuale():
         qta = float(random.choice([12, 13, 14, 15, 16, 17, 18, 19, 21, 22]))
         costo_u = round(random.uniform(4.50, 5.80), 2)
         tipo_offerta = "⚠️ Pochi grammi al dettaglio"
-        valore_mercato_suggerito = float(random.randint(8, 10)) # 8-10 al grammo
+        valore_mercato_suggerito = float(random.randint(8, 10))
 
     elif categoria_stock == "Standard":
         p_nome = "Varietà Standard"
         qta = float(random.choice([25, 50, 100]))
         costo_u = round(random.uniform(3.50, 4.50), 2)
         tipo_offerta = "🏷️ Stock Taglio Medio"
-        valore_mercato_suggerito = float(random.randint(8, 10)) # 8-10 al grammo
+        valore_mercato_suggerito = float(random.randint(8, 10))
 
     elif categoria_stock == "TopQuality":
         p_nome = "Top Quality Special"
         qta = float(random.choice([25, 50, 100]))
         costo_u = round(random.uniform(7.00, 9.50), 2)
         tipo_offerta = "💎 Special Top Quality"
-        valore_mercato_suggerito = float(random.randint(12, 15)) # 12-15 al grammo
+        valore_mercato_suggerito = float(random.randint(12, 15))
 
     else:
         p_nome = "Stock Volume"
         qta = float(random.choice([150, 200, 250, 300, 500]))
         costo_u = round(random.uniform(2.50, 3.50), 2)
         tipo_offerta = "📦 Stock Volume Gran Taglio"
-        valore_mercato_suggerito = float(random.randint(8, 10)) # 8-10 al grammo
+        valore_mercato_suggerito = float(random.randint(8, 10))
 
     costo_tot = round(qta * costo_u, 2)
 
@@ -366,6 +376,34 @@ def genera_cliente_in_negozio():
     else:
         st.session_state.cliente_in_negozio = None
 
+def genera_evento_casuale_giorno():
+    # 35% di probabilità di un evento casuale (Polizia o VIP) ad inizio giornata
+    if random.random() < 0.35:
+        evento_tipo = random.choice(["polizia", "vip"])
+        if evento_tipo == "polizia":
+            st.session_state.evento_attivo = {
+                "tipo": "polizia",
+                "titolo": "🚨 ALLARTE POSTO DI BLOCCO / CONTROLLI!",
+                "testo": "Voci di corridoio dicono che la Finanza sta controllando la zona e fermando i sospetti vicino al locale. C'è tensione alta!"
+            }
+        else:
+            prodotti_disp = get_prodotti_disponibili_df()
+            if not prodotti_disp.empty:
+                prod_vip = prodotti_disp.sample(n=1).iloc[0]
+                qta_vip = float(random.choice([5, 10, 15]))
+                prezzo_vip = float(prod_vip['valore_mercato_unitario']) * 1.40
+                st.session_state.evento_attivo = {
+                    "tipo": "vip",
+                    "titolo": "📱 NOTIFICA VIP URGENTE",
+                    "testo": f"Un cliente VIP misterioso ti ha scritto sul telefono: «Mi servono urgentemente **{qta_vip}g di {prod_vip['nome']}**. Ti pago a peso d'oro (**€{prezzo_vip:.2f}/g**) se me li procuri oggi stesso!»",
+                    "prodotto_id": int(prod_vip['id']),
+                    "prodotto_nome": prod_vip['nome'],
+                    "quantita": qta_vip,
+                    "prezzo_offerto": prezzo_vip
+                }
+    else:
+        st.session_state.evento_attivo = None
+
 def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento):
     aggiungi_cliente_se_nuovo(cli_att['nome'])
     with get_connection() as conn:
@@ -403,6 +441,7 @@ def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento):
 
     st.session_state.energia = max(0, st.session_state.energia - 10)
     st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 3)
+    st.session_state.reputazione = min(100, st.session_state.reputazione + 1)
     aggiungi_log(f"✅ VENDITA: {cli_att['nome']} ha comprato {cli_att['quantita_richiesta']}g di '{cli_att['prodotto_nome']}' a €{prezzo_per_g:.2f}/g (+€{totale_incasso:.2f})")
     spara_fuochi_d_artificio()
 
@@ -414,11 +453,11 @@ if 'energia' not in st.session_state:
 if 'giorno' not in st.session_state:
     st.session_state.giorno = 1
 if 'reputazione' not in st.session_state:
-    st.session_state.reputazione = 50
+    st.session_state.reputazione = 15
 if 'fedelta_clienti' not in st.session_state:
     st.session_state.fedelta_clienti = 10
 if 'log_gioco' not in st.session_state:
-    st.session_state.log_gioco = ["🎮 Benvenuto! Il sistema Tycoon è pronto. Capitale iniziale: €200."]
+    st.session_state.log_gioco = ["🎮 Benvenuto nel mondo Tycoon! Capitale iniziale: €200."]
 if 'offerta_fornitore' not in st.session_state:
     st.session_state.offerta_fornitore = None
 if 'cliente_in_negozio' not in st.session_state:
@@ -427,12 +466,17 @@ if 'fornitori_visti_oggi' not in st.session_state:
     st.session_state.fornitori_visti_oggi = 0
 if 'max_fornitori_oggi' not in st.session_state:
     st.session_state.max_fornitori_oggi = random.choice([0, 1, 1, 2])
+if 'evento_attivo' not in st.session_state:
+    st.session_state.evento_attivo = None
+if 'minigioco_trattativa' not in st.session_state:
+    st.session_state.minigioco_trattativa = False
 
 if st.session_state.cliente_in_negozio is None:
     genera_cliente_in_negozio()
 
 if st.session_state.giorno == 1 and st.session_state.offerta_fornitore is None and st.session_state.max_fornitori_oggi > 0:
     genera_offerta_fornitore_casuale()
+    genera_evento_casuale_giorno()
 
 def aggiungi_log(testo):
     timestamp = datetime.now().strftime("%H:%M:%S")
@@ -455,16 +499,19 @@ def reset_completo_nuova_partita():
     st.session_state.soldi_cassa = 200.0
     st.session_state.giorno = 1
     st.session_state.energia = 100
-    st.session_state.reputazione = 50
+    st.session_state.reputazione = 15
     st.session_state.fedelta_clienti = 10
     st.session_state.log_gioco = ["✨ Nuova Partita Iniziata! Reset completo eseguito. Budget: €200."]
     st.session_state.offerta_fornitore = None
     st.session_state.cliente_in_negozio = None
     st.session_state.fornitori_visti_oggi = 0
     st.session_state.max_fornitori_oggi = random.choice([0, 1, 2])
+    st.session_state.evento_attivo = None
+    st.session_state.minigioco_trattativa = False
     if st.session_state.max_fornitori_oggi > 0:
         genera_offerta_fornitore_casuale()
     genera_cliente_in_negozio()
+    genera_evento_casuale_giorno()
 
 # ==========================================
 # INIEZIONE CSS CUSTOM ORIGINALE
@@ -575,13 +622,13 @@ st.markdown("""
     }
 
     .card-value {
-        font-size: 1.1rem !important;
+        font-size: 1.05rem !important;
         font-weight: 700 !important;
         color: #38bdf8 !important;
     }
 
     .card-subtext {
-        font-size: 0.75rem !important;
+        font-size: 0.70rem !important;
         color: #38bdf8 !important;
         font-weight: 600 !important;
         margin-top: 2px !important;
@@ -624,7 +671,7 @@ else:
         st.title("LaBzz Tycoon")
 
 # ==========================================
-# HEADER METRICHE TYCOON GRIGLIA COMPATTA 2 PER COLONNA
+# HEADER METRICHE TYCOON GRIGLIA COMPATTA
 # ==========================================
 with get_connection() as conn:
     df_lotti_scorte = pd.read_sql_query("""
@@ -637,6 +684,7 @@ with get_connection() as conn:
 
 qta_totale_magazzino = df_lotti_scorte['qta'].sum() if not df_lotti_scorte.empty else 0.0
 qta_top_quality = df_lotti_scorte[df_lotti_scorte['nome'].str.contains("Top Quality", case=False, na=False)]['qta'].sum() if not df_lotti_scorte.empty else 0.0
+grado_rep_testo = calcola_grado_reputazione(st.session_state.reputazione)
 
 st.markdown(f"""
 <div class="top-metrics-grid">
@@ -654,21 +702,84 @@ st.markdown(f"""
         <div class="card-value">Giorno {st.session_state.giorno}</div>
     </div>
     <div class="custom-card">
-        <div class="card-label">⚡ Energia Imprenditore</div>
+        <div class="card-label">⚡ Energia</div>
         <div class="card-value">{st.session_state.energia}%</div>
     </div>
-    <div class="custom-card">
-        <div class="card-label">⭐ Reputazione</div>
-        <div class="card-value">{st.session_state.reputazione} / 100</div>
-    </div>
-    <div class="custom-card">
-        <div class="card-label">❤️ Fedeltà Clienti</div>
-        <div class="card-value">{st.session_state.fedelta_clienti}%</div>
+    <div class="custom-card" style="grid-column: span 2;">
+        <div class="card-label">⭐ Reputazione e Rango</div>
+        <div class="card-value">{st.session_state.reputazione} / 100 ({grado_rep_testo})</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
 st.markdown("---")
+
+# ==========================================
+# GESTIONE EVENTI SPECIALI (POLIZIA / VIP) IN EVIDENZA
+# ==========================================
+if st.session_state.evento_attivo:
+    ev = st.session_state.evento_attivo
+    with st.container(border=True):
+        st.markdown(f"### {ev['titolo']}")
+        st.write(ev['testo'])
+        
+        if ev['tipo'] == 'polizia':
+            col_ev1, col_ev2, col_ev3 = st.columns(3)
+            with col_ev1:
+                if st.button("💰 Paga Tangente (€45)", use_container_width=True):
+                    if st.session_state.soldi_cassa >= 45.0:
+                        st.session_state.soldi_cassa -= 45.0
+                        st.success("Hai corrotto la pattuglia! Sgomberati i controlli.")
+                        aggiungi_log("🚨 POLIZIA: Pagata tangente di €45 per evitare guai.")
+                        st.session_state.evento_attivo = None
+                        st.rerun()
+                    else:
+                        st.error("Non hai abbastanza contanti per la tangente!")
+            with col_ev2:
+                if st.button("🏃 Rischia e Nascondi Merce", use_container_width=True):
+                    if random.random() < 0.55:
+                        st.success("Sei riuscito a nascondere tutto in tempo! Sgommati senza danni.")
+                        aggiungi_log("🚨 POLIZIA: Controlli superati nascondendo la merce.")
+                    else:
+                        st.warning("Ti hanno perquisito il magazzino e sequestrato un po' di scorte!")
+                        aggiungi_log("🚨 POLIZIA: Perquisizione subita! Perdita parziale di scorte.")
+                        with get_connection() as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("UPDATE lotti SET quantita_attuale = MAX(0.0, quantita_attuale - 5.0) WHERE quantita_attuale > 0 LIMIT 2")
+                    st.session_state.evento_attivo = None
+                    st.rerun()
+            with col_ev3:
+                if st.button("🚪 Chiudi Locale per Oggi", use_container_width=True):
+                    st.info("Hai tenuto chiuso per evitare rogne. Giornata persa.")
+                    aggiungi_log("🚨 POLIZIA: Locale chiuso per l'intera giornata.")
+                    st.session_state.evento_attivo = None
+                    st.rerun()
+
+        elif ev['tipo'] == 'vip':
+            col_vip1, col_vip2 = st.columns(2)
+            with col_vip1:
+                if st.button("✅ ACCETTA ORDINE VIP", use_container_width=True):
+                    # Verifica se ha abbastanza scorte
+                    with get_connection() as conn:
+                        qta_disp_vip = pd.read_sql_query("SELECT SUM(quantita_attuale) FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0", conn, params=(ev['prodotto_id'],)).iloc[0, 0]
+                    qta_disp_vip = float(qta_disp_vip) if qta_disp_vip else 0.0
+                    
+                    if qta_disp_vip >= ev['quantita']:
+                        # Esegui vendita VIP istantanea
+                        cli_vip_obj = {"nome": "Cliente VIP", "prodotto_id": ev['prodotto_id'], "prodotto_nome": ev['prodotto_nome'], "quantita_richiesta": ev['quantita']}
+                        esegui_transazione_vendita(cli_vip_obj, ev['prezzo_offerto'], "Subito")
+                        st.success(f"🎉 Ordine VIP completato con successo! Incasso super: €{ev['quantita'] * ev['prezzo_offerto']:.2f}")
+                        st.session_state.reputazione = min(100, st.session_state.reputazione + 4)
+                        aggiungi_log(f"📱 VIP: Completato ordine speciale di {ev['quantita']}g di {ev['prodotto_nome']}.")
+                        st.session_state.evento_attivo = None
+                        st.rerun()
+                    else:
+                        st.error(f"Non hai abbastanza scorte di {ev['prodotto_nome']} (Disponibili: {qta_disp_vip:.1f}g)!")
+            with col_vip2:
+                if st.button("❌ RIFIUTA ORDINE", use_container_width=True):
+                    st.info("Hai declinato l'offerta VIP.")
+                    st.session_state.evento_attivo = None
+                    st.rerun()
 
 # ==========================================
 # SCHEDE / TAB DELL'APPLICAZIONE
@@ -833,6 +944,7 @@ with tab1:
 
                         if vendite_ok > 0:
                             st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 4)
+                            st.session_state.reputazione = min(100, st.session_state.reputazione + 2)
                             st.success(f"Turno IA Completato! Serviti {vendite_ok} clienti.")
 
                     st.rerun()
@@ -869,11 +981,13 @@ with tab1:
             st.session_state.offerta_fornitore = None
             st.session_state.fornitori_visti_oggi = 0
             st.session_state.max_fornitori_oggi = random.choice([0, 1, 1, 2])
+            st.session_state.minigioco_trattativa = False
             
             if st.session_state.max_fornitori_oggi > 0 and random.random() < 0.60:
                 genera_offerta_fornitore_casuale()
                 
             genera_cliente_in_negozio()
+            genera_evento_casuale_giorno()
             aggiungi_log(f"🌙 Giorno {st.session_state.giorno} iniziato. Energia 100%. Fornitori disponibili oggi: {st.session_state.max_fornitori_oggi}")
             st.rerun()
 
@@ -981,6 +1095,7 @@ with tab3:
                     aggiungi_log(f"🚚 ACQUISTO: Comprati {off['quantita']}g di {off['prodotto_nome']} da {off['fornitore_nome']} per €{costo_tot:.2f}")
                     st.success(f"✅ Offerta accettata da {off['fornitore_nome']}!")
                     st.session_state.offerta_fornitore = None
+                    st.session_state.minigioco_trattativa = False
                     st.rerun()
 
             with col_b2:
@@ -988,40 +1103,74 @@ with tab3:
                     aggiungi_log(f"❌ Rifiutata offerta di {off['fornitore_nome']} (l'offerta è scaduta).")
                     st.info(f"Hai mandato via {off['fornitore_nome']}. Se n'è andato.")
                     st.session_state.offerta_fornitore = None
+                    st.session_state.minigioco_trattativa = False
                     st.rerun()
 
-            # --- CONTROFFERTA / TAGLIO MINORE ---
+            # --- MINIGIOCO DI TRATTATIVA CON IL FORNITORE ---
             st.markdown("---")
-            with st.expander("🗣️ Chiedi un Taglio Minore (Prezzo/g maggiorato)"):
-                st.write("«Non ho tutti questi soldi o non voglio stock intero. Me ne dai meno?»")
+            with st.expander("🎲 Avvia Trattativa / Taglio Minore (Minigioco)"):
+                st.write("«Vuoi trattare sul prezzo o chiedere una quantità ridotta? Scegli la tua mossa di negoziazione!»")
+                
                 qta_ridotta = st.number_input("Quanti grammi vuoi chiedere?", min_value=1.0, max_value=float(off['quantita'] - 1.0), value=min(10.0, float(off['quantita'] - 1.0)), step=1.0)
                 
-                maggiorazione = 1.25 if qta_ridotta < (off['quantita'] / 2) else 1.15
-                nuovo_costo_u = round(off['costo_unitario'] * maggiorazione, 2)
-                nuovo_costo_tot = round(qta_ridotta * nuovo_costo_u, 2)
+                # Selezione approccio di negoziazione
+                approccio = st.radio("Stile di Negoziazione", [
+                    "🤝 Diplomazia (Prezzo onesto, basso rischio)", 
+                    "😎 Sicurezza (+ Sconto fortuna se azzecchi il bluff)", 
+                    "🔥 Sfacciato (Rischio alto di farti mandare via)"
+                ])
                 
-                st.info(f"👉 {off['fornitore_nome']}: «Va bene, ma per soli {qta_ridotta}g ti faccio **€ {nuovo_costo_u:.2f}/g**. Totale: **€ {nuovo_costo_tot:.2f}**»")
-                
-                ha_soldi_ridotti = st.session_state.soldi_cassa >= nuovo_costo_tot
-                if st.button("🤝 ACCETTA TAGLIO MINORE", use_container_width=True, disabled=not ha_soldi_ridotti):
-                    st.session_state.soldi_cassa -= nuovo_costo_tot
-                    with get_connection() as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
-                        cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],))
-                        p_id = cursor.fetchone()[0]
-
-                        cursor.execute("""
-                            INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (p_id, f"{off['codice_lotto']}-PARZ", qta_ridotta, qta_ridotta, nuovo_costo_u, date.today(), date.today()))
-                        l_id = cursor.lastrowid
-                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto Taglio Minore')", (p_id, l_id, qta_ridotta, nuovo_costo_tot, off['fornitore_nome']))
-
-                    aggiungi_log(f"🚚 ACQUISTO: Comprati {qta_ridotta}g (Taglio Minore) di {off['prodotto_nome']} da {off['fornitore_nome']} per €{nuovo_costo_tot:.2f}")
-                    st.success(f"✅ Taglio minore acquistato da {off['fornitore_nome']}!")
-                    st.session_state.offerta_fornitore = None
+                if st.button("🎲 Tira per Negoziare con il Fornitore", use_container_width=True):
+                    # Calcolo bonus basato su reputazione e stile
+                    tiro = random.randint(1, 100) + int(st.session_state.reputazione / 3)
+                    
+                    if "Diplomazia" in approccio:
+                        sconto = 0.95 if tiro > 40 else 1.10
+                        esito_txt = "Il fornitore apprezza i modi civili."
+                    elif "Sicurezza" in approccio:
+                        sconto = 0.85 if tiro > 65 else 1.20
+                        esito_txt = "Hai giocato d'azzardo sulla simpatia."
+                    else:
+                        sconto = 0.75 if tiro > 85 else 1.35
+                        esito_txt = "Sei stato molto sfacciato con il gangster!"
+                        
+                    nuovo_costo_u = round(off['costo_unitario'] * sconto, 2)
+                    nuovo_costo_tot = round(qta_ridotta * nuovo_costo_u, 2)
+                    
+                    st.session_state.minigioco_risultato = {
+                        "qta": qta_ridotta,
+                        "costo_u": nuovo_costo_u,
+                        "costo_tot": nuovo_costo_tot,
+                        "testo_esito": esito_txt,
+                        "successo_trattativa": sconto <= 1.15
+                    }
                     st.rerun()
+
+                if 'minigioco_risultato' in st.session_state and st.session_state.minigioco_risultato:
+                    res = st.session_state.minigioco_risultato
+                    st.info(f"🗣️ **Risultato:** {res['testo_esito']} -> **€{res['costo_u']:.2f}/g** (Totale: **€{res['costo_tot']:.2f}**)")
+                    
+                    ha_soldi_trattativa = st.session_state.soldi_cassa >= res['costo_tot']
+                    if st.button("✅ CONFERMA ACQUISTO TRATTATO", use_container_width=True, disabled=not ha_soldi_trattativa):
+                        st.session_state.soldi_cassa -= res['costo_tot']
+                        with get_connection() as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
+                            cursor.execute("SELECT id FROM prodotti WHERE nome = ?", (off['prodotto_nome'],))
+                            p_id = cursor.fetchone()[0]
+
+                            cursor.execute("""
+                                INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico)
+                                VALUES (?, ?, ?, ?, ?, ?, ?)
+                            """, (p_id, f"{off['codice_lotto']}-TRATT", res['qta'], res['qta'], res['costo_u'], date.today(), date.today()))
+                            l_id = cursor.lastrowid
+                            cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, ?, 'Acquisto Trattato')", (p_id, l_id, res['qta'], res['costo_tot'], off['fornitore_nome']))
+
+                        aggiungi_log(f"🚚 ACQUISTO TRATTATO: {res['qta']}g di {off['prodotto_nome']} da {off['fornitore_nome']} per €{res['costo_tot']:.2f}")
+                        st.success("✅ Trattativa conclusa con successo!")
+                        st.session_state.offerta_fornitore = None
+                        st.session_state.minigioco_risultato = None
+                        st.rerun()
 
     else:
         fornitori_rimasti = st.session_state.max_fornitori_oggi - st.session_state.fornitori_visti_oggi
