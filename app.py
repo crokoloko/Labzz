@@ -253,7 +253,12 @@ def calcola_stato_magazzino(solo_disponibili=False):
 def segna_debito_pagato(nome_cliente):
     with get_connection() as conn:
         cursor = conn.cursor()
+        # Quando un debito viene saldato, si aggiungono i soldi alla cassa
+        cursor.execute("SELECT SUM(ricavo_totale) FROM movimenti WHERE cliente = ? AND pagamento = 'Dopo (Credito)'", (nome_cliente,))
+        tot_incassato = cursor.fetchone()[0] or 0.0
+        
         cursor.execute("UPDATE movimenti SET pagamento = 'Subito' WHERE cliente = ? AND pagamento = 'Dopo (Credito)'", (nome_cliente,))
+        st.session_state.soldi_cassa += tot_incassato
 
 def spara_fuochi_d_artificio():
     js_code = """
@@ -274,41 +279,50 @@ def spara_fuochi_d_artificio():
     st.components.v1.html(js_code, height=0)
 
 # ==========================================
-# GENERAZIONE OFFERTE & CLIENTE ATTUALE
+# LOGICA FORNITORI ADATTIVI AL BUDGET
 # ==========================================
 def genera_offerta_fornitore_casuale():
-    roll_tipo = random.random()
+    budget_attuale = st.session_state.soldi_cassa
     
-    if roll_tipo < 0.10:
-        p_nome = "Sottocosto Raro (Base)"
-        qta = float(random.choice([200, 300, 500]))
-        costo_u = round(random.uniform(2.80, 3.40), 2)
-        tipo_offerta = "🔥 Sottocosto Raro"
-        valore_mercato_suggerito = 5.00
-    elif roll_tipo < 0.30:
-        p_nome = "Top Quality Special"
-        qta = float(random.choice([200, 300, 400]))
-        costo_u = round(random.uniform(6.50, 9.00), 2)
-        tipo_offerta = "💎 Special Top Quality"
-        valore_mercato_suggerito = round(costo_u * 1.6, 2)
-    elif roll_tipo < 0.70:
-        p_nome = "Stock Volume (>2 etti)"
-        qta = float(random.choice([200, 300, 500]))
-        costo_u = round(random.uniform(3.50, 4.50), 2)
-        tipo_offerta = "📦 Stock Volume"
-        valore_mercato_suggerito = 6.00
+    # 1. SE IL GIOCATORE HA POCHISSIMI SOLDI (< 150€)
+    if budget_attuale < 150:
+        p_nome = "Micro Stock Emergenza"
+        qta = float(random.choice([15, 20, 25]))
+        costo_u = round(random.uniform(5.50, 7.00), 2)  # Più caro al grammo
+        tipo_offerta = "⚠️ Micro Stock (Prezzo al g elevato)"
+        valore_mercato_suggerito = 8.50
+        
+    # 2. SE IL GIOCATORE HA SOLDI MEDI (150€ - 500€)
+    elif budget_attuale <= 500:
+        roll = random.random()
+        if roll < 0.5:
+            p_nome = "Singolo Etto (100g)"
+            qta = 100.0
+            costo_u = round(random.uniform(4.50, 5.50), 2)
+            tipo_offerta = "🏷️ Singolo Etto Standard"
+            valore_mercato_suggerito = 7.00
+        else:
+            p_nome = "Top Quality Special"
+            qta = float(random.choice([30, 50]))
+            costo_u = round(random.uniform(6.50, 8.50), 2)
+            tipo_offerta = "💎 Special Top Quality"
+            valore_mercato_suggerito = round(costo_u * 1.5, 2)
+
+    # 3. SE IL GIOCATORE HA MOLTI SOLDI (> 500€)
     else:
-        p_nome = "Singolo Etto (100g)"
-        qta = 100.0
-        costo_u = round(random.uniform(4.50, 6.00), 2)
-        tipo_offerta = "🏷️ Singolo Etto Standard"
-        valore_mercato_suggerito = 7.50
+        p_nome = "Stock Volume (200g-500g)"
+        qta = float(random.choice([200, 300, 500]))
+        costo_u = round(random.uniform(3.20, 4.20), 2)  # Più economico al grammo!
+        tipo_offerta = "📦 Stock Volume Scontato"
+        valore_mercato_suggerito = 6.00
+
+    costo_tot = qta * costo_u
 
     st.session_state.offerta_fornitore = {
         "prodotto_nome": p_nome,
         "quantita": qta,
         "costo_unitario": costo_u,
-        "costo_totale": qta * costo_u,
+        "costo_totale": costo_tot,
         "valore_mercato_suggerito": valore_mercato_suggerito,
         "tipo": tipo_offerta,
         "codice_lotto": f"OFF-{random.randint(100,999)}"
@@ -368,9 +382,13 @@ def esegui_transazione_vendita(cli_att, prezzo_per_g, tipo_pagamento):
                 VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, ?, ?)
             """, (cli_att['prodotto_id'], l_id, prelievo, prezzo_per_g, ricavo_q, costo_q, margine_q, cli_att['nome'], tipo_pagamento, f"Lotto {lotto['codice_lotto']}"))
 
+    # Aggiungi i soldi alla cassa se il pagamento è immediato
+    if tipo_pagamento == "Subito":
+        st.session_state.soldi_cassa += totale_incasso
+
     st.session_state.energia = max(0, st.session_state.energia - 10)
     st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 3)
-    aggiungi_log(f"✅ VENDITA: {cli_att['nome']} ha comprato {cli_att['quantita_richiesta']}g di '{cli_att['prodotto_nome']}' a €{prezzo_per_g:.2f}/g")
+    aggiungi_log(f"✅ VENDITA: {cli_att['nome']} ha comprato {cli_att['quantita_richiesta']}g di '{cli_att['prodotto_nome']}' a €{prezzo_per_g:.2f}/g (+€{totale_incasso:.2f})")
     spara_fuochi_d_artificio()
 
 def verifica_arrivo_offerta_dinamica():
@@ -387,6 +405,9 @@ def verifica_arrivo_offerta_dinamica():
         genera_offerta_fornitore_casuale()
         aggiungi_log("📨 Un fornitore ti ha inviato una nuova proposta di stock!")
 
+# INITIAL STATE
+if 'soldi_cassa' not in st.session_state:
+    st.session_state.soldi_cassa = 200.0  # CAPITALE INIZIALE €200
 if 'energia' not in st.session_state:
     st.session_state.energia = 100
 if 'giorno' not in st.session_state:
@@ -396,7 +417,7 @@ if 'reputazione' not in st.session_state:
 if 'fedelta_clienti' not in st.session_state:
     st.session_state.fedelta_clienti = 10
 if 'log_gioco' not in st.session_state:
-    st.session_state.log_gioco = ["🎮 Benvenuto! Il sistema gestionale e Tycoon è attivo."]
+    st.session_state.log_gioco = ["🎮 Benvenuto! Il sistema Tycoon è pronto. Capitale iniziale: €200."]
 if 'offerta_fornitore' not in st.session_state:
     st.session_state.offerta_fornitore = None
 if 'cliente_in_negozio' not in st.session_state:
@@ -422,15 +443,16 @@ def reset_completo_nuova_partita():
         
         cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario, scorta_minima_g) VALUES ('Varietà Iniziale', 6.0, 20.0);")
         p_id = cursor.lastrowid
-        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, 'START-01', 200.0, 200.0, 4.0, ?, ?);", (p_id, date.today(), date.today()))
+        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, 'START-01', 50.0, 50.0, 3.50, ?, ?);", (p_id, date.today(), date.today()))
         l_id = cursor.lastrowid
-        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', 200.0, 800.0, 'Fornitore Iniziale', 'Capitale di partenza')", (p_id, l_id))
+        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', 50.0, 175.0, 'Fornitore Iniziale', 'Stock Start')", (p_id, l_id))
     
+    st.session_state.soldi_cassa = 200.0
     st.session_state.giorno = 1
     st.session_state.energia = 100
     st.session_state.reputazione = 50
     st.session_state.fedelta_clienti = 10
-    st.session_state.log_gioco = ["✨ Nuova Avventura Iniziata! Tutti i dati sono stati resettati a zero."]
+    st.session_state.log_gioco = ["✨ Nuova Partita Iniziata! Reset completo eseguito. Budget: €200."]
     st.session_state.offerta_fornitore = None
     st.session_state.cliente_in_negozio = None
     genera_offerta_fornitore_casuale()
@@ -578,12 +600,13 @@ else:
     else:
         st.title("LaBzz Tycoon")
 
-# HEADER METRICHE TYCOON GIOCATORE
-c_g1, c_g2, c_g3, c_g4 = st.columns(4)
-c_g1.metric("📅 Turno / Giorno", f"Giorno {st.session_state.giorno}")
-c_g2.metric("⚡ Energia Imprenditore", f"{st.session_state.energia}%")
-c_g3.metric("⭐ Reputazione", f"{st.session_state.reputazione}/100")
-c_g4.metric("❤️ Fedeltà Clienti", f"{st.session_state.fedelta_clienti}%")
+# HEADER METRICHE TYCOON GIOCATORE CON CASSA
+c_g1, c_g2, c_g3, c_g4, c_g5 = st.columns(5)
+c_g1.metric("💵 Cassa Liquida", f"€ {st.session_state.soldi_cassa:,.2f}")
+c_g2.metric("📅 Giorno", f"Giorno {st.session_state.giorno}")
+c_g3.metric("⚡ Energia", f"{st.session_state.energia}%")
+c_g4.metric("⭐ Reputazione", f"{st.session_state.reputazione}/100")
+c_g5.metric("❤️ Fedeltà", f"{st.session_state.fedelta_clienti}%")
 
 st.markdown("---")
 
@@ -599,7 +622,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 ])
 
 # ------------------------------------------
-# TAB 1: CASSA CON BOT MULTI-PRODOTTO INTELLIGENTE
+# TAB 1: CASSA OPERATIVA
 # ------------------------------------------
 with tab1:
     col_cassa, col_ledger = st.columns([1.2, 1])
@@ -697,13 +720,8 @@ with tab1:
                                     st.rerun()
 
         elif tipo_operazione == "Automazione Turno AI":
-            st.markdown("##### 🏪 Automazione Sales Engine (L'IA Vende Tutto il Magazzino)")
-            st.caption("Il Bot gestirà la cassa servendo i clienti che chiedono qualsiasi varietà disponibile in magazzino.")
-            
-            strategia_bot = st.selectbox(
-                "Scegli la Strategia del Bot", 
-                ["Onesta / Valore di Mercato (Standard)", "Aggressiva / Alto Margine (+20% sui prezzi)", "Generosa / Fidelizzazione (-15% sui prezzi)"]
-            )
+            st.markdown("##### 🏪 Automazione Sales Engine")
+            strategia_bot = st.selectbox("Strategia Bot", ["Onesta / Valore di Mercato", "Aggressiva (+20%)", "Generosa (-15%)"])
 
             if st.button("🚀 Avvia Automazione Turno (-20% Energia)", use_container_width=True):
                 if st.session_state.energia < 20:
@@ -712,11 +730,9 @@ with tab1:
                     st.session_state.energia -= 20
                     prodotti_tutti = get_prodotti_tutti_df()
                     
-                    if prodotti_tutti.empty:
-                        st.warning("Nessun prodotto registrato.")
-                    else:
+                    if not prodotti_tutti.empty:
                         num_clienti_tot = random.randint(3, 7) + int(st.session_state.fedelta_clienti / 15)
-                        clienti_nomi = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP", "Matteo", "Valentina"]
+                        clienti_nomi = ["Marco", "Elena", "Giuseppe", "Sara", "Luca", "Chiara", "ClienteVIP", "Matteo"]
                         vendite_ok = 0
                         
                         for _ in range(num_clienti_tot):
@@ -728,28 +744,19 @@ with tab1:
                             
                             with get_connection() as conn:
                                 cursor = conn.cursor()
-                                cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario, codice_lotto FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", (p_id,))
+                                cursor.execute("SELECT id, quantita_attuale, costo_acquisto_unitario FROM lotti WHERE prodotto_id = ? AND quantita_attuale > 0 ORDER BY data_carico ASC", (p_id,))
                                 lotti = cursor.fetchall()
                                 
-                                if not lotti:
-                                    aggiungi_log(f"⚠️ BOT: {cli_nome} voleva '{p_nome}' ma era esaurito.")
-                                    continue
+                                if not lotti: continue
                                 
-                                # Calcolo del prezzo bot in base alla strategia
-                                if "Aggressiva" in strategia_bot:
-                                    prezzo_bot = val_m * 1.25
-                                elif "Generosa" in strategia_bot:
-                                    prezzo_bot = val_m * 0.85
-                                else:
-                                    prezzo_bot = val_m
-                                
+                                prezzo_bot = val_m * 1.25 if "Aggressiva" in strategia_bot else (val_m * 0.85 if "Generosa" in strategia_bot else val_m)
                                 budget_cli = val_m * random.uniform(0.85, 1.35) * (1 + (st.session_state.fedelta_clienti / 200))
                                 
                                 if prezzo_bot <= budget_cli:
                                     qta_req = min(lotti[0][1], float(random.choice([5, 10, 15, 20])))
                                     if qta_req <= 0: continue
                                     
-                                    l_id, l_qta, l_costo, l_cod = lotti[0]
+                                    l_id, l_qta, l_costo = lotti[0]
                                     cursor.execute("UPDATE lotti SET quantita_attuale = quantita_attuale - ? WHERE id = ?", (qta_req, l_id))
                                     ricavo = qta_req * prezzo_bot
                                     margine = ricavo - (qta_req * l_costo)
@@ -759,16 +766,13 @@ with tab1:
                                         VALUES (?, ?, 'VENDITA', ?, ?, ?, ?, ?, ?, 'Subito')
                                     """, (p_id, l_id, qta_req, prezzo_bot, ricavo, qta_req * l_costo, margine, cli_nome))
                                     
+                                    st.session_state.soldi_cassa += ricavo
                                     vendite_ok += 1
-                                    aggiungi_log(f"✅ BOT: {cli_nome} ha comprato {qta_req}g di '{p_nome}' a €{prezzo_bot:.2f}/g")
-                                else:
-                                    aggiungi_log(f"❌ BOT: {cli_nome} ha rifiutato l'offerta di '{p_nome}' a €{prezzo_bot:.2f}/g")
+                                    aggiungi_log(f"✅ BOT: {cli_nome} ha comprato {qta_req}g di '{p_nome}' (+€{ricavo:.2f})")
 
                         if vendite_ok > 0:
                             st.session_state.fedelta_clienti = min(100, st.session_state.fedelta_clienti + 4)
-                            st.success(f"Turno IA Completato! Serviti {vendite_ok} clienti con successo.")
-                        else:
-                            st.warning("Nessuna vendita conclusa nel turno.")
+                            st.success(f"Turno IA Completato! Serviti {vendite_ok} clienti.")
 
                     st.rerun()
 
@@ -865,24 +869,31 @@ with tab2:
             st.altair_chart(chart, use_container_width=True)
 
 # ------------------------------------------
-# TAB 3: RIFORNIMENTI, OFFERTE & CREAZIONE VARIETÀ AUTOMATICA
+# TAB 3: RIFORNIMENTI, OFFERTE CON VERIFICA CASSA
 # ------------------------------------------
 with tab3:
     st.subheader("🚚 Registro Rifornimenti e Gestione Offerte")
     
     if st.session_state.offerta_fornitore:
         off = st.session_state.offerta_fornitore
+        costo_tot = off['costo_totale']
+        ha_abbastanza_soldi = st.session_state.soldi_cassa >= costo_tot
+
         with st.container(border=True):
             st.markdown(f"### 📨 Nuova Offerta In Arrivo dal Fornitore!")
             st.markdown(f"**Tipologia:** {off['tipo']}")
             col_off1, col_off2, col_off3 = st.columns(3)
             col_off1.write(f"**Varietà:** {off['prodotto_nome']}")
             col_off2.write(f"**Quantità Proposta:** {off['quantita']:,.1f} g")
-            col_off3.write(f"**Costo Unitario:** € {off['costo_unitario']:.2f} / g (Totale: € {off['costo_totale']:,.2f})")
+            col_off3.write(f"**Costo Unitario:** € {off['costo_unitario']:.2f} / g (Totale: € {costo_tot:,.2f})")
             
+            if not ha_abbastanza_soldi:
+                st.error(f"❌ NON HAI ABBASTANZA SOLDI IN CASSA! (Ti servono €{costo_tot:.2f}, ne hai €{st.session_state.soldi_cassa:.2f})")
+
             col_b1, col_b2 = st.columns(2)
             with col_b1:
-                if st.button("✅ ACCETTA OFFERTA LOTTO", use_container_width=True):
+                if st.button("✅ ACCETTA OFFERTA LOTTO", use_container_width=True, disabled=not ha_abbastanza_soldi):
+                    st.session_state.soldi_cassa -= costo_tot
                     with get_connection() as conn:
                         cursor = conn.cursor()
                         cursor.execute("INSERT OR IGNORE INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (off['prodotto_nome'], off['valore_mercato_suggerito']))
@@ -894,18 +905,19 @@ with tab3:
                             VALUES (?, ?, ?, ?, ?, ?, ?)
                         """, (p_id, off['codice_lotto'], off['quantita'], off['quantita'], off['costo_unitario'], date.today(), date.today()))
                         l_id = cursor.lastrowid
-                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, 'Fornitore Offerta', 'Acquisto da Offerta')", (p_id, l_id, off['quantita'], off['costo_totale']))
+                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente, note) VALUES (?, ?, 'CARICO', ?, ?, 'Fornitore Offerta', 'Acquisto da Offerta')", (p_id, l_id, off['quantita'], costo_tot))
 
-                    st.success(f"✅ Offerta accettata! Aggiunti {off['quantita']}g di '{off['prodotto_nome']}'.")
+                    st.success(f"✅ Offerta acquistata! Scalati €{costo_tot:.2f} dalla cassa.")
                     st.session_state.offerta_fornitore = None
                     st.rerun()
+
             with col_b2:
                 if st.button("❌ RIFIUTA OFFERTA", use_container_width=True):
                     st.info("Offerta rifiutata e scartata.")
                     st.session_state.offerta_fornitore = None
                     st.rerun()
     else:
-        st.info("ℹ️ Nessuna offerta attiva al momento.")
+        st.info("ℹ️ Nessuna offerta attiva al momento. I fornitori invieranno proposte calibrate sui tuoi fondi attuali.")
 
     st.markdown("---")
     soglia_attuale = get_soglia_esaurimento()
@@ -920,20 +932,25 @@ with tab3:
             nome_nuovo = st.text_input("Nome Prodotto")
             data_acq_m = st.date_input("Data Acquisto", value=date.today())
             cod_lotto_m = st.text_input("Codice Lotto", value=genera_codice_lotto_automatico(data_acq_m))
-            qta_lotto_m = st.number_input("Quantità (g)", value=200.0)
+            qta_lotto_m = st.number_input("Quantità (g)", value=50.0)
             costo_u_lotto_m = st.number_input("Costo d'Acquisto (€/g)", value=4.0)
             prezzo_v_init = st.number_input("Prezzo Vendita (€/g)", value=6.0)
 
             if st.form_submit_button("Crea Prodotto e Registra Lotto"):
-                with get_connection() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (nome_nuovo.strip(), prezzo_v_init))
-                    p_id = cursor.lastrowid
-                    cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, ?, ?, ?, ?, ?, ?)", (p_id, cod_lotto_m.strip(), qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today()))
-                    lotto_id = cursor.lastrowid
-                    cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente) VALUES (?, ?, 'CARICO', ?, ?, 'Fornitore')", (p_id, lotto_id, qta_lotto_m, qta_lotto_m * costo_u_lotto_m))
-                st.success("✅ Prodotto creato con successo!")
-                st.rerun()
+                costo_t_m = qta_lotto_m * costo_u_lotto_m
+                if st.session_state.soldi_cassa < costo_t_m:
+                    st.error("Fondi insufficienti in cassa per questo carico manuale!")
+                else:
+                    st.session_state.soldi_cassa -= costo_t_m
+                    with get_connection() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("INSERT INTO prodotti (nome, valore_mercato_unitario) VALUES (?, ?)", (nome_nuovo.strip(), prezzo_v_init))
+                        p_id = cursor.lastrowid
+                        cursor.execute("INSERT INTO lotti (prodotto_id, codice_lotto, quantita_iniziale, quantita_attuale, costo_acquisto_unitario, data_acquisto, data_carico) VALUES (?, ?, ?, ?, ?, ?, ?)", (p_id, cod_lotto_m.strip(), qta_lotto_m, qta_lotto_m, costo_u_lotto_m, data_acq_m, date.today()))
+                        lotto_id = cursor.lastrowid
+                        cursor.execute("INSERT INTO movimenti (prodotto_id, lotto_id, tipo, quantita, costo_totale, cliente) VALUES (?, ?, 'CARICO', ?, ?, 'Fornitore')", (p_id, lotto_id, qta_lotto_m, costo_t_m))
+                    st.success("✅ Prodotto creato con successo!")
+                    st.rerun()
 
 # ------------------------------------------
 # TAB 4: STATISTICHE CLIENTI & DEBITI
@@ -952,7 +969,7 @@ with tab4:
                 col_d1.write(f"**{r_d['cliente']}**: € {r_d['incasso']:,.2f}")
                 if col_d2.button(f"Salda Debito", key=f"btn_s_{r_d['cliente']}"):
                     segna_debito_pagato(r_d['cliente'])
-                    st.success("Debito saldato!")
+                    st.success("Debito saldato e incassato in cassa!")
                     st.rerun()
 
 # ------------------------------------------
@@ -969,7 +986,7 @@ with tab5:
     st.markdown("---")
     
     with st.expander("⚠️ DANGER ZONE: Resetta Dati e Inizia Nuova Partita", expanded=False):
-        st.error("Questa operazione cancellerà permanentemente tutto lo storico vendite, i clienti, i lotti e azzererà la tua partita riportandoti al Giorno 1.")
+        st.error("Questa operazione cancellerà permanentemente tutto lo storico vendite, i clienti, i lotti e azzererà la tua partita riportandoti al Giorno 1 con €200.")
         conferma_reset = st.checkbox("Sono sicuro di voler piallare tutti i dati e ricominciare da capo.")
         
         if st.button("💥 RESETTA TUTTO E RICOMINCIA DA ZERO", use_container_width=True):
