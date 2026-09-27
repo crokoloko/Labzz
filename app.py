@@ -800,8 +800,6 @@ with get_connection() as conn:
         GROUP BY p.nome
     """, conn)
 
-qta_totale_magazzino = df_lotti_scorte['qta'].sum() if not df_lotti_scorte.empty else 0.0
-
 # Estrazione quantità per singola varietà con i relativi simbolotti
 def get_qta_prodotto(nome_prod):
     if not df_lotti_scorte.empty and nome_prod in df_lotti_scorte['nome'].values:
@@ -824,8 +822,7 @@ st.markdown(f"""
     </div>
     <div class="custom-card">
         <div class="card-label">📦 Scorte Magazzino</div>
-        <div class="card-value">{qta_totale_magazzino:.1f} g</div>
-        <div class="card-subtext" style="font-size: 0.62rem; color: #9ca3af; margin-top: 4px; display: flex; justify-content: center; gap: 6px; flex-wrap: wrap;">
+        <div class="card-value" style="font-size: 0.85rem; margin-top: 4px; display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;">
             <span>🌿 {qta_skunk:.1f}g</span> &bull; 
             <span>🧱 {qta_hash:.1f}g</span> &bull; 
             <span>🍋 {qta_lemon:.1f}g</span> &bull; 
