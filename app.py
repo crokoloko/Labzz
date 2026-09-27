@@ -67,7 +67,6 @@ def init_db():
             assunto INTEGER DEFAULT 0
         )""")
         
-        # Migrazione sicura se il DB aveva la vecchia colonna stipendio_giornaliero
         try:
             cursor.execute("ALTER TABLE pusher ADD COLUMN quota_trattenuta REAL DEFAULT 0.25;")
         except sqlite3.OperationalError:
@@ -120,8 +119,8 @@ LISTA_NOMI_PRAGA = [
 
 PUSHER_DISPONIBILI = [
     {"nome": "Vojta 'Il Veloce'", "quota_trattenuta": 0.25, "efficienza": 0.8},
-    {"nome": "Kamil 'Ghost'", "quota_trattenuta": 0.15, "efficienza": 1.3},
-    {"nome": "Anetka 'Bassi'", "quota_trattenuta": 0.35, "efficienza": 0.5}
+    {"nome": "Kamil 'Ghost'", "quota_trattenuta": 0.35, "efficienza": 1.3},
+    {"nome": "Anetka 'Bassi'", "quota_trattenuta": 0.40, "efficienza": 0.5}
 ]
 
 def inizializza_pusher_db():
@@ -129,6 +128,8 @@ def inizializza_pusher_db():
         cursor = conn.cursor()
         for p in PUSHER_DISPONIBILI:
             cursor.execute("INSERT OR IGNORE INTO pusher (nome, quota_trattenuta, efficienza, assunto) VALUES (?, ?, ?, 0)", (p['nome'], p['quota_trattenuta'], p['efficienza']))
+            # Aggiorna eventuali quote esistenti con i nuovi valori calibrati
+            cursor.execute("UPDATE pusher SET quota_trattenuta = ?, efficienza = ? WHERE nome = ?", (p['quota_trattenuta'], p['efficienza'], p['nome']))
 inizializza_pusher_db()
 
 def get_data_corrente_gioco():
@@ -140,15 +141,6 @@ def e_festivo_o_weekend(data_rif):
     if data_rif.weekday() >= 5:
         return True, "Weekend / Rave in corso 🎉"
     return False, "Giorno Lavorativo 💼"
-
-def genera_codice_lotto_automatico(data_riferimento=None):
-    if data_riferimento is None:
-        data_riferimento = get_data_corrente_gioco()
-    giorno = data_riferimento.strftime("%d").lstrip("0")
-    MESE_INIZIALI = ['g', 'f', 'm', 'a', 'm', 'g', 'l', 'a', 's', 'o', 'n', 'd']
-    iniziale_mese = MESE_INIZIALI[data_riferimento.month - 1]
-    anno_2_cifre = data_riferimento.strftime("%y")
-    return f"{giorno}{iniziale_mese}{anno_2_cifre}"
 
 def get_video_base64(file_path):
     if os.path.exists(file_path):
@@ -1160,9 +1152,10 @@ with tab1:
                                     
                                     if not pusher_assunti.empty:
                                         pusher_assegnato = pusher_assunti.sample(n=1).iloc[0]
-                                        quota_pusher = ricavo * float(pusher_assegnato['quota_trattenuta'])
-                                        guadagno_boss = ricavo - quota_pusher
-                                        note_movimento = f"Vendita tramite Pusher ({pusher_assegnato['nome']})"
+                                        quota_pusher = float(pusher_assegnato['quota_trattenuta'])
+                                        guadagno_pusher = ricavo * quota_pusher
+                                        guadagno_boss = ricavo - guadagno_pusher
+                                        note_movimento = f"Vendita tramite Pusher ({pusher_assegnato['nome']} - Trattenuta {quota_pusher*100:.0f}%, Guadagno Pusher: €{guadagno_pusher:.2f})"
                                     else:
                                         guadagno_boss = ricavo
                                         note_movimento = f"Vendita diretta gestita dal Boss"
@@ -1235,7 +1228,7 @@ with tab1:
 # ------------------------------------------
 with tab2:
     st.subheader("👥 Gestione Pusher a Percentuale")
-    st.write("I pusher lavorano senza stipendio fisso: trattengono una percentuale fissa sulle vendite effettuate in base alla loro abilità. La merce viene scalata direttamente dal magazzino centrale.")
+    st.write("I pusher lavorano senza stipendio fisso trattenendo una percentuale fissa sulle vendite in base alla loro bravura (Vojta 25%, Kamil 35%, Anetka 40%). La merce viene scalata direttamente dal magazzino centrale.")
     
     with get_connection() as conn:
         pusher_df = pd.read_sql_query("SELECT * FROM pusher", conn)
@@ -1284,8 +1277,17 @@ with tab2:
             note_m = str(row_m['note'])
             ricavo_r = float(row_m['ricavo_totale'])
             if "Pusher" in note_m:
-                ricavo_pusher += ricavo_r * 0.25
-                ricavo_boss += ricavo_r * 0.75
+                # Estraiamo o calcoliamo la quota esatta dal testo della nota o stimata in base alla media dei pusher assunti
+                if "Vojta" in note_m:
+                    q_pusher = ricavo_r * 0.25
+                elif "Kamil" in note_m:
+                    q_pusher = ricavo_r * 0.35
+                elif "Anetka" in note_m:
+                    q_pusher = ricavo_r * 0.40
+                else:
+                    q_pusher = ricavo_r * 0.30
+                ricavo_pusher += q_pusher
+                ricavo_boss += (ricavo_r - q_pusher)
             else:
                 ricavo_boss += ricavo_r
 
